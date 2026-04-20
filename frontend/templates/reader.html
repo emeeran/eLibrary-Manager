@@ -396,6 +396,16 @@
                         </div>
                     </div>
 
+                    <!-- Margins Section -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-group-label">Margins</div>
+                        <div class="ic-zoom-controls">
+                            <button class="ic-zoom-btn" onclick="adjustMargin(-10)" title="Narrower">&#8722;</button>
+                            <span class="ic-zoom-display" id="ic-margin-display">15%</span>
+                            <button class="ic-zoom-btn" onclick="adjustMargin(10)" title="Wider">+</button>
+                        </div>
+                    </div>
+
                     <!-- Volume Control Section -->
                     <div class="ic-settings-group">
                         <div class="ic-settings-group-label">Volume</div>
@@ -569,6 +579,7 @@
     </div>
 
     <!-- Reader JavaScript -->
+    <script src="/static/js/tts.js"></script>
     <script src="/static/js/reader-icecream.js?v=36"></script>
     <script src="/static/js/resize-sidebar.js"></script>
     <script>

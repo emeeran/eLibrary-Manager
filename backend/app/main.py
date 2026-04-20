@@ -9,10 +9,11 @@ from starlette.responses import Response as StarletteResponse
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app.auth import SESSION_COOKIE_NAME, validate_session
 from app.config import get_config
 from app.database import db_manager
 from app.exceptions import (
@@ -26,7 +27,7 @@ from app.middleware import LoggingMiddleware
 from app.rate_limit import RateLimitMiddleware
 
 # Import route modules
-from app.routes import ai_tts, library, reader, settings
+from app.routes import ai_tts, auth, library, reader, settings, stats
 
 # Setup logging
 setup_logging()
@@ -51,6 +52,63 @@ class CacheControlMiddleware(BaseHTTPMiddleware):
                 response.headers["Cache-Control"] = cache_value
                 break
         return response
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Session-based authentication middleware.
+
+    Protects /api/* routes (except /api/auth/*) and page routes.
+    Skips auth for static files, health check, and auth endpoints.
+    """
+
+    # Paths that never require authentication
+    PUBLIC_PATHS = {
+        "/login",
+        "/api/health",
+        "/api/auth/login",
+        "/api/auth/logout",
+        "/api/auth/status",
+    }
+
+    # Prefixes that never require authentication
+    PUBLIC_PREFIXES = (
+        "/static/",
+        "/covers/",
+        "/book-images/",
+        "/api/auth/",
+    )
+
+    async def dispatch(self, request: StarletteRequest, call_next):
+        # Skip auth in testing mode
+        import os
+        if os.environ.get("APP_ENV") == "testing":
+            return await call_next(request)
+
+        path = request.url.path
+
+        # Skip auth for public paths
+        if path in self.PUBLIC_PATHS:
+            return await call_next(request)
+
+        # Skip auth for public prefixes
+        for prefix in self.PUBLIC_PREFIXES:
+            if path.startswith(prefix):
+                return await call_next(request)
+
+        # Check session cookie
+        token = request.cookies.get(SESSION_COOKIE_NAME)
+        if token and validate_session(token):
+            return await call_next(request)
+
+        # API routes return 401
+        if path.startswith("/api/"):
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"error": "Authentication required"},
+            )
+
+        # Page routes redirect to login
+        return RedirectResponse(url="/login", status_code=302)
 
 
 @asynccontextmanager
@@ -102,6 +160,7 @@ app = FastAPI(
 # Add middleware (order matters: outermost first)
 app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
 app.add_middleware(CacheControlMiddleware)             # Cache-Control for static assets
+app.add_middleware(AuthMiddleware)                     # Session-based auth
 app.add_middleware(RateLimitMiddleware)                 # Per-IP rate limiting
 app.add_middleware(LoggingMiddleware)
 
@@ -114,10 +173,12 @@ app.mount("/book-images", StaticFiles(directory=config.book_images_path), name="
 templates = Jinja2Templates(directory="frontend/templates")
 
 # Include route modules
+app.include_router(auth.router)
 app.include_router(library.router)
 app.include_router(reader.router)
 app.include_router(settings.router)
 app.include_router(ai_tts.router)
+app.include_router(stats.router)
 
 
 @app.get("/api/health")

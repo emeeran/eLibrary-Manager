@@ -840,6 +840,91 @@ body {
     padding: 0 2px;
 }
 
+/* ========================================
+   IN-CHAPTER SEARCH HIGHLIGHTS
+   ======================================== */
+.ic-search-match {
+    background-color: #fff59d;
+    color: inherit;
+    padding: 1px 0;
+    border-radius: 2px;
+    transition: background-color 0.15s ease;
+}
+
+.ic-search-current {
+    background-color: #ff9800;
+    color: #fff;
+}
+
+/* Search navigation bar */
+.ic-search-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px;
+    background: var(--ic-gray-50);
+    border-radius: 6px;
+}
+
+.ic-search-status {
+    font-size: 12px;
+    color: var(--ic-gray-700);
+    font-weight: 500;
+    min-width: 100px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.ic-search-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    background: var(--ic-white);
+    color: var(--ic-gray-600);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ic-search-nav-btn:hover {
+    background: var(--ic-blue-light);
+    border-color: var(--ic-blue);
+    color: var(--ic-blue);
+}
+
+.ic-search-nav-btn:active {
+    transform: scale(0.95);
+}
+
+/* Night theme search highlights */
+html[data-theme="night"] .ic-search-match {
+    background-color: rgba(255, 235, 59, 0.3);
+}
+html[data-theme="night"] .ic-search-current {
+    background-color: #e65100;
+    color: #fff;
+}
+html[data-theme="night"] .ic-search-nav {
+    background: #2a2a2a;
+}
+html[data-theme="night"] .ic-search-status {
+    color: #ccc;
+}
+html[data-theme="night"] .ic-search-nav-btn {
+    background: #333;
+    border-color: #444;
+    color: #ccc;
+}
+html[data-theme="night"] .ic-search-nav-btn:hover {
+    background: #444;
+    border-color: #90caf9;
+    color: #90caf9;
+}
+
 .ic-sidebar-empty {
     padding: 40px 20px;
     text-align: center;
@@ -3983,4 +4068,26 @@ html[data-theme="sepia-dark"] .ic-tab.ic-tab-active {
     color: var(--ic-gray-500);
     font-style: italic;
     padding: 4em 2em;
+}
+
+/* ========================================
+   MOBILE RESPONSIVE
+   ======================================== */
+@media (max-width: 768px) {
+    .ic-toc-sidebar, .ic-bookinfo-sidebar, .ic-settings-sidebar, .ic-summary-sidebar,
+    .ic-notes-sidebar, .ic-bookmarks-sidebar, .ic-search-sidebar {
+        width: 100% !important;
+        max-width: 100% !important;
+        position: fixed !important;
+        z-index: 100;
+    }
+    .ic-sidebar-resize-handle, .ic-right-resize-handle { display: none; }
+    .ic-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .ic-reading-area { padding: 8px !important; }
+    .ic-footer { padding: 4px 8px !important; }
+}
+
+@media (max-width: 480px) {
+    .ic-tabs .ic-tab { min-width: 36px; padding: 6px; }
+    .ic-header { padding: 4px 8px; }
 }

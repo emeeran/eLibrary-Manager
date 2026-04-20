@@ -3,26 +3,9 @@
 import base64
 import hashlib
 import hmac
-import os
 from pathlib import Path
 
 from cryptography.fernet import Fernet
-
-# Cached bcrypt context (singleton)
-_password_ctx = None
-
-
-def _get_password_hasher():
-    """Get or create the cached password hashing context."""
-    global _password_ctx
-    if _password_ctx is not None:
-        return _password_ctx
-    try:
-        from passlib.context import CryptContext
-        _password_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        return _password_ctx
-    except ImportError:
-        return None
 
 
 def _derive_key() -> bytes:
@@ -64,11 +47,25 @@ def _get_secret_key() -> bytes:
     return (config.secret_key or config.database_url).encode("utf-8")
 
 
+def _bcrypt_available() -> bool:
+    """Check if bcrypt library is available."""
+    try:
+        import bcrypt  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def encrypt_password(password: str) -> str:
-    """Hash a password using bcrypt (preferred) or HMAC fallback."""
-    ctx = _get_password_hasher()
-    if ctx is not None:
-        return ctx.hash(password)
+    """Hash a password using bcrypt (preferred) or HMAC fallback.
+
+    Truncates to 72 bytes for bcrypt compatibility.
+    """
+    if _bcrypt_available():
+        import bcrypt
+        pwd_bytes = password.encode("utf-8")[:72]
+        salt = bcrypt.gensalt()
+        return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
     return _hmac_hash(password, _get_secret_key())
 
 
@@ -77,25 +74,18 @@ def verify_password(password: str, stored: str) -> bool:
 
     Supports bcrypt hashes, legacy Fernet-encrypted values, and HMAC fallback.
     """
-    ctx = _get_password_hasher()
-
-    # No passlib available — legacy Fernet or HMAC only
-    if ctx is None:
-        if stored and not stored.startswith("hmac:"):
-            try:
-                return _get_fernet().decrypt(stored.encode()).decode() == password
-            except Exception:
-                return False
-        if stored.startswith("hmac:"):
-            return hmac.compare_digest(_hmac_hash(password, _get_secret_key()), stored)
-        return False
-
     # bcrypt hash
     if stored.startswith("$2"):
         try:
-            return ctx.verify(password, stored)
+            import bcrypt
+            pwd_bytes = password.encode("utf-8")[:72]
+            return bcrypt.checkpw(pwd_bytes, stored.encode("utf-8"))
         except Exception:
             return False
+
+    # HMAC hash
+    if stored.startswith("hmac:"):
+        return hmac.compare_digest(_hmac_hash(password, _get_secret_key()), stored)
 
     # Legacy Fernet migration
     try:

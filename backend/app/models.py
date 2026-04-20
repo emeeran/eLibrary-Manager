@@ -143,6 +143,10 @@ class ChapterSummary(Base):
     # Relationships
     book: Mapped["Book"] = relationship("Book", back_populates="summaries")
 
+    __table_args__ = (
+        Index('ix_chapter_summaries_book_chapter', 'book_id', 'chapter_index', unique=True),
+    )
+
     def __repr__(self) -> str:
         """String representation of ChapterSummary."""
         return (
@@ -220,6 +224,10 @@ class Bookmark(Base):
     # Relationships
     book: Mapped["Book"] = relationship("Book")
 
+    __table_args__ = (
+        Index('ix_bookmarks_book_chapter', 'book_id', 'chapter_index'),
+    )
+
     def __repr__(self) -> str:
         """String representation of Bookmark."""
         return f"<Bookmark(id={self.id}, book_id={self.book_id}, chapter={self.chapter_index})>"
@@ -269,6 +277,10 @@ class Note(Base):
     # Relationships
     book: Mapped["Book"] = relationship("Book")
 
+    __table_args__ = (
+        Index('ix_notes_book_chapter', 'book_id', 'chapter_index'),
+    )
+
     def __repr__(self) -> str:
         """String representation of Note."""
         return f"<Note(id={self.id}, book_id={self.book_id}, chapter={self.chapter_index})>"
@@ -313,6 +325,10 @@ class Annotation(Base):
 
     # Relationships
     book: Mapped["Book"] = relationship("Book")
+
+    __table_args__ = (
+        Index('ix_annotations_book_chapter', 'book_id', 'chapter_index'),
+    )
 
     def __repr__(self) -> str:
         """String representation of Annotation."""

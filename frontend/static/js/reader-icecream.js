@@ -28,13 +28,12 @@ const IcecreamReader = {
     volume: 80,
     // Right panel state
     activeRightPanel: null, // 'bookinfo', 'settings', 'summary', or null
-    // TTS State
+    // TTS State (synced from tts.js callbacks; audio managed by tts.js)
     ttsEnabled: false,
     ttsPlaying: false,
     ttsVoices: [],
     ttsCurrentVoice: null,
     ttsRate: 1.0,
-    ttsAudio: null,
     // Caching & Performance
     chapterCache: new Map(),
     isPrefetching: false,
@@ -1057,9 +1056,9 @@ function setVolume(value) {
     if (inlineSlider) inlineSlider.value = value;
     if (sidebarSlider) sidebarSlider.value = value;
 
-    // Update TTS audio volume if playing
-    if (IcecreamReader.ttsAudio) {
-        IcecreamReader.ttsAudio.volume = value / 100;
+    // Update TTS audio volume if playing (delegates to tts.js)
+    if (window.tts) {
+        window.tts.setVolume(value);
     }
 }
 
@@ -1132,6 +1131,37 @@ function setLineSpacing(sliderVal) {
     if (display) display.textContent = lineHeight.toFixed(1);
     syncSettingsToServer();
 }
+
+/**
+ * Set margin (percentage value 0-50) — controls reading area max-width.
+ * @param {number} percent - Margin percentage (0 = full width, 50 = narrowest)
+ */
+function setMargin(percent) {
+    percent = Math.max(0, Math.min(50, parseInt(percent) || 0));
+    IcecreamReader.margin = percent;
+    localStorage.setItem('reader-margin', percent);
+
+    const chapterContent = document.querySelector('.ic-chapter-content');
+    if (chapterContent) {
+        const maxW = 100 - percent;
+        chapterContent.style.setProperty('max-width', `${maxW}%`, 'important');
+        chapterContent.style.setProperty('margin', '0 auto', 'important');
+    }
+
+    const display = document.getElementById('ic-margin-display');
+    if (display) display.textContent = `${percent}%`;
+    syncSettingsToServer();
+}
+
+/**
+ * Adjust margin by delta percentage points
+ * @param {number} delta - Amount to change (positive = wider margins, negative = narrower)
+ */
+function adjustMargin(delta) {
+    const current = IcecreamReader.margin || 15;
+    setMargin(current + delta);
+}
+
 /**
  * Load Book Info data
  */
@@ -1261,25 +1291,33 @@ function uploadReaderCover() {
 }
 
 /* ========================================
-   SEARCH FUNCTIONALITY
+   SEARCH FUNCTIONALITY - Client-side in-chapter text search
    ======================================== */
 
-let searchTimeout = null;
+let _searchDebounce = null;
+let _searchMatches = [];
+let _currentMatchIndex = -1;
 
 /**
- * Handle search input
+ * Handle search input with debounce
  */
 function handleSearch(event) {
-    const query = event.target.value.trim();
+    if (event && event.key === 'Escape') { clearSearch(); return; }
+    const query = document.getElementById('ic-search-input').value.trim();
     const clearBtn = document.getElementById('ic-search-clear');
 
     if (clearBtn) {
         clearBtn.style.display = query ? 'flex' : 'none';
     }
 
-    clearTimeout(searchTimeout);
+    clearTimeout(_searchDebounce);
+
+    if (!query) { clearSearch(); return; }
 
     if (query.length < 2) {
+        clearHighlights();
+        _searchMatches = [];
+        _currentMatchIndex = -1;
         document.getElementById('ic-search-results').innerHTML = `
             <div class="ic-sidebar-empty">
                 <div class="ic-sidebar-empty-icon">${EmptyStateIcons.search}</div>
@@ -1289,61 +1327,143 @@ function handleSearch(event) {
         return;
     }
 
-    searchTimeout = setTimeout(() => {
-        performSearch(query);
-    }, 300);
+    _searchDebounce = setTimeout(() => _performClientSearch(query), 300);
 }
 
 /**
- * Perform search
+ * Client-side in-chapter text search.
+ * Walks text nodes in ic-chapter-text, wraps matches in <mark> elements.
  */
-async function performSearch(query) {
-    const resultsContainer = document.getElementById('ic-search-results');
-    resultsContainer.innerHTML = '<div class="ic-loading">Searching...</div>';
+function _performClientSearch(query) {
+    clearHighlights();
+    const container = document.getElementById('ic-chapter-text');
+    if (!container) return;
 
-    try {
-        const response = await fetch(`/api/books/${IcecreamReader.bookId}/search?q=${encodeURIComponent(query)}`);
-        if (!response.ok) throw new Error('Search failed');
+    const resultsEl = document.getElementById('ic-search-results');
 
-        const results = await response.json();
-        displaySearchResults(results, query);
-    } catch (error) {
-        console.error('Search error:', error);
-        resultsContainer.innerHTML = '<div class="ic-sidebar-empty">Search failed. Please try again.</div>';
+    // Walk text nodes and wrap matches
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+    const textNodes = [];
+    let node;
+    while (node = walker.nextNode()) {
+        if (node.parentNode && node.parentNode.nodeName === 'MARK') continue;
+        if (node.parentNode && (node.parentNode.nodeName === 'SCRIPT' || node.parentNode.nodeName === 'STYLE')) continue;
+        textNodes.push(node);
+    }
+
+    const queryLower = query.toLowerCase();
+    _searchMatches = [];
+
+    textNodes.forEach(textNode => {
+        const text = textNode.textContent;
+        const lower = text.toLowerCase();
+        let idx = lower.indexOf(queryLower);
+        if (idx === -1) return;
+
+        const parent = textNode.parentNode;
+        if (!parent) return;
+
+        const fragment = document.createDocumentFragment();
+        let lastIdx = 0;
+
+        while (idx !== -1) {
+            if (idx > lastIdx) {
+                fragment.appendChild(document.createTextNode(text.substring(lastIdx, idx)));
+            }
+            const span = document.createElement('mark');
+            span.className = 'ic-search-match';
+            span.textContent = text.substring(idx, idx + query.length);
+            _searchMatches.push(span);
+            fragment.appendChild(span);
+            lastIdx = idx + query.length;
+            idx = lower.indexOf(queryLower, lastIdx);
+        }
+        if (lastIdx < text.length) {
+            fragment.appendChild(document.createTextNode(text.substring(lastIdx)));
+        }
+        parent.replaceChild(fragment, textNode);
+    });
+
+    // Update results display with navigation
+    if (_searchMatches.length > 0) {
+        _currentMatchIndex = 0;
+        _searchMatches[0].classList.add('ic-search-current');
+        _searchMatches[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+        _renderSearchNav();
+    } else {
+        _currentMatchIndex = -1;
+        resultsEl.innerHTML = '<div class="ic-sidebar-empty">No matches found in this chapter.</div>';
     }
 }
 
 /**
- * Display search results
+ * Render search results navigation (match count + prev/next buttons)
  */
-function displaySearchResults(results, query) {
-    const container = document.getElementById('ic-search-results');
+function _renderSearchNav() {
+    const resultsEl = document.getElementById('ic-search-results');
+    if (!resultsEl || _searchMatches.length === 0) return;
 
-    if (!results || results.length === 0) {
-        container.innerHTML = '<div class="ic-sidebar-empty">No results found.</div>';
-        return;
-    }
-
-    container.innerHTML = results.map(result => `
-        <div class="ic-search-result-item" onclick="loadChapter(${result.chapter})">
-            <div class="ic-search-result-title">${escapeHtml(result.title || `Chapter ${result.chapter + 1}`)}</div>
-            <div class="ic-search-result-excerpt">${highlightSearchTerm(result.excerpt || '', query)}</div>
-        </div>
-    `).join('');
+    resultsEl.innerHTML = `
+        <div class="ic-search-nav">
+            <button class="ic-search-nav-btn" onclick="searchPrevMatch()" title="Previous match">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            </button>
+            <span class="ic-search-status">${_currentMatchIndex + 1} of ${_searchMatches.length} matches</span>
+            <button class="ic-search-nav-btn" onclick="searchNextMatch()" title="Next match">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+            </button>
+        </div>`;
 }
 
 /**
- * Highlight search term in text
+ * Navigate to next search match
  */
-function highlightSearchTerm(text, term) {
-    const regex = new RegExp(`(${escapeRegex(term)})`, 'gi');
-    return text.replace(regex, '<mark>$1</mark>');
+function searchNextMatch() {
+    if (_searchMatches.length === 0) return;
+    _searchMatches[_currentMatchIndex].classList.remove('ic-search-current');
+    _currentMatchIndex = (_currentMatchIndex + 1) % _searchMatches.length;
+    _searchMatches[_currentMatchIndex].classList.add('ic-search-current');
+    _searchMatches[_currentMatchIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    _renderSearchNav();
 }
 
 /**
- * Clear search
+ * Navigate to previous search match
+ */
+function searchPrevMatch() {
+    if (_searchMatches.length === 0) return;
+    _searchMatches[_currentMatchIndex].classList.remove('ic-search-current');
+    _currentMatchIndex = (_currentMatchIndex - 1 + _searchMatches.length) % _searchMatches.length;
+    _searchMatches[_currentMatchIndex].classList.add('ic-search-current');
+    _searchMatches[_currentMatchIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    _renderSearchNav();
+}
+
+/**
+ * Remove all search highlight marks from chapter text.
+ * Restores original text nodes by unwrapping <mark class="ic-search-match"> elements.
+ */
+function clearHighlights() {
+    const container = document.getElementById('ic-chapter-text');
+    if (!container) return;
+
+    const marks = container.querySelectorAll('mark.ic-search-match');
+    marks.forEach(mark => {
+        const parent = mark.parentNode;
+        if (parent) {
+            parent.replaceChild(document.createTextNode(mark.textContent), mark);
+            parent.normalize();
+        }
+    });
+    _searchMatches = [];
+    _currentMatchIndex = -1;
+}
+
+/**
+ * Clear search input and highlights
  */
 function clearSearch() {
+    clearHighlights();
     const input = document.getElementById('ic-search-input');
     const clearBtn = document.getElementById('ic-search-clear');
     const results = document.getElementById('ic-search-results');
@@ -1353,7 +1473,7 @@ function clearSearch() {
     if (results) results.innerHTML = `
         <div class="ic-sidebar-empty">
             <div class="ic-sidebar-empty-icon">${EmptyStateIcons.search}</div>
-            <div class="ic-sidebar-empty-text">Search this book</div>
+            <div class="ic-sidebar-empty-text">Search this chapter</div>
             <div class="ic-sidebar-empty-hint">Enter at least 2 characters to search</div>
         </div>`;
 }
@@ -1511,11 +1631,11 @@ function adjustFontSize(delta) {
 }
 
 /* ========================================
-   SPEED & TTS
+   SPEED & TTS (delegates to tts.js)
    ======================================== */
 
 /**
- * Set TTS speed
+ * Set TTS speed - thin wrapper around tts.js
  */
 function setSpeed(rate) {
     IcecreamReader.ttsRate = rate;
@@ -1525,176 +1645,92 @@ function setSpeed(rate) {
         display.textContent = rate.toFixed(1) + 'x';
     }
 
-    if (IcecreamReader.ttsAudio) {
-        IcecreamReader.ttsAudio.playbackRate = rate;
-    }
-
-    if (IcecreamReader.ttsPlaying) {
-        stopTTS();
-        setTimeout(() => startTTS(), 100);
-    }
-
     localStorage.setItem('tts-speed', rate);
+    localStorage.setItem('dawnstar_tts_rate', rate.toString());
+
+    // If currently speaking via tts.js, restart with new rate
+    if (window.tts && window.tts.isSpeaking()) {
+        window.tts.stop();
+        setTimeout(() => window.tts.speakCurrentChapter(), 100);
+    }
 
     const menu = document.getElementById('ic-speed-menu');
     if (menu) menu.style.display = 'none';
 }
 
 /**
- * Initialize TTS voices
+ * Initialize TTS - delegates voice loading to tts.js
  */
 async function initializeTTS() {
-    try {
-        const response = await fetch('/api/tts/voices');
-        if (!response.ok) return;
-
-        const data = await response.json();
-        IcecreamReader.ttsVoices = data.voices || [];
-        IcecreamReader.ttsCurrentVoice = data.default_voice || 'en';
-    } catch (error) {
-        console.error('Failed to load TTS voices:', error);
-    }
-}
-
-/**
- * Toggle TTS on/off
- */
-async function toggleTTS() {
-    if (IcecreamReader.ttsPlaying) {
-        stopTTS();
-    } else {
-        await startTTS();
-    }
-}
-
-/**
- * Start TTS playback using streaming for instant start.
- * Uses fetch ReadableStream to collect initial chunks, then plays
- * progressively as more data arrives.
- */
-async function startTTS() {
-    const chapterText = document.getElementById('ic-chapter-text');
-    if (!chapterText) return;
-
-    const text = chapterText.innerText || chapterText.textContent;
-    if (!text || text.trim().length < 10) {
-        showToast('No content to read');
+    // tts.js handles its own initialization via initTTS() on DOMContentLoaded.
+    // We only sync state here after tts.js has loaded.
+    if (!window.tts) {
+        console.warn('tts.js not loaded; TTS features unavailable.');
         return;
     }
-
     try {
+        IcecreamReader.ttsVoices = window.tts.getVoices();
+        IcecreamReader.ttsRate = window.tts.getRate();
+    } catch (error) {
+        console.error('Failed to initialize TTS:', error);
+    }
+}
+
+/**
+ * Toggle TTS on/off - thin wrapper around tts.js
+ */
+async function toggleTTS() {
+    if (!window.tts) return;
+
+    if (IcecreamReader.ttsPlaying || window.tts.isSpeaking() || window.tts.isLoading()) {
+        stopTTS();
+    } else {
         IcecreamReader.ttsEnabled = true;
         IcecreamReader.ttsPlaying = true;
         updateTTSUI();
-
-        const cleanText = text.replace(/\s+/g, ' ').trim();
-
-        if (IcecreamReader.ttsAudio) {
-            IcecreamReader.ttsAudio.pause();
-            IcecreamReader.ttsAudio = null;
+        try {
+            await window.tts.speakCurrentChapter();
+        } catch (error) {
+            console.error('TTS error:', error);
+            showToast(`Failed to play audio: ${error.message}`);
         }
-
-        const audio = new Audio();
-        audio.playbackRate = IcecreamReader.ttsRate;
-        IcecreamReader.ttsAudio = audio;
-
-        audio.onended = () => stopTTS();
-        audio.onerror = () => {
-            stopTTS();
-            showToast('Audio playback error.');
-        };
-
-        // Start streaming fetch — backend sends audio chunks as generated
-        const response = await fetch('/api/tts/stream', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text: cleanText,
-                voice: IcecreamReader.ttsCurrentVoice,
-                rate: IcecreamReader.ttsRate.toString()
-            })
-        });
-
-        if (!response.ok) throw new Error('TTS synthesis failed');
-
-        const reader = response.body.getReader();
-        const chunks = [];
-        let totalBytes = 0;
-        const PLAY_THRESHOLD = 16384; // Start after 16KB (~1s of MP3)
-        let objectUrl = null;
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            chunks.push(value);
-            totalBytes += value.length;
-
-            // Once we have enough data, start playback immediately
-            if (totalBytes >= PLAY_THRESHOLD && !audio.src) {
-                const blob = new Blob(chunks, { type: 'audio/mpeg' });
-                if (objectUrl) URL.revokeObjectURL(objectUrl);
-                objectUrl = URL.createObjectURL(blob);
-                audio.src = objectUrl;
-                await audio.play();
-            }
-        }
-
-        // Final update with complete audio (preserves playback position)
-        if (chunks.length > 0) {
-            const finalBlob = new Blob(chunks, { type: 'audio/mpeg' });
-            const wasPlaying = !audio.paused;
-            const currentTime = audio.currentTime;
-
-            if (objectUrl) URL.revokeObjectURL(objectUrl);
-            objectUrl = URL.createObjectURL(finalBlob);
-            audio.src = objectUrl;
-
-            if (wasPlaying) {
-                audio.currentTime = currentTime;
-                audio.playbackRate = IcecreamReader.ttsRate;
-                audio.play().catch(() => {});
-            }
-        }
-
-        // If text was very short and we never hit the threshold
-        if (!audio.src && chunks.length > 0) {
-            const blob = new Blob(chunks, { type: 'audio/mpeg' });
-            objectUrl = URL.createObjectURL(blob);
-            audio.src = objectUrl;
-            await audio.play();
-        }
-
-        // Store URL for cleanup
-        audio._objectUrl = objectUrl;
-
-    } catch (error) {
-        console.error('TTS error:', error);
-        stopTTS();
-        showToast(`Failed to play audio: ${error.message}`);
     }
 }
 
 /**
- * Stop TTS playback
+ * Stop TTS playback - thin wrapper around tts.js
  */
 function stopTTS() {
-    if (IcecreamReader.ttsAudio) {
-        IcecreamReader.ttsAudio.pause();
-        if (IcecreamReader.ttsAudio._objectUrl) {
-            URL.revokeObjectURL(IcecreamReader.ttsAudio._objectUrl);
-        }
-        IcecreamReader.ttsAudio = null;
+    if (window.tts) {
+        window.tts.stop();
     }
-
     IcecreamReader.ttsPlaying = false;
+    IcecreamReader.ttsEnabled = false;
     updateTTSUI();
 }
 
 /**
- * Update TTS UI state
+ * Update TTS UI state - called by tts.js callback and locally.
+ * Accepts optional state param from tts.js callback ('playing', 'paused', 'loading', 'idle').
  */
-function updateTTSUI() {
+function updateTTSUI(state) {
+    // Sync state from tts.js if available
+    if (window.tts) {
+        if (state === 'playing') {
+            IcecreamReader.ttsEnabled = true;
+            IcecreamReader.ttsPlaying = true;
+        } else if (state === 'paused') {
+            IcecreamReader.ttsPlaying = false;
+            // keep ttsEnabled true while paused
+        } else if (state === 'loading') {
+            IcecreamReader.ttsEnabled = true;
+            IcecreamReader.ttsPlaying = false;
+        } else if (state === 'idle') {
+            IcecreamReader.ttsPlaying = false;
+            IcecreamReader.ttsEnabled = false;
+        }
+    }
+
     const toggleBtn = document.getElementById('ic-tts-toggle');
 
     if (IcecreamReader.ttsEnabled || IcecreamReader.ttsPlaying) {
@@ -1710,6 +1746,9 @@ function updateTTSUI() {
         document.body.classList.remove('ic-tts-playing');
     }
 }
+
+// Expose updateTTSUI globally so tts.js can call it via window.updateTTSUI
+window.updateTTSUI = updateTTSUI;
 
 /* ========================================
    PAGE LAYOUT
@@ -2086,6 +2125,12 @@ function applyPreferences() {
         const sidebarSlider = document.getElementById('ic-volume-slider-sidebar');
         if (inlineSlider) inlineSlider.value = savedVolume;
         if (sidebarSlider) sidebarSlider.value = savedVolume;
+    }
+
+    // Load saved margin
+    const savedMargin = parseInt(localStorage.getItem('reader-margin'));
+    if (savedMargin) {
+        setMargin(savedMargin);
     }
 
     // Initialization complete — enable settings sync
@@ -3162,6 +3207,8 @@ window.toggleSettingsPanel = toggleSettingsPanel;
 window.toggleVolumeControl = toggleVolumeControl;
 window.handleSearch = handleSearch;
 window.clearSearch = clearSearch;
+window.searchNextMatch = searchNextMatch;
+window.searchPrevMatch = searchPrevMatch;
 window.setTheme = setTheme;
 window.setZoom = setZoom;
 window.adjustZoom = adjustZoom;
@@ -3170,6 +3217,8 @@ window.setFontFamily = setFontFamily;
 window.adjustFontSize = adjustFontSize;
 window.adjustLineSpacing = adjustLineSpacing;
 window.setLineSpacing = setLineSpacing;
+window.setMargin = setMargin;
+window.adjustMargin = adjustMargin;
 window.setSpeed = setSpeed;
 window.setVolume = setVolume;
 window.setPageLayout = setPageLayout;

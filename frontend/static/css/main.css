@@ -4947,3 +4947,141 @@ html[data-theme="sepia-light"] .tts-word-highlight {
 html[data-theme="sepia-dark"] .tts-word-highlight {
     background-color: rgba(200, 170, 100, 0.25);
 }
+
+/* ============================================
+   MOBILE RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+    .sidebar { width: 100% !important; position: fixed; z-index: 1000; transform: translateX(-100%); transition: transform 0.3s; }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-resize-handle { display: none; }
+    .main-content { margin-left: 0 !important; }
+    .book-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important; }
+    .header-search { width: 100%; }
+    .header-actions .action-text { display: none; }
+}
+
+@media (max-width: 480px) {
+    .book-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)) !important; gap: 8px !important; }
+    .book-card { font-size: 11px; }
+    .book-card-title { font-size: 11px !important; }
+}
+
+/* ============================================
+   READING STATS SIDEBAR CARDS
+   ============================================ */
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 8px 12px;
+}
+
+.stats-card {
+    background: var(--card-bg, #FFFFFF);
+    border: 1px solid var(--content-border, #E5E7EB);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+}
+
+.stats-card-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent-blue, #4285F4);
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+.stats-card-label {
+    font-size: 10px;
+    color: var(--text-secondary, #5A5A5A);
+    margin-top: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.stats-card-full {
+    grid-column: 1 / -1;
+}
+
+.stats-authors-list {
+    padding: 4px 12px 12px;
+}
+
+.stats-author-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: var(--text-primary, #1A1A1A);
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.stats-author-item:hover {
+    background: var(--sidebar-hover, rgba(66, 133, 244, 0.06));
+}
+
+.stats-author-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stats-author-count {
+    font-size: 11px;
+    color: var(--text-tertiary, #9CA3AF);
+    margin-left: 8px;
+    font-weight: 500;
+}
+
+.stats-section-title {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary, #9CA3AF);
+    padding: 8px 12px 4px;
+}
+
+.stats-formats {
+    display: flex;
+    gap: 6px;
+    padding: 4px 12px 12px;
+    flex-wrap: wrap;
+}
+
+.stats-format-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--button-bg, #F3F4F6);
+    color: var(--text-secondary, #5A5A5A);
+    font-weight: 500;
+}
+
+.stats-streak {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--accent-blue, #4285F4);
+    font-weight: 600;
+}
+
+.stats-streak svg {
+    flex-shrink: 0;
+}
+
+.stats-loading {
+    text-align: center;
+    color: var(--text-tertiary, #9CA3AF);
+    font-size: 12px;
+    padding: 16px;
+}

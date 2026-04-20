@@ -326,20 +326,25 @@
     // Update TTS button state
     function updateTTSButtonState(state) {
         const btn = document.getElementById('tts-toggle-btn');
-        if (!btn) return;
+        if (btn) {
+            btn.classList.remove('playing', 'paused', 'loading');
+            if (state === 'playing') {
+                btn.classList.add('playing');
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+            } else if (state === 'paused') {
+                btn.classList.add('paused');
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+            } else if (state === 'loading') {
+                btn.classList.add('loading');
+                btn.innerHTML = `<svg class="spin" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
+            } else {
+                btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+            }
+        }
 
-        btn.classList.remove('playing', 'paused', 'loading');
-        if (state === 'playing') {
-            btn.classList.add('playing');
-            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
-        } else if (state === 'paused') {
-            btn.classList.add('paused');
-            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
-        } else if (state === 'loading') {
-            btn.classList.add('loading');
-            btn.innerHTML = `<svg class="spin" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>`;
-        } else {
-            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+        // Notify reader-specific UI (e.g. reader-icecream.js) of state change
+        if (typeof window.updateTTSUI === 'function') {
+            window.updateTTSUI(state);
         }
     }
 
@@ -515,20 +520,17 @@
      * Speak current chapter
      */
     async function speakCurrentChapter() {
-        if (!window.readerApp?.currentChapterText) return;
+        // Read chapter text from the DOM (works with any reader template)
+        const chapterTextEl = document.getElementById('ic-chapter-text');
+        if (!chapterTextEl) return;
 
-        // Clean text for speech
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = window.readerApp.currentChapterText;
-        const plainText = tempDiv.textContent || tempDiv.innerText || '';
+        const text = chapterTextEl.innerText || chapterTextEl.textContent;
+        if (!text || !text.trim()) return;
 
-        if (!plainText.trim()) return;
+        const plainText = text.replace(/\s+/g, ' ').trim();
 
-        const speedSelector = document.getElementById('speed-selector');
-        const rate = speedSelector ? parseFloat(speedSelector.value) : 1.0;
-
-        const voiceSelect = document.getElementById('voice-select');
-        const voiceValue = voiceSelect?.value;
+        const rate = parseFloat(localStorage.getItem('dawnstar_tts_rate') || '1.0');
+        const voiceValue = localStorage.getItem('dawnstar_tts_voice_' + (getCurrentEngineName() || currentEngine));
 
         const engine = getCurrentEngineName();
         const tts = getTTS();
@@ -859,6 +861,7 @@
         toggle,
         pauseResume,
         isSpeaking: () => getTTS()?.isSpeaking() || false,
+        isLoading: () => isServerLoading,
         segmentWords,
         highlightWord,
         clearHighlights,
@@ -870,6 +873,18 @@
             localStorage.setItem('dawnstar_tts_engine', engine);
             getTTS()?.stop();
             updateVoiceList();
+        },
+        getRate: () => parseFloat(localStorage.getItem('dawnstar_tts_rate') || '1.0'),
+        setVolume: (volume) => {
+            if (audioElement) {
+                audioElement.volume = Math.max(0, Math.min(1, volume / 100));
+            }
+        },
+        getVoices: () => {
+            const engine = getCurrentEngineName();
+            if (engine === ENGINE_EDGETTS) return edgeTTSVoices;
+            if (engine === ENGINE_GTTS) return gttsVoices;
+            return webSpeechTTS?.getVoices() || [];
         },
         ENGINES: {
             EDGETTS: ENGINE_EDGETTS,

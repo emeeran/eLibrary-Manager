@@ -58,6 +58,11 @@ class AppConfig(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     secret_key: str = ""
 
+    # Auth
+    admin_username: str = "admin"
+    admin_password_hash: str = ""
+    admin_password: str = ""  # Plaintext fallback set via env ADMIN_PASSWORD
+
     @field_validator("secret_key")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:

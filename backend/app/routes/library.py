@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import shutil
+import time
 import uuid
 from pathlib import Path
 
@@ -32,6 +33,10 @@ config = get_config()
 
 # Guard against concurrent scans
 _active_scans: set[str] = set()
+
+# In-memory search result cache with TTL
+_search_cache: dict[str, tuple[list, int]] = {}  # query -> (results, timestamp)
+_SEARCH_CACHE_TTL = 30  # seconds
 
 
 def _validate_path_within_library(file_path: str) -> str:
@@ -342,6 +347,13 @@ async def list_books(
     page = max(1, page)
     page_size = max(1, min(page_size, 100))
 
+    # Check search cache
+    cache_key = f"{search}|{format_filter}|{sort_by}|{sort_order}|{page}"
+    if cache_key in _search_cache:
+        cached_result, cached_time = _search_cache[cache_key]
+        if time.time() - cached_time < _SEARCH_CACHE_TTL:
+            return cached_result
+
     service = LibraryService(db)
     books, total = await service.list_books(
         page=page,
@@ -370,13 +382,25 @@ async def list_books(
         "hidden": stats.get("hidden_books", 0),
     }
 
-    return BookListResponse(
+    result = BookListResponse(
         books=[book_to_response(book) for book in books],
         total=total,
         page=page,
         page_size=page_size,
         counts=counts
     )
+
+    # Store in cache
+    _search_cache[cache_key] = (result, time.time())
+
+    # Evict expired entries periodically (keep cache bounded)
+    if len(_search_cache) > 200:
+        now = time.time()
+        expired = [k for k, (_, t) in _search_cache.items() if now - t >= _SEARCH_CACHE_TTL]
+        for k in expired:
+            del _search_cache[k]
+
+    return result
 
 
 @router.get("/books/{book_id}", response_model=BookResponse)

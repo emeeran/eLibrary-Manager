@@ -2193,3 +2193,118 @@ async function autoCategorizeAll() {
         btn.innerHTML = origHTML;
     }
 }
+
+/* ========================================
+   READING STATS
+   ======================================== */
+
+/**
+ * Toggle stats section in sidebar
+ */
+function toggleSection(sectionName) {
+    if (sectionName === 'stats') {
+        const subitems = document.getElementById('stats-subitems');
+        const expandIcon = document.getElementById('stats-expand-icon');
+        const wasHidden = subitems.classList.contains('hidden');
+        subitems.classList.toggle('hidden');
+        if (expandIcon) expandIcon.classList.toggle('expanded');
+        if (wasHidden) loadReadingStats();
+    }
+}
+
+/**
+ * Fetch and render reading statistics
+ */
+async function loadReadingStats() {
+    const container = document.getElementById('stats-content');
+    if (!container) return;
+
+    try {
+        const resp = await fetch('/api/stats/reading');
+        if (!resp.ok) {
+            container.innerHTML = '<div class="stats-loading">Failed to load stats</div>';
+            return;
+        }
+        const stats = await resp.json();
+        renderStats(container, stats);
+    } catch (e) {
+        console.error('Failed to load reading stats:', e);
+        container.innerHTML = '<div class="stats-loading">Failed to load stats</div>';
+    }
+}
+
+/**
+ * Render stats into the sidebar container
+ */
+function renderStats(container, stats) {
+    const streakSVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>';
+
+    let html = `
+        <div class="stats-grid">
+            <div class="stats-card">
+                <div class="stats-card-value">${stats.total_books}</div>
+                <div class="stats-card-label">Total Books</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-card-value">${stats.books_read}</div>
+                <div class="stats-card-label">Started</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-card-value">${stats.books_completed}</div>
+                <div class="stats-card-label">Completed</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-card-value">${stats.average_progress}%</div>
+                <div class="stats-card-label">Avg Progress</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-card-value">${stats.books_this_week}</div>
+                <div class="stats-card-label">This Week</div>
+            </div>
+            <div class="stats-card">
+                <div class="stats-card-value">${stats.books_this_month}</div>
+                <div class="stats-card-label">This Month</div>
+            </div>
+        </div>`;
+
+    if (stats.reading_streak > 0) {
+        html += `
+        <div class="stats-streak">
+            ${streakSVG}
+            <span>${stats.reading_streak} day streak</span>
+        </div>`;
+    }
+
+    if (stats.estimated_reading_hours > 0) {
+        html += `
+        <div style="padding:4px 12px 8px;font-size:12px;color:var(--text-secondary,#5A5A5A);text-align:center;">
+            ~${stats.estimated_reading_hours}h estimated reading time
+        </div>`;
+    }
+
+    // Format distribution
+    if (stats.format_distribution && stats.format_distribution.length > 0) {
+        html += `<div class="stats-section-title">Formats</div><div class="stats-formats">`;
+        stats.format_distribution.forEach(function(f) {
+            html += `<span class="stats-format-badge">${escapeHtml(f.format)} (${f.count})</span>`;
+        });
+        html += `</div>`;
+    }
+
+    // Top authors
+    if (stats.top_authors && stats.top_authors.length > 0) {
+        html += `<div class="stats-section-title">Top Authors</div><div class="stats-authors-list">`;
+        stats.top_authors.forEach(function(a) {
+            html += `<div class="stats-author-item">
+                <span class="stats-author-name">${escapeHtml(a.author)}</span>
+                <span class="stats-author-count">${a.count} books</span>
+            </div>`;
+        });
+        html += `</div>`;
+    }
+
+    container.innerHTML = html;
+}
+
+// Make toggleSection global
+window.toggleSection = toggleSection;
