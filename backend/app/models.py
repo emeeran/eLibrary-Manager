@@ -1,6 +1,6 @@
 """SQLAlchemy models for eBook Manager."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
@@ -59,7 +59,7 @@ class Book(Base):
     file_size: Mapped[int] = mapped_column(Integer, default=0)
     added_date: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False,
         index=True,
     )
@@ -134,7 +134,7 @@ class ChapterSummary(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
 
@@ -173,7 +173,7 @@ class BookSummary(Base):
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="google")
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
 
@@ -211,7 +211,7 @@ class Bookmark(Base):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
 
@@ -254,14 +254,14 @@ class Note(Base):
     color: Mapped[str] = mapped_column(String(20), nullable=False, default="yellow")
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False,
-        onupdate=datetime.utcnow
+        onupdate=lambda: datetime.now(timezone.utc)
     )
 
     # Relationships
@@ -305,7 +305,7 @@ class Annotation(Base):
     note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc),
         nullable=False
     )
 

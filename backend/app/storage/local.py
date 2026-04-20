@@ -1,5 +1,6 @@
 """Local filesystem storage backend."""
 
+import asyncio
 import os
 from typing import Any
 
@@ -14,11 +15,13 @@ class LocalStorageBackend(StorageBackend):
         return {"healthy": True, "details": "Local filesystem"}
 
     async def walk_directory(self, root: str) -> list[tuple[str, list[str]]]:
-        """Walk local directory tree."""
-        result: list[tuple[str, list[str]]] = []
-        for dirpath, _, filenames in os.walk(root):
-            result.append((dirpath, filenames))
-        return result
+        """Walk local directory tree (non-blocking)."""
+        def _walk() -> list[tuple[str, list[str]]]:
+            result: list[tuple[str, list[str]]] = []
+            for dirpath, _, filenames in os.walk(root):
+                result.append((dirpath, filenames))
+            return result
+        return await asyncio.to_thread(_walk)
 
     async def file_exists(self, path: str) -> bool:
         """Check if file exists on local filesystem."""

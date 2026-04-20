@@ -56,7 +56,20 @@ class AppConfig(BaseSettings):
     app_port: int = 8000
     debug: bool = False
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    secret_key: str = "dawnstar-default-secret-key-change-in-production"
+    secret_key: str = ""
+
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, v: str) -> str:
+        """Warn if SECRET_KEY is not set or using a default value."""
+        if not v:
+            import warnings
+            warnings.warn(
+                "SECRET_KEY is not set. Set a strong SECRET_KEY environment "
+                "variable for production. Using derived fallback.",
+                stacklevel=2,
+            )
+        return v
 
     # NAS Configuration
     nas_enabled: bool = False

@@ -4,7 +4,7 @@ Coordinates between repositories, scanner, and business logic
 for library operations.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -303,7 +303,7 @@ class LibraryService:
             ResourceNotFoundError: If book not found
         """
         book = await self.book_repo.get_by_id_or_404(book_id)
-        book.last_read_date = datetime.utcnow()
+        book.last_read_date = datetime.now(timezone.utc)
         await self.session.flush()
         return book
 
@@ -393,40 +393,50 @@ class LibraryService:
     async def refresh_covers(self, force: bool = False) -> dict:
         """Re-extract covers for books missing them or all books if forced.
 
+        Processes in batches to limit memory usage.
+
         Args:
             force: If True, re-extract all covers. If False, only missing ones.
 
         Returns:
             Dictionary with refresh statistics
         """
-        all_books = await self.book_repo.list_all(limit=10000)
         updated = 0
         skipped = 0
         errors = []
+        total = 0
+        offset = 0
+        batch_size = 100
 
-        for book in all_books:
-            # Skip if book already has cover and not forcing
-            if book.cover_path and not force:
-                skipped += 1
-                continue
+        while True:
+            batch = await self.book_repo.list_all(limit=batch_size, offset=offset)
+            if not batch:
+                break
 
-            try:
-                cover_path = await self.scanner.extract_cover(book.path)
-                if cover_path:
-                    book.cover_path = cover_path
-                    await self.session.flush()
-                    updated += 1
-                    logger.info(f"Updated cover for: {book.title}")
-                else:
+            total += len(batch)
+            for book in batch:
+                if book.cover_path and not force:
                     skipped += 1
-            except Exception as e:
-                errors.append({"book_id": book.id, "error": str(e)})
-                logger.warning(f"Failed to extract cover for {book.title}: {e}")
+                    continue
 
-        await self.session.commit()
+                try:
+                    cover_path = await self.scanner.extract_cover(book.path)
+                    if cover_path:
+                        book.cover_path = cover_path
+                        updated += 1
+                        logger.info(f"Updated cover for: {book.title}")
+                    else:
+                        skipped += 1
+                except Exception as e:
+                    errors.append({"book_id": book.id, "error": str(e)})
+                    logger.warning(f"Failed to extract cover for {book.title}: {e}")
+
+            await self.session.flush()
+            offset += batch_size
+
         return {
             "updated": updated,
             "skipped": skipped,
             "errors": errors,
-            "total": len(all_books)
+            "total": total
         }

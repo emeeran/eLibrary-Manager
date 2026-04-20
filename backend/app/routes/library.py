@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
@@ -29,54 +30,79 @@ from app.services import LibraryService
 router = APIRouter(prefix="/api", tags=["library"])
 config = get_config()
 
+# Guard against concurrent scans
+_active_scans: set[str] = set()
+
+
+def _validate_path_within_library(file_path: str) -> str:
+    """Validate that a path is within the configured library directory.
+
+    Raises HTTPException if the path escapes the library root.
+    """
+    resolved = Path(file_path).resolve()
+    library_root = Path(config.library_path).resolve()
+    try:
+        resolved.relative_to(library_root)
+    except ValueError:
+        raise HTTPException(
+            status_code=403,
+            detail="Path must be within the configured library directory",
+        )
+    return str(resolved)
+
 
 async def _run_scan(scan_id: str, mode: str) -> None:
     """Background task that runs the scan and updates progress."""
     from app.database import db_manager
 
-    async with db_manager.get_session() as db:
-        service = LibraryService(db)
-        try:
-            if mode == "full":
-                results = await service.scan_and_import(scan_id=scan_id)
-            else:
-                results = await service.fast_index(scan_id=scan_id)
+    try:
+        async with db_manager.get_session() as db:
+            service = LibraryService(db)
+            try:
+                if mode == "full":
+                    results = await service.scan_and_import(scan_id=scan_id)
+                else:
+                    results = await service.fast_index(scan_id=scan_id)
 
-            # Final update with totals
-            scan_store.update(
-                scan_id,
-                status="completed",
-                imported=results.get("imported", 0),
-                skipped=results.get("skipped", 0),
-                errors=results.get("errors", 0),
-                total_found=results.get("total", 0),
-                processed=results.get("total", 0),
-                message="Scan complete",
-            )
-        except Exception as e:
-            scan_store.update(scan_id, status="failed", message=str(e))
+                scan_store.update(
+                    scan_id,
+                    status="completed",
+                    imported=results.get("imported", 0),
+                    skipped=results.get("skipped", 0),
+                    errors=results.get("errors", 0),
+                    total_found=results.get("total", 0),
+                    processed=results.get("total", 0),
+                    message="Scan complete",
+                )
+            except Exception as e:
+                scan_store.update(scan_id, status="failed", message=str(e))
+    finally:
+        _active_scans.discard(scan_id)
 
 
 async def _run_import_dir(scan_id: str, directory: str) -> None:
     """Background task for directory import."""
     from app.database import db_manager
 
-    async with db_manager.get_session() as db:
-        service = LibraryService(db)
-        try:
-            results = await service.scan_and_import(directory, scan_id=scan_id)
-            scan_store.update(
-                scan_id,
-                status="completed",
-                imported=results.get("imported", 0),
-                skipped=results.get("skipped", 0),
-                errors=results.get("errors", 0),
-                total_found=results.get("total", 0),
-                processed=results.get("total", 0),
-                message="Import complete",
-            )
-        except Exception as e:
-            scan_store.update(scan_id, status="failed", message=str(e))
+    try:
+        async with db_manager.get_session() as db:
+            service = LibraryService(db)
+            try:
+                results = await service.scan_and_import(directory, scan_id=scan_id)
+                scan_store.update(
+                    scan_id,
+                    status="completed",
+                    imported=results.get("imported", 0),
+                    skipped=results.get("skipped", 0),
+                    errors=results.get("errors", 0),
+                    total_found=results.get("total", 0),
+                    processed=results.get("total", 0),
+                    message="Import complete",
+                )
+            except Exception as e:
+                scan_store.update(scan_id, status="failed", message=str(e))
+    finally:
+        _active_scans.discard(scan_id)
 
 
 @router.post("/library/scan")
@@ -87,9 +113,17 @@ async def scan_library(
     """Trigger library scan as a background task.
 
     Returns a scan_id for tracking progress via SSE.
+    Only one scan can run at a time.
     """
+    if _active_scans:
+        raise HTTPException(
+            status_code=409,
+            detail="A scan is already in progress. Please wait for it to complete.",
+        )
+
     scan_id = uuid.uuid4().hex[:8]
     scan_store.create(scan_id)
+    _active_scans.add(scan_id)
     asyncio.create_task(_run_scan(scan_id, mode))
     return {"scan_id": scan_id, "status": "started"}
 
@@ -140,8 +174,14 @@ async def import_directory(
             detail=f"Directory not found: {request.path}"
         )
 
+    _validate_path_within_library(request.path)
+
+    if _active_scans:
+        raise HTTPException(status_code=409, detail="A scan is already in progress.")
+
     scan_id = uuid.uuid4().hex[:8]
     scan_store.create(scan_id)
+    _active_scans.add(scan_id)
     asyncio.create_task(_run_import_dir(scan_id, request.path))
     return {"scan_id": scan_id, "status": "started"}
 
@@ -166,6 +206,9 @@ async def import_book_file(
             status_code=400,
             detail="file_path is required"
         )
+
+    # Validate path is within library directory
+    _validate_path_within_library(file_path)
 
     # Validate file exists
     if not os.path.exists(file_path):
@@ -277,7 +320,7 @@ async def refresh_covers(
 @router.get("/books", response_model=BookListResponse)
 async def list_books(
     page: int = 1,
-    page_size: int = 20,
+    page_size: int = 20,  # max 100 enforced below
     favorite_only: bool = False,
     recent_only: bool = False,
     search: str | None = None,
@@ -310,6 +353,10 @@ async def list_books(
     Returns:
         Paginated book list
     """
+    # Enforce pagination limits
+    page = max(1, page)
+    page_size = max(1, min(page_size, 100))
+
     service = LibraryService(db)
     books, total = await service.list_books(
         page=page,
@@ -429,7 +476,7 @@ async def upload_cover(
         f.write(content)
 
     book.cover_path = filename
-    await db.commit()
+    await db.flush()
 
     return {"cover_path": filename}
 
@@ -470,7 +517,7 @@ async def toggle_favorite(
     service = LibraryService(db)
     book = await service.get_book(book_id)
     book.is_favorite = not book.is_favorite
-    await db.commit()
+    await db.flush()
     await db.refresh(book)
     return book_to_response(book)
 
@@ -657,7 +704,7 @@ async def create_category(
 
     cat = Category(name=data.name, color=data.color)
     db.add(cat)
-    await db.commit()
+    await db.flush()
     await db.refresh(cat)
     return CategoryResponse(id=cat.id, name=cat.name, color=cat.color, book_count=0)
 
@@ -677,7 +724,7 @@ async def delete_category(
         raise HTTPException(status_code=404, detail="Category not found")
 
     await db.delete(cat)
-    await db.commit()
+    await db.flush()
     return {"message": "Category deleted"}
 
 
@@ -699,7 +746,7 @@ async def assign_categories(
     for cat_id in data.category_ids:
         db.add(BookCategory(book_id=book_id, category_id=cat_id))
 
-    await db.commit()
+    await db.flush()
     return {"message": "Categories updated", "category_ids": data.category_ids}
 
 
@@ -724,7 +771,7 @@ async def remove_category_from_book(
         raise HTTPException(status_code=404, detail="Assignment not found")
 
     await db.delete(link)
-    await db.commit()
+    await db.flush()
     return {"message": "Category removed from book"}
 
 
@@ -813,7 +860,7 @@ async def toggle_book_hidden(
     book = await repo.get_by_id_or_404(book_id)
 
     book.is_hidden = not book.is_hidden
-    await db.commit()
+    await db.flush()
     return {"is_hidden": book.is_hidden, "message": "Book hidden" if book.is_hidden else "Book unhidden"}
 
 
@@ -843,7 +890,7 @@ async def set_hidden_password(
     encrypted = encrypt_password(password)
     settings = SettingsRepository(db)
     await settings.set("hidden_password", encrypted)
-    await db.commit()
+    await db.flush()
     return {"message": "Password set successfully"}
 
 
@@ -893,7 +940,7 @@ async def reset_hidden_password(
         raise HTTPException(status_code=401, detail="Incorrect password")
 
     await settings.delete("hidden_password")
-    await db.commit()
+    await db.flush()
     return {"message": "Password reset successfully"}
 
 

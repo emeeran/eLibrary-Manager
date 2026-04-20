@@ -1,5 +1,6 @@
 """HTTP rate limiting middleware for expensive endpoints."""
 
+import threading
 import time
 from collections import defaultdict
 from typing import Callable
@@ -30,6 +31,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, **kwargs):
         super().__init__(app, **kwargs)
         self._requests: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
+        self._lock = threading.Lock()
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         path = request.url.path
@@ -49,21 +51,23 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         key = f"{client_ip}:{path}"
 
         now = time.time()
-        # Clean old entries
-        self._requests[key][path] = [
-            t for t in self._requests[key][path] if now - t < period
-        ]
+        with self._lock:
+            # Clean old entries
+            self._requests[key][path] = [
+                t for t in self._requests[key][path] if now - t < period
+            ]
 
-        if len(self._requests[key][path]) >= max_requests:
-            logger.warning(f"Rate limit exceeded: {key} ({max_requests}/{period}s)")
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "error": "Rate Limit Exceeded",
-                    "message": f"Maximum {max_requests} requests per {period}s for this endpoint"
-                },
-                headers={"Retry-After": str(period)}
-            )
+            if len(self._requests[key][path]) >= max_requests:
+                logger.warning(f"Rate limit exceeded: {key} ({max_requests}/{period}s)")
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "error": "Rate Limit Exceeded",
+                        "message": f"Maximum {max_requests} requests per {period}s for this endpoint"
+                    },
+                    headers={"Retry-After": str(period)}
+                )
 
-        self._requests[key][path].append(now)
+            self._requests[key][path].append(now)
+
         return await call_next(request)

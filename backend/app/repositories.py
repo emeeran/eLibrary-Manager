@@ -135,7 +135,9 @@ class BookRepository:
         if source_filter:
             conditions.append(Book.storage_type == source_filter)
         if directory_filter:
-            conditions.append(Book.path.like(directory_filter + "/%"))
+            # Escape LIKE wildcards to prevent pattern injection
+            safe_filter = directory_filter.replace("%", "\\%").replace("_", "\\_")
+            conditions.append(Book.path.like(safe_filter + "/%"))
         if category_id is not None:
             from app.models import BookCategory
             query = query.join(
@@ -307,6 +309,29 @@ class BookRepository:
             select(func.count(Book.id))
         )
         return result.scalar() or 0
+
+    async def list_all(
+        self,
+        limit: int = 1000,
+        offset: int = 0,
+        show_hidden: bool = True,
+    ) -> list[Book]:
+        """Retrieve all books with pagination.
+
+        Args:
+            limit: Maximum number of books to return
+            offset: Number of books to skip
+            show_hidden: Whether to include hidden books
+
+        Returns:
+            List of Book instances
+        """
+        query = select(Book)
+        if not show_hidden:
+            query = query.where(Book.is_hidden == False)
+        query = query.offset(offset).limit(limit)
+        result = await self.session.execute(query)
+        return list(result.scalars().all())
 
 
 class ChapterSummaryRepository:

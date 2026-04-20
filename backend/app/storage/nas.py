@@ -1,7 +1,8 @@
 """NAS storage backend via SMB/NFS mount."""
 
+import asyncio
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from app.logging_config import get_logger
@@ -42,7 +43,7 @@ class NASStorageBackend(StorageBackend):
 
             if not os.path.ismount(self.mount_path) and not os.path.isdir(self.mount_path):
                 self._healthy = False
-                self._last_check = datetime.utcnow()
+                self._last_check = datetime.now(timezone.utc)
                 return {
                     "healthy": False,
                     "details": f"Path does not exist or is not mounted: {self.mount_path}",
@@ -63,14 +64,16 @@ class NASStorageBackend(StorageBackend):
             return {"healthy": False, "details": f"NAS unreachable: {e}"}
 
     async def walk_directory(self, root: str) -> list[tuple[str, list[str]]]:
-        """Walk NAS directory tree via mount point."""
-        result: list[tuple[str, list[str]]] = []
-        try:
-            for dirpath, _, filenames in os.walk(root):
-                result.append((dirpath, filenames))
-        except OSError as e:
-            logger.error(f"Failed to walk NAS directory {root}: {e}")
-        return result
+        """Walk NAS directory tree via mount point (non-blocking)."""
+        def _walk() -> list[tuple[str, list[str]]]:
+            result: list[tuple[str, list[str]]] = []
+            try:
+                for dirpath, _, filenames in os.walk(root):
+                    result.append((dirpath, filenames))
+            except OSError as e:
+                logger.error(f"Failed to walk NAS directory {root}: {e}")
+            return result
+        return await asyncio.to_thread(_walk)
 
     async def file_exists(self, path: str) -> bool:
         """Check if file exists on NAS mount."""

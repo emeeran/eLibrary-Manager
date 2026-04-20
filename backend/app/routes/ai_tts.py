@@ -7,6 +7,8 @@ TTS Fallback Strategy:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+
+MAX_TTS_TEXT_LENGTH = 50000  # characters
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_config
@@ -188,6 +190,12 @@ async def synthesize_speech(
             raise HTTPException(
                 status_code=400,
                 detail="text field is required"
+            )
+
+        if len(text) > MAX_TTS_TEXT_LENGTH:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Text too long ({len(text)} chars). Maximum is {MAX_TTS_TEXT_LENGTH} characters."
             )
 
         # Normalize rate to float

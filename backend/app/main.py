@@ -23,6 +23,7 @@ from app.exceptions import (
 )
 from app.logging_config import get_logger, setup_logging
 from app.middleware import LoggingMiddleware
+from app.rate_limit import RateLimitMiddleware
 
 # Import route modules
 from app.routes import ai_tts, library, reader, settings
@@ -101,6 +102,7 @@ app = FastAPI(
 # Add middleware (order matters: outermost first)
 app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
 app.add_middleware(CacheControlMiddleware)             # Cache-Control for static assets
+app.add_middleware(RateLimitMiddleware)                 # Per-IP rate limiting
 app.add_middleware(LoggingMiddleware)
 
 # Mount static files
@@ -123,8 +125,8 @@ async def health_check() -> dict:
     """Health check endpoint for Docker and monitoring."""
     return {"status": "ok"}
 
-# Exception handlers
-@app.exception_handler(DawnstarError)
+# Exception handlers (register specific handlers before generic ones)
+@app.exception_handler(ResourceNotFoundError)
 async def dawnstar_exception_handler(
     request: Request,
     exc: DawnstarError
@@ -193,6 +195,9 @@ async def rate_limit_handler(
             "message": exc.message
         }
     )
+
+
+@app.exception_handler(DawnstarError)
 
 
 # Page routes (HTML responses - kept in main.py for template access)

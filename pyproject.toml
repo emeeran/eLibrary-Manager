@@ -28,6 +28,7 @@ dependencies = [
     "gtts>=2.5.0",
     "edge-tts>=6.1.0",
     "cryptography>=42.0.0",
+    "passlib[bcrypt]>=1.7.4",
 ]
 
 [project.optional-dependencies]

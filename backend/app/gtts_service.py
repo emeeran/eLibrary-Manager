@@ -197,9 +197,7 @@ class GTTSService:
             GTTSError: If TTS generation fails
         """
         # Run the synchronous gTTS generation in a thread pool
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,  # Use default executor
+        return await asyncio.to_thread(
             cls._generate_audio_sync,
             text, lang, slow, tld
         )
