@@ -23,6 +23,15 @@ MANIFEST
 trash2review
 prod-agent/
 trash2review/
+uploads/
+tests/
+automation/
+static*/
+.claude/
+.codacy/
+.git*/
+local/
+
 
 
 # Virtual Environment
