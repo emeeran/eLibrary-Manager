@@ -51,19 +51,19 @@ def _validate_path_within_library(file_path: str) -> str:
     return str(resolved)
 
 
-async def _run_scan(scan_id: str, mode: str) -> None:
-    """Background task that runs the scan and updates progress."""
+async def _run_background_scan(
+    scan_id: str,
+    coro_fn,
+    complete_message: str = "Scan complete",
+) -> None:
+    """Shared background task runner for scan operations."""
     from app.database import db_manager
 
     try:
         async with db_manager.get_session() as db:
             service = LibraryService(db)
             try:
-                if mode == "full":
-                    results = await service.scan_and_import(scan_id=scan_id)
-                else:
-                    results = await service.fast_index(scan_id=scan_id)
-
+                results = await coro_fn(service)
                 scan_store.update(
                     scan_id,
                     status="completed",
@@ -72,32 +72,7 @@ async def _run_scan(scan_id: str, mode: str) -> None:
                     errors=results.get("errors", 0),
                     total_found=results.get("total", 0),
                     processed=results.get("total", 0),
-                    message="Scan complete",
-                )
-            except Exception as e:
-                scan_store.update(scan_id, status="failed", message=str(e))
-    finally:
-        _active_scans.discard(scan_id)
-
-
-async def _run_import_dir(scan_id: str, directory: str) -> None:
-    """Background task for directory import."""
-    from app.database import db_manager
-
-    try:
-        async with db_manager.get_session() as db:
-            service = LibraryService(db)
-            try:
-                results = await service.scan_and_import(directory, scan_id=scan_id)
-                scan_store.update(
-                    scan_id,
-                    status="completed",
-                    imported=results.get("imported", 0),
-                    skipped=results.get("skipped", 0),
-                    errors=results.get("errors", 0),
-                    total_found=results.get("total", 0),
-                    processed=results.get("total", 0),
-                    message="Import complete",
+                    message=complete_message,
                 )
             except Exception as e:
                 scan_store.update(scan_id, status="failed", message=str(e))
@@ -124,7 +99,13 @@ async def scan_library(
     scan_id = uuid.uuid4().hex[:8]
     scan_store.create(scan_id)
     _active_scans.add(scan_id)
-    asyncio.create_task(_run_scan(scan_id, mode))
+
+    async def _scan_coro(service):
+        if mode == "full":
+            return await service.scan_and_import(scan_id=scan_id)
+        return await service.fast_index(scan_id=scan_id)
+
+    asyncio.create_task(_run_background_scan(scan_id, _scan_coro, "Scan complete"))
     return {"scan_id": scan_id, "status": "started"}
 
 
@@ -182,7 +163,11 @@ async def import_directory(
     scan_id = uuid.uuid4().hex[:8]
     scan_store.create(scan_id)
     _active_scans.add(scan_id)
-    asyncio.create_task(_run_import_dir(scan_id, request.path))
+
+    async def _import_coro(service):
+        return await service.scan_and_import(request.path, scan_id=scan_id)
+
+    asyncio.create_task(_run_background_scan(scan_id, _import_coro, "Import complete"))
     return {"scan_id": scan_id, "status": "started"}
 
 
@@ -575,9 +560,8 @@ async def cache_book_offline(
         Success message with cache info.
     """
     from app.nas_cache import get_nas_cache
-
-    repo = BookRepository(db) if hasattr(BookRepository, '__module__') else None
     from app.repositories import BookRepository
+
     repo = BookRepository(db)
     book = await repo.get_by_id(book_id)
     if not book:

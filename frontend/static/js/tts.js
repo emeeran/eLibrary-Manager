@@ -147,10 +147,11 @@
                 isServerLoading = true;
                 updateTTSButtonState('loading');
 
-                const response = await fetch('/api/tts/synthesize', {
+                // Use streaming endpoint for instant playback
+                const response = await fetch('/api/tts/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text, voice, rate, pitch, engine: this.engine })
+                    body: JSON.stringify({ text, voice, rate, pitch })
                 });
 
                 if (!response.ok) {
@@ -158,36 +159,71 @@
                     throw new Error(errorData.detail || errorData.message || 'Failed to generate speech');
                 }
 
-                // Get which engine actually generated the audio
-                const actualEngine = response.headers.get('X-TTS-Engine') || this.engine;
-                if (actualEngine !== this.engine) {
-                    console.log(`TTS fell back from ${this.engine} to ${actualEngine}`);
-                }
+                const reader = response.body.getReader();
+                const chunks = [];
+                let totalBytes = 0;
+                const PLAY_THRESHOLD = 16384; // Start after ~16KB
+                let objectUrl = null;
 
-                // Get audio blob from response
-                const blob = await response.blob();
-                const audioUrl = URL.createObjectURL(blob);
-
-                // Create and play audio element
-                audioElement = new Audio(audioUrl);
-                audioElement.onended = () => {
-                    this.stop();
-                };
+                audioElement = new Audio();
+                audioElement.onended = () => this.stop();
                 audioElement.onerror = (e) => {
                     console.error(`${this.engine} Audio Error:`, e);
                     this.stop();
                 };
-                audioElement.onplay = () => {
-                    updateTTSButtonState('playing');
-                };
+                audioElement.onplay = () => updateTTSButtonState('playing');
                 audioElement.onpause = () => {
-                    if (!this.isPaused) {
-                        updateTTSButtonState('idle');
-                    }
+                    if (!this.isPaused) updateTTSButtonState('idle');
                 };
 
-                audioElement.playbackRate = rate;
-                await audioElement.play();
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    chunks.push(value);
+                    totalBytes += value.length;
+
+                    // Start playing once we have enough initial data
+                    if (totalBytes >= PLAY_THRESHOLD && !audioElement.src) {
+                        const blob = new Blob(chunks, { type: 'audio/mpeg' });
+                        if (objectUrl) URL.revokeObjectURL(objectUrl);
+                        objectUrl = URL.createObjectURL(blob);
+                        audioElement.src = objectUrl;
+                        audioElement.playbackRate = rate;
+                        await audioElement.play();
+                    }
+                }
+
+                // Final blob with complete audio
+                if (chunks.length > 0) {
+                    const wasPlaying = !audioElement.paused;
+                    const currentTime = audioElement.currentTime;
+
+                    const finalBlob = new Blob(chunks, { type: 'audio/mpeg' });
+                    if (objectUrl) URL.revokeObjectURL(objectUrl);
+                    objectUrl = URL.createObjectURL(finalBlob);
+                    audioElement.src = objectUrl;
+
+                    if (wasPlaying) {
+                        audioElement.currentTime = currentTime;
+                        audioElement.playbackRate = rate;
+                        audioElement.play().catch(() => {});
+                    } else if (!audioElement.src || audioElement.src === '') {
+                        audioElement.playbackRate = rate;
+                        await audioElement.play();
+                    }
+                }
+
+                // Handle very short text that never hit threshold
+                if (!audioElement.src && chunks.length > 0) {
+                    const blob = new Blob(chunks, { type: 'audio/mpeg' });
+                    objectUrl = URL.createObjectURL(blob);
+                    audioElement.src = objectUrl;
+                    audioElement.playbackRate = rate;
+                    await audioElement.play();
+                }
+
+                audioElement._objectUrl = objectUrl;
                 startServerWordTracking();
                 this.isPlaying = true;
                 isServerLoading = false;
@@ -219,6 +255,9 @@
         stop() {
             if (audioElement) {
                 audioElement.pause();
+                if (audioElement._objectUrl) {
+                    URL.revokeObjectURL(audioElement._objectUrl);
+                }
                 audioElement = null;
             }
             this.isPlaying = false;

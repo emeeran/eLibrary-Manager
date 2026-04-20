@@ -1568,7 +1568,9 @@ async function toggleTTS() {
 }
 
 /**
- * Start TTS playback
+ * Start TTS playback using streaming for instant start.
+ * Uses fetch ReadableStream to collect initial chunks, then plays
+ * progressively as more data arrives.
  */
 async function startTTS() {
     const chapterText = document.getElementById('ic-chapter-text');
@@ -1587,7 +1589,23 @@ async function startTTS() {
 
         const cleanText = text.replace(/\s+/g, ' ').trim();
 
-        const response = await fetch('/api/tts/synthesize', {
+        if (IcecreamReader.ttsAudio) {
+            IcecreamReader.ttsAudio.pause();
+            IcecreamReader.ttsAudio = null;
+        }
+
+        const audio = new Audio();
+        audio.playbackRate = IcecreamReader.ttsRate;
+        IcecreamReader.ttsAudio = audio;
+
+        audio.onended = () => stopTTS();
+        audio.onerror = () => {
+            stopTTS();
+            showToast('Audio playback error.');
+        };
+
+        // Start streaming fetch — backend sends audio chunks as generated
+        const response = await fetch('/api/tts/stream', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1597,28 +1615,58 @@ async function startTTS() {
             })
         });
 
-        if (!response.ok) {
-            throw new Error('TTS synthesis failed');
+        if (!response.ok) throw new Error('TTS synthesis failed');
+
+        const reader = response.body.getReader();
+        const chunks = [];
+        let totalBytes = 0;
+        const PLAY_THRESHOLD = 16384; // Start after 16KB (~1s of MP3)
+        let objectUrl = null;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            chunks.push(value);
+            totalBytes += value.length;
+
+            // Once we have enough data, start playback immediately
+            if (totalBytes >= PLAY_THRESHOLD && !audio.src) {
+                const blob = new Blob(chunks, { type: 'audio/mpeg' });
+                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                objectUrl = URL.createObjectURL(blob);
+                audio.src = objectUrl;
+                await audio.play();
+            }
         }
 
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
+        // Final update with complete audio (preserves playback position)
+        if (chunks.length > 0) {
+            const finalBlob = new Blob(chunks, { type: 'audio/mpeg' });
+            const wasPlaying = !audio.paused;
+            const currentTime = audio.currentTime;
 
-        if (IcecreamReader.ttsAudio) {
-            IcecreamReader.ttsAudio.pause();
-            IcecreamReader.ttsAudio = null;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
+            objectUrl = URL.createObjectURL(finalBlob);
+            audio.src = objectUrl;
+
+            if (wasPlaying) {
+                audio.currentTime = currentTime;
+                audio.playbackRate = IcecreamReader.ttsRate;
+                audio.play().catch(() => {});
+            }
         }
 
-        IcecreamReader.ttsAudio = new Audio(audioUrl);
-        IcecreamReader.ttsAudio.onended = () => {
-            stopTTS();
-        };
-        IcecreamReader.ttsAudio.onerror = () => {
-            stopTTS();
-            showToast('Audio playback error. Please try again.');
-        };
+        // If text was very short and we never hit the threshold
+        if (!audio.src && chunks.length > 0) {
+            const blob = new Blob(chunks, { type: 'audio/mpeg' });
+            objectUrl = URL.createObjectURL(blob);
+            audio.src = objectUrl;
+            await audio.play();
+        }
 
-        await IcecreamReader.ttsAudio.play();
+        // Store URL for cleanup
+        audio._objectUrl = objectUrl;
 
     } catch (error) {
         console.error('TTS error:', error);
@@ -1633,6 +1681,9 @@ async function startTTS() {
 function stopTTS() {
     if (IcecreamReader.ttsAudio) {
         IcecreamReader.ttsAudio.pause();
+        if (IcecreamReader.ttsAudio._objectUrl) {
+            URL.revokeObjectURL(IcecreamReader.ttsAudio._objectUrl);
+        }
         IcecreamReader.ttsAudio = null;
     }
 

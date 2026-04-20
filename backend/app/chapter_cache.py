@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.logging_config import get_logger
 
@@ -122,7 +122,7 @@ class ChapterCache:
                 content=content,
                 title=title,
                 total_chapters=total_chapters,
-                cached_at=datetime.utcnow(),
+                cached_at=datetime.now(timezone.utc),
                 file_mtime=file_mtime
             )
     

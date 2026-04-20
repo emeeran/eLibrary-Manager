@@ -6,7 +6,10 @@ TTS Fallback Strategy:
 3. gTTS (server-side) - Final fallback
 """
 
+from typing import AsyncGenerator
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 
 MAX_TTS_TEXT_LENGTH = 50000  # characters
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -156,6 +159,76 @@ async def get_tts_voices(engine: str = ENGINE_EDGETTS) -> dict:
             "default_voice": None,
             "note": "Browser voices are loaded client-side"
         }
+
+
+@router.post("/tts/stream")
+async def stream_speech(request: Request) -> StreamingResponse:
+    """Stream speech audio in real-time using EdgeTTS.
+
+    Returns MP3 audio chunks as they're generated, enabling instant playback.
+    Falls back to buffering the full audio via gTTS if EdgeTTS fails.
+
+    Expects JSON body:
+        text: Text to synthesize
+        voice: Voice ID (optional)
+        rate: Playback rate 0.5-2.0 (optional)
+        pitch: Pitch adjustment (optional)
+    """
+    try:
+        body = await request.json()
+        text = body.get("text", "")
+        voice = body.get("voice", "en-US-JennyNeural")
+        rate = body.get("rate", 1.0)
+        pitch = body.get("pitch", "+0Hz")
+
+        if not text:
+            raise HTTPException(status_code=400, detail="text field is required")
+
+        if len(text) > MAX_TTS_TEXT_LENGTH:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Text too long ({len(text)} chars). Max is {MAX_TTS_TEXT_LENGTH}.",
+            )
+
+        try:
+            rate = float(rate)
+        except (TypeError, ValueError):
+            rate = 1.0
+
+        edgetts_service = get_edgetts_service()
+
+        async def _generate() -> AsyncGenerator[bytes, None]:
+            try:
+                async for chunk in edgetts_service.stream_audio(
+                    text=text, voice=voice, rate=rate, pitch=pitch
+                ):
+                    yield chunk
+            except Exception as e:
+                logger.warning(f"EdgeTTS stream failed: {e}")
+                try:
+                    gtts_service = get_gtts_service()
+                    audio_data = await gtts_service.text_to_speech(
+                        text=text, voice=voice, rate=str(rate), pitch=pitch
+                    )
+                    yield audio_data
+                except Exception as fallback_err:
+                    logger.error(f"TTS fallback also failed: {fallback_err}")
+
+        return StreamingResponse(
+            _generate(),
+            media_type="audio/mpeg",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-TTS-Engine": ENGINE_EDGETTS,
+                "Accept-Ranges": "none",
+            },
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"TTS stream error: {e}")
+        raise HTTPException(status_code=500, detail=f"Stream failed: {e}")
 
 
 @router.post("/tts/synthesize")

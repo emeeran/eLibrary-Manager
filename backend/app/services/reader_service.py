@@ -3,7 +3,7 @@
 Coordinates between repositories, scanner, AI engine, and reader functionality.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -75,7 +75,7 @@ class ReaderService:
         # Update stored total_chapters if it was 0
         if book.total_chapters != total and total > 0:
             book.total_chapters = total
-        book.last_read_date = datetime.utcnow()
+        book.last_read_date = datetime.now(timezone.utc)
         await self.session.flush()
 
         return content, title, total

@@ -55,11 +55,11 @@ class NASStorageBackend(StorageBackend):
             os.listdir(self.mount_path)
 
             self._healthy = True
-            self._last_check = datetime.utcnow()
+            self._last_check = datetime.now(timezone.utc)
             return {"healthy": True, "details": f"NAS online at {self.host}"}
         except OSError as e:
             self._healthy = False
-            self._last_check = datetime.utcnow()
+            self._last_check = datetime.now(timezone.utc)
             logger.warning(f"NAS health check failed: {e}")
             return {"healthy": False, "details": f"NAS unreachable: {e}"}
 

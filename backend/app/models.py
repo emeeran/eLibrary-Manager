@@ -93,6 +93,8 @@ class Book(Base):
         Index('ix_books_hidden_favorite', 'is_hidden', 'is_favorite'),
         Index('ix_books_format_hidden', 'format', 'is_hidden'),
         Index('ix_books_recent_hidden', 'is_recent', 'is_hidden'),
+        Index('ix_books_hidden_added', 'is_hidden', 'added_date'),
+        Index('ix_books_hidden_title', 'is_hidden', 'title'),
     )
 
     def __repr__(self) -> str:

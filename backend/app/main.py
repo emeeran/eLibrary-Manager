@@ -125,23 +125,7 @@ async def health_check() -> dict:
     """Health check endpoint for Docker and monitoring."""
     return {"status": "ok"}
 
-# Exception handlers (register specific handlers before generic ones)
-@app.exception_handler(ResourceNotFoundError)
-async def dawnstar_exception_handler(
-    request: Request,
-    exc: DawnstarError
-) -> JSONResponse:
-    """Handle Dawnstar-specific exceptions."""
-    return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={
-            "error": type(exc).__name__,
-            "message": exc.message,
-            "details": exc.details
-        }
-    )
-
-
+# Exception handlers (specific before generic)
 @app.exception_handler(ResourceNotFoundError)
 async def not_found_handler(
     request: Request,
@@ -198,9 +182,19 @@ async def rate_limit_handler(
 
 
 @app.exception_handler(DawnstarError)
-
-
-# Page routes (HTML responses - kept in main.py for template access)
+async def dawnstar_exception_handler(
+    request: Request,
+    exc: DawnstarError
+) -> JSONResponse:
+    """Handle all other Dawnstar-specific exceptions."""
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={
+            "error": type(exc).__name__,
+            "message": exc.message,
+            "details": exc.details
+        }
+    )
 @app.get("/", response_class=HTMLResponse)
 async def library_home(request: Request) -> HTMLResponse:
     """Render library home page."""
