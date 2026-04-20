@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eLibrary Manager</title>
+    <link rel="stylesheet" href="/static/css/main.css?v=12">
+    <!-- Using SVG icons inline, no external font dependency -->
+</head>
+
+<body>
+    <!-- Skip to main content link for accessibility -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <div class="app-container">
+        <!-- ========================================
+             SIDEBAR (Icecream Style - Collapsible)
+             ======================================== -->
+        <aside class="sidebar" id="sidebar">
+            <!-- Resize Handle -->
+            <div class="sidebar-resize-handle" id="sidebar-resize-handle"></div>
+            <!-- Collapse Toggle Button -->
+            <button class="sidebar-collapse-btn" onclick="toggleSidebar()" title="Toggle sidebar">
+                <svg id="collapse-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12l4.58-4.59z" />
+                </svg>
+            </button>
+
+            <!-- Logo Section -->
+            <div class="sidebar-logo">
+                <div class="logo-icon" style="background:transparent;">
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
+                    </svg>
+                </div>
+                <div class="logo-text-group">
+                    <span class="logo-text" style="font-weight:800; font-size:18px;">eLibrary</span>
+                    <span class="logo-subtitle" style="font-size:11px; opacity:0.7;">Manager</span>
+                </div>
+                <span class="logo-badge">PRO</span>
+            </div>
+
+            <!-- Navigation Section -->
+            <nav class="sidebar-nav" aria-label="Library navigation">
+                <!-- Library Section -->
+                <div class="sidebar-nav-section">
+                    <div class="sidebar-nav-section-title">Library</div>
+
+                    <div class="nav-item active" onclick="filterByCategory('all', event)" role="button" tabindex="0"
+                        aria-current="page" aria-label="All books">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path
+                                    d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z" />
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">All</span>
+                        <span class="nav-item-count" id="count-all">0</span>
+                    </div>
+
+                    <div class="nav-item" onclick="filterByCategory('recent', event)" role="button" tabindex="0"
+                        aria-label="Recently read books">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path
+                                    d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" />
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Recently Read</span>
+                        <span class="nav-item-count" id="count-recent">0</span>
+                    </div>
+
+                    <div class="nav-item" onclick="filterByCategory('favorites', event)" role="button" tabindex="0"
+                        aria-label="Favorite books">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Favorites</span>
+                        <span class="nav-item-count" id="count-favorites">0</span>
+                    </div>
+
+                    <!-- Formats with Expandable Submenu -->
+                    <div class="nav-item" onclick="toggleFormatSection()">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z" />
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Formats</span>
+                        <svg class="nav-item-expand" id="format-expand-icon" width="12" height="12" viewBox="0 0 24 24"
+                            fill="currentColor">
+                            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
+                        </svg>
+                    </div>
+
+                    <div class="nav-subitems hidden" id="format-subitems">
+                        <div id="format-list"></div>
+                    </div>
+
+                    <div class="nav-item" onclick="filterByCategory('reading', event)">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Reading</span>
+                        <span class="nav-item-count" id="count-reading">0</span>
+                    </div>
+
+                    <!-- Categories with Expandable Submenu -->
+                    <div class="nav-item" onclick="toggleCategorySection()">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/>
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Categories</span>
+                        <svg class="nav-item-expand" id="category-expand-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
+                        </svg>
+                    </div>
+
+                    <div class="nav-subitems hidden" id="category-subitems">
+                        <div class="nav-subitem nav-subitem-action" onclick="event.stopPropagation(); createCategoryPrompt()">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:4px"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                            Add Category
+                        </div>
+                        <!-- Category items rendered dynamically -->
+                        <div id="category-list"></div>
+                    </div>
+
+                    <!-- Directories with Expandable Submenu -->
+                    <div class="nav-item" onclick="toggleDirectorySection()">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M10 4H4c-1.1 0-2 .9-2 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/>
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Directories</span>
+                        <svg class="nav-item-expand" id="directory-expand-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
+                        </svg>
+                    </div>
+
+                    <div class="nav-subitems hidden" id="directory-subitems">
+                        <div id="directory-list"></div>
+                    </div>
+
+                    <div class="nav-item" onclick="filterByCategory('deleted', event)">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Deleted</span>
+                        <span class="nav-item-count" id="count-deleted">0</span>
+                    </div>
+
+                    <div class="nav-item" onclick="showHiddenBooks()" id="nav-hidden">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Hidden</span>
+                        <span class="nav-item-count" id="count-hidden">0</span>
+                    </div>
+                </div>
+
+                <!-- Settings Section -->
+                <div class="sidebar-nav-section">
+                    <div class="sidebar-nav-section-title">Settings</div>
+
+                    <div class="nav-item" onclick="openSettings()">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L3.16 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.57 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Settings</span>
+                    </div>
+
+                    <div class="nav-item" onclick="openHelp()">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" />
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Help</span>
+                    </div>
+                </div>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="sidebar-footer-text">eLibrary Manager</span>
+                <span class="sidebar-footer-version">v1.0</span>
+            </div>
+        </aside>
+
+        <!-- ========================================
+             MAIN CONTENT AREA
+             ======================================== -->
+        <main class="main-content">
+            <!-- Expand Button (visible when sidebar is collapsed) -->
+            <button class="sidebar-expand-btn" id="sidebar-expand-btn" onclick="toggleSidebar()" title="Show sidebar">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M10 6L8.59 7.41 13.17 14l-4.58-4.59L10 14l6-6z" />
+                </svg>
+            </button>
+
+            <!-- Header / Toolbar -->
+            <header class="content-header">
+                <div class="header-left">
+                    <button class="toolbar-btn toolbar-btn-primary" onclick="openAddBookModal()" title="Add book">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                        </svg>
+                    </button>
+                    <button class="toolbar-btn" onclick="openImportModal()" title="Add folder">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                        </svg>
+                    </button>
+                    <button class="toolbar-btn" onclick="scanLibrary()" title="Rescan library">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                        </svg>
+                    </button>
+                    <button class="toolbar-btn" id="btn-auto-categorize" onclick="autoCategorizeAll()" title="Auto-categorize all books">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="header-right">
+                    <!-- Search -->
+                    <div class="search-wrapper">
+                        <input type="text" id="search" class="search-input" placeholder="Search in Library"
+                            aria-label="Search books">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
+                            aria-hidden="true">
+                            <path
+                                d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                        </svg>
+                        <button class="search-clear" id="search-clear" title="Clear search" aria-label="Clear search"
+                            style="display: none;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                            </svg>
+                        </button>
+                        <div class="search-loading" id="search-loading" style="display: none;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"
+                                    stroke-dasharray="32" stroke-dashoffset="32">
+                                    <animate attributeName="stroke-dashoffset" from="32" to="0" dur="1s"
+                                        repeatCount="indefinite" />
+                                </circle>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Search Filter Chips -->
+                    <div class="search-filters" id="search-filters" style="display: none;">
+                        <button class="search-filter-chip active" data-filter="all"
+                            aria-label="Search all fields">All</button>
+                        <button class="search-filter-chip" data-filter="title"
+                            aria-label="Search titles only">Titles</button>
+                        <button class="search-filter-chip" data-filter="author"
+                            aria-label="Search authors only">Authors</button>
+                    </div>
+
+                    <div class="header-divider"></div>
+
+                    <!-- View Toggle -->
+                    <div class="view-toggle">
+                        <button class="view-toggle-btn active" id="view-grid" onclick="setView('grid')"
+                            title="Grid View">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M4 11h5V5H4v6zm0 7h5v-6H4v6zm6 0h5v-6h-5v6zm6 0h5v-6h-5v6zm-6-7h5V5h-5v6zm6-6v6h5V5h-5z" />
+                            </svg>
+                        </button>
+                        <button class="view-toggle-btn" id="view-table" onclick="setView('table')" title="Table View">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                <path
+                                    d="M4 14h4v-4H4v4zm0 5h4v-4H4v4zM4 9h4V5H4v4zm5 5h12v-4H9v4zm0 5h12v-4H9v4zM9 5v4h12V5H9z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <select id="sort-select" class="sort-select" onchange="changeSortOrder(this.value)">
+                        <option value="added_date:desc">Date Added (newest)</option>
+                        <option value="added_date:asc">Date Added (oldest)</option>
+                        <option value="title:asc">Title (A-Z)</option>
+                        <option value="title:desc">Title (Z-A)</option>
+                        <option value="author:asc">Author (A-Z)</option>
+                        <option value="author:desc">Author (Z-A)</option>
+                        <option value="last_read:desc">Last Read</option>
+                        <option value="progress:desc">Progress</option>
+                    </select>
+                </div>
+            </header>
+
+            <!-- Book Grid Container -->
+            <div class="book-grid-container">
+                <div id="book-grid" class="book-grid" role="list" aria-label="Book library">
+                    <!-- Books loaded via JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ========================================
+         MODALS
+         ======================================== -->
+
+    <!-- Add Book Modal -->
+    <div id="upload-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Add Book</h2>
+                <button class="modal-close" onclick="closeModal('upload-modal')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <form id="upload-form" onsubmit="handleUpload(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label class="form-label">Add Method</label>
+                        <div class="add-method-tabs">
+                            <button type="button" class="add-method-tab active" data-method="upload" onclick="switchAddMethod('upload')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
+                                </svg>
+                                Upload File
+                            </button>
+                            <button type="button" class="add-method-tab" data-method="path" onclick="switchAddMethod('path')">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/>
+                                </svg>
+                                Select Existing File
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Upload method -->
+                    <div class="form-group" id="upload-method-group">
+                        <label class="form-label">Select File to Upload</label>
+                        <div class="file-input-wrapper">
+                            <input type="file" name="file" accept=".epub,.pdf,.mobi" class="file-input"
+                                id="file-input">
+                            <div class="file-input-display" id="file-input-display">
+                                <svg class="file-input-icon" width="24" height="24" viewBox="0 0 24 24"
+                                    fill="currentColor">
+                                    <path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z" />
+                                </svg>
+                                <span class="file-input-text" id="file-input-text">Drop file here or click to browse</span>
+                            </div>
+                        </div>
+                        <p class="form-hint">File will be indexed without copying to library</p>
+                    </div>
+                    
+                    <!-- File path method -->
+                    <div class="form-group hidden" id="path-method-group">
+                        <label class="form-label">Enter File Path</label>
+                        <input type="text" name="file_path" class="form-input" id="file-path-input" 
+                               placeholder="/absolute/path/to/book.epub">
+                        <p class="form-hint">Enter the absolute path to an existing book file</p>
+                    </div>
+                    
+                    <p class="form-hint"><strong>Supported formats:</strong> EPUB, PDF, MOBI</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('upload-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="upload-submit-btn">Add Book</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Book Modal -->
+    <div id="edit-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit Book</h2>
+                <button class="modal-close" onclick="closeModal('edit-modal')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 13.41 17.59 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <form id="edit-form" onsubmit="saveBookEdits(event)">
+                <div class="modal-body">
+                    <input type="hidden" id="edit-book-id" name="id">
+                    <div class="form-group">
+                        <label class="form-label">Title</label>
+                        <input type="text" id="edit-title" name="title" required class="form-input"
+                            placeholder="Book title">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Author</label>
+                        <input type="text" id="edit-author" name="author" class="form-input" placeholder="Author name">
+                    </div>
+                    <div class="form-group">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="edit-is-favorite" name="is_favorite"
+                                class="w-4 h-4 rounded border-gray-300">
+                            <span class="text-sm">Mark as favorite</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('edit-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Import Directory Modal -->
+    <div id="import-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Import Directory</h2>
+                <button class="modal-close" onclick="closeModal('import-modal')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <form id="import-form" onsubmit="handleImport(event)">
+                <div class="modal-body">
+                    <p class="form-hint" style="margin-bottom: 16px;">Enter absolute path on server to scan.</p>
+                    <div class="form-group">
+                        <label class="form-label">Directory Path</label>
+                        <input type="text" name="path" placeholder="/home/user/ebooks" required class="form-input">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('import-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Hidden Books Password Modal -->
+    <div id="hidden-password-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Hidden Books</h2>
+                <button class="modal-close" onclick="closeModal('hidden-password-modal')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" id="hidden-password-set-group" style="display:none;">
+                    <label class="form-label">Set Password</label>
+                    <input type="password" id="hidden-password-set" class="form-input" placeholder="Enter password to protect hidden books">
+                    <p class="form-hint">This password will be required to view hidden books</p>
+                </div>
+                <div class="form-group" id="hidden-password-verify-group" style="display:none;">
+                    <label class="form-label">Enter Password</label>
+                    <input type="password" id="hidden-password-verify" class="form-input" placeholder="Enter password">
+                    <button type="button" id="hidden-password-reset-link" onclick="showResetHiddenPassword()" style="background:none;border:none;color:var(--accent-blue, #4285f4);cursor:pointer;font-size:12px;margin-top:6px;padding:0;">Forgot password?</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('hidden-password-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary" id="hidden-password-submit" onclick="submitHiddenPassword()">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div style="display: flex; flex-direction: column; align-items: center;">
+            <div class="loading-spinner"></div>
+            <p class="loading-text" id="loading-text">Loading...</p>
+            <div id="scan-progress-info" style="display:none; text-align:center; margin-top:8px;">
+                <p id="scan-progress-text" style="font-size:13px; color:#666; margin:4px 0;">Scanning: 0 files...</p>
+                <div style="width:240px; height:6px; background:#e0e0e0; border-radius:3px; overflow:hidden;">
+                    <div id="scan-progress-fill" style="height:100%; background:var(--accent-blue, #4285f4); border-radius:3px; width:0%; transition:width 0.3s ease;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/library.js?v=18" defer></script>
+    <script src="/static/js/resize-sidebar.js" defer></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            initSidebarResize('sidebar', 'sidebar-resize-handle', 'librarySidebarWidth', 200, 150, 500);
+        });
+    </script>
+</body>
+
+</html>

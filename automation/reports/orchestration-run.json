@@ -1,0 +1,140 @@
+{
+  "schema_version": "3.0.0",
+  "generated_at": "2026-04-18T23:01:15",
+  "project_root": "/home/em/code/wip/dawstar-eBook",
+  "score": {
+    "score": 55,
+    "grade": "D",
+    "severity_counts": {
+      "low": 3,
+      "medium": 6,
+      "blocker": 0,
+      "high": 3
+    },
+    "gate_failures": 0,
+    "total_findings": 12,
+    "open_findings": 12,
+    "accepted_findings": 0,
+    "per_gate": {
+      "gate-1": "skip",
+      "gate-2": "skip",
+      "gate-3": "warn",
+      "gate-4": "skip"
+    }
+  },
+  "gates": [
+    {
+      "gate": "gate-1",
+      "status": "skip",
+      "findings": 0,
+      "steps": [],
+      "duration_sec": 0.0
+    },
+    {
+      "gate": "gate-2",
+      "status": "skip",
+      "findings": 0,
+      "steps": [],
+      "duration_sec": 0.0
+    },
+    {
+      "gate": "gate-3",
+      "status": "warn",
+      "findings": 7,
+      "steps": [
+        {
+          "name": "qwen-audit",
+          "command": [
+            "/home/em/.npm-global/bin/qwen",
+            "-p",
+            "# Qwen Code Audit Prompt\n\nInspect this repository as a full-stack FastAPI + React/Vite codebase and generate a production-readiness audit.\n\nConstraints:\n- Read-only\n- No file edits\n- No invented commands\n- Prefer evidence from actual repo files\n\nAssess:\n- FastAPI backend readiness\n- React/Vite frontend readiness\n- frontend/backend configuration alignment\n- test/build/deploy workflows\n- security and env safety\n- docs and operator readiness\n\nOutput markdown with these sections:\n1. Executive status\n2. Stack map\n3. Findings table\n4. Top 10 actions\n5. Evidence gaps\n\nFindings table format:\n| ID | Layer | Severity | Evidence | Impact | Recommended fix | Auto-fixable | Verify |\n\nWrite the report to `automation/reports/qwen-audit.md`.\n"
+          ],
+          "ok": true,
+          "returncode": 1,
+          "stdout_file": "/home/em/code/wip/dawstar-eBook/automation/reports/qwen-audit.md",
+          "stderr_file": "/home/em/code/wip/dawstar-eBook/automation/reports/logs/qwen.stderr.log",
+          "started_at": "2026-04-18T22:46:11",
+          "finished_at": "2026-04-18T22:46:24",
+          "duration_sec": 12.51,
+          "attempts": 3,
+          "timeout_sec": 900,
+          "note": "skipped (auth/config failure)"
+        },
+        {
+          "name": "claude-audit",
+          "command": [
+            "/home/em/.npm-global/bin/claude",
+            "-p",
+            "Analyze this repository for production readiness in read-only mode.\n\nFollow these audit instructions:\n---\n# production-auditor\n\n## Role\nLead production-readiness auditor for a FastAPI + React/Vite repo.\n\n## Goal\nProduce a read-only audit covering backend, frontend, integration seams, and release readiness.\n\n## Required checks\n### Backend\n- FastAPI app structure, config, startup path\n- health/readiness endpoint\n- env validation and secret handling\n- exception handling and logging\n- tests, lint, typing, packaging\n- deployment path and ASGI runner assumptions\n\n### Frontend\n- Vite config, API env usage, build path\n- test/lint/typecheck/build scripts\n- production config leakage risks\n- error handling and route/build hygiene\n\n### Integration\n- API base URL strategy\n- CORS origin correctness\n- auth/session/token boundary if present\n- Docker/CI consistency across backend and frontend\n\n## Output\nWrite `automation/reports/claude-audit.md` using:\n- Executive status\n- Stack map\n- Findings table\n- Top 12 actions\n- Unknowns and evidence gaps\n\n## Findings columns\n| ID | Layer | Severity | Evidence | Impact | Recommended fix | Auto-fixable | Verify |\n\n---\n\nWrite the full markdown report to automation/reports/claude-audit.md.\nReturn only the final report content."
+          ],
+          "ok": true,
+          "returncode": 0,
+          "stdout_file": "/home/em/code/wip/dawstar-eBook/automation/reports/claude-audit.md",
+          "stderr_file": "/home/em/code/wip/dawstar-eBook/automation/reports/logs/claude.stderr.log",
+          "started_at": "2026-04-18T22:46:11",
+          "finished_at": "2026-04-18T22:54:26",
+          "duration_sec": 495.08,
+          "attempts": 1,
+          "timeout_sec": 900,
+          "note": ""
+        },
+        {
+          "name": "gemini-audit",
+          "command": [
+            "/home/em/.npm-global/bin/gemini",
+            "-p",
+            "# Gemini CLI Audit Prompt\n\nAnalyze this repository as a FastAPI backend plus React/Vite frontend project.\n\nDo not edit files. Produce a concise evidence-based production-readiness audit.\n\nEvaluate:\n- backend FastAPI structure, startup path, settings, health checks, logging, tests, and deployment assumptions\n- frontend React/Vite structure, env usage, API client config, tests, lint/typecheck/build readiness\n- integration seams: API URL, CORS, auth/session boundary, Docker/CI consistency\n- release readiness: docs, CI/CD, rollback notes, config examples, secrets safety\n\nOutput markdown using exactly these sections:\n1. Executive status\n2. Stack map\n3. Findings table\n4. Top actions\n5. Unknowns\n\nUse this findings table schema:\n| ID | Layer | Severity | Evidence | Impact | Recommended fix | Auto-fixable | Verify |\n\nWrite the report to `automation/reports/gemini-audit.md`.\n"
+          ],
+          "ok": true,
+          "returncode": 0,
+          "stdout_file": "/home/em/code/wip/dawstar-eBook/automation/reports/gemini-audit.md",
+          "stderr_file": "/home/em/code/wip/dawstar-eBook/automation/reports/logs/gemini.stderr.log",
+          "started_at": "2026-04-18T22:46:11",
+          "finished_at": "2026-04-18T22:59:03",
+          "duration_sec": 772.37,
+          "attempts": 1,
+          "timeout_sec": 900,
+          "note": ""
+        },
+        {
+          "name": "merge-plan",
+          "command": [
+            "/home/em/.npm-global/bin/claude",
+            "-p",
+            "Follow these merge instructions:\n---\n# report-synthesizer\n\n## Role\nMerge production-readiness reports from Claude Code, Gemini CLI, and Qwen Code for a FastAPI + React/Vite repo.\n\n## Inputs\n- `automation/reports/claude-audit.md`\n- `automation/reports/gemini-audit.md`\n- `automation/reports/qwen-audit.md`\n- optional backend/frontend/integration findings\n\n## Merge rules\n- Prefer findings confirmed by 2+ tools.\n- Preserve unique high-value issues with strong evidence.\n- Group by backend, frontend, integration, release/ops.\n- Separate safe autofixes from approval-required work.\n- Order work by risk reduction first, verification ease second.\n\n## Output\nWrite `automation/reports/merged-action-plan.md` with:\n1. Repo summary\n2. Consensus findings\n3. Backend priorities\n4. Frontend priorities\n5. Integration priorities\n6. Safe autofixes\n7. Approval-required changes\n8. Verification matrix\n9. Open risks\n\n---\n\nMerge these reports if they exist:\n- automation/reports/claude-audit.md\n- automation/reports/gemini-audit.md\n- automation/reports/qwen-audit.md\n\nWrite the merged result to automation/reports/merged-action-plan.md. Return only the final merged markdown content."
+          ],
+          "ok": true,
+          "returncode": 0,
+          "stdout_file": "/home/em/code/wip/dawstar-eBook/automation/reports/merged-action-plan.md",
+          "stderr_file": "/home/em/code/wip/dawstar-eBook/automation/reports/logs/merge.stderr.log",
+          "started_at": "2026-04-18T22:59:03",
+          "finished_at": "2026-04-18T23:01:15",
+          "duration_sec": 131.49,
+          "attempts": 1,
+          "timeout_sec": 900,
+          "note": ""
+        }
+      ],
+      "duration_sec": 1411.45
+    },
+    {
+      "gate": "gate-4",
+      "status": "skip",
+      "findings": 0,
+      "steps": [],
+      "duration_sec": 0.0
+    }
+  ],
+  "config": {
+    "severity_weights": {
+      "blocker": 15,
+      "high": 8,
+      "medium": 3,
+      "low": 1
+    },
+    "tool_timeout": 900,
+    "retries": 2,
+    "auto_fix": false,
+    "fail_under": 0
+  }
+}

@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="day">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}eLibrary Manager{% endblock %}</title>
+
+    <!-- Tailwind CSS (CDN for development) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="/static/css/main.css">
+
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-[#f4f7f6] text-gray-800">
+    {% block body %}{% endblock %}
+
+    <!-- Theme Script -->
+    <script src="/static/js/theme.js"></script>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang='en'><head>
+<meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>Production Readiness Gate</title>
+<style>
+body{font-family:Inter,Arial,sans-serif;background:#0b1020;color:#e8edf7;margin:0;padding:24px;line-height:1.5}
+.wrap{max-width:1200px;margin:0 auto}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px;margin:20px 0}
+.card{background:#121933;border:1px solid #27304f;border-radius:16px;padding:18px}
+.big{font-size:2rem;font-weight:700}
+table{width:100%;border-collapse:collapse;margin:12px 0;background:#121933;border-radius:12px;overflow:hidden}
+th,td{padding:10px 12px;border-bottom:1px solid #27304f;text-align:left;font-size:13px}
+th{background:#182140}.good{color:#7ee787}.bad{color:#ff7b72}
+.sev-blocker{background:#3d1119}.sev-high{background:#3d2811}.sev-medium{background:#3d3911}
+.tab-bar{display:flex;gap:8px;margin:12px 0}
+.tab{padding:8px 16px;border-radius:8px;cursor:pointer;background:#121933;border:1px solid #27304f}
+.tab.active{background:#182140;border-color:#58a6ff;color:#58a6ff}
+.tab-panel{display:none}.tab-panel.active{display:block}
+footer{margin-top:32px;padding-top:16px;border-top:1px solid #27304f;font-size:12px;color:#6e7681}
+</style></head><body><div class='wrap'>
+<h1>Production Readiness Gate</h1>
+<p>Generated: 2026-04-18T23:01:15 | Schema: 3.0.0</p>
+<div class='cards'>
+<div class='card'><div>Score</div><div class='big'>55</div></div>
+<div class='card'><div>Grade</div><div class='big'>D</div></div>
+<div class='card'><div>Blockers</div><div class='big' style='color:#ff7b72'>0</div></div>
+<div class='card'><div>Open</div><div class='big'>12</div></div>
+<div class='card'><div>Gate Failures</div><div class='big' style='color:#ff7b72'>0</div></div>
+</div>
+<div class='tab-bar'>
+<div class='tab active' onclick='showTab("gates")'>Gates</div>
+<div class='tab' onclick='showTab("findings")'>Findings</div>
+</div>
+<div id='tab-gates' class='tab-panel active'>
+<table><tr><th>Gate</th><th>Status</th><th>Findings</th><th>Duration</th></tr><tr><td>gate-1</td><td class=''>SKIP</td><td>0</td><td>0.0</td></tr><tr><td>gate-2</td><td class=''>SKIP</td><td>0</td><td>0.0</td></tr><tr><td>gate-3</td><td class='sev-medium'>WARN</td><td>7</td><td>1411.5</td></tr><tr><td>gate-4</td><td class=''>SKIP</td><td>0</td><td>0.0</td></tr></table>
+</div>
+<div id='tab-findings' class='tab-panel'>
+<table><tr><th>ID</th><th>Severity</th><th>Domain</th><th>Source</th><th>Title</th><th>Status</th></tr><tr class='sev-high'><td>F1</td><td>high</td><td>audit</td><td>gemini</td><td>Missing React/Vite configuration. Stack relies on `frontend/templates/` and `fro</td><td>open</td></tr><tr class='sev-medium'><td>F2</td><td>medium</td><td>audit</td><td>gemini</td><td>`app.config.AppConfig.secret_key` has a hardcoded default `&quot;dawnstar-default-sec</td><td>open</td></tr><tr class='sev-medium'><td>F3</td><td>medium</td><td>audit</td><td>gemini</td><td>`CORS` middleware is not configured in `main.py`.</td><td>open</td></tr><tr class='sev-medium'><td>F4</td><td>medium</td><td>audit</td><td>gemini</td><td>No `.github/workflows/` directory or equivalent CI pipelines found.</td><td>open</td></tr><tr class=''><td>F5</td><td>low</td><td>audit</td><td>gemini</td><td>Docker healthcheck calls `http://localhost:8000/api/health`. FastAPI defines `@a</td><td>open</td></tr><tr class='sev-high'><td>01</td><td>high</td><td>audit</td><td>gemini</td><td>Missing `package.json`, `node_modules/`, or React/Vite code; `frontend/` contain</td><td>open</td></tr><tr class='sev-high'><td>02</td><td>high</td><td>audit</td><td>gemini</td><td>`config.py` uses hardcoded `secret_key = &quot;dawnstar-default-secret-key-change-in-</td><td>open</td></tr><tr class='sev-medium'><td>03</td><td>medium</td><td>audit</td><td>gemini</td><td>`security.py` derives Fernet key from the local database URL (`config.database_u</td><td>open</td></tr><tr class='sev-medium'><td>04</td><td>medium</td><td>audit</td><td>gemini</td><td>No `CORSMiddleware` configured in `main.py`.</td><td>open</td></tr><tr class='sev-medium'><td>05</td><td>medium</td><td>audit</td><td>gemini</td><td>`.github/workflows/` directory is missing. No GitHub Actions defined.</td><td>open</td></tr><tr class=''><td>06</td><td>low</td><td>audit</td><td>gemini</td><td>Only 3 test files in `tests/` (`test_api.py`, `test_scanner.py`, `conftest.py`).</td><td>open</td></tr><tr class=''><td>07</td><td>low</td><td>audit</td><td>gemini</td><td>`Dockerfile` uses `HEALTHCHECK` with urllib, but lacks rollback scripts or confi</td><td>open</td></tr></table>
+</div>
+<footer>v3.0.0</footer></div>
+<script>
+function showTab(n){document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active')});document.querySelectorAll('.tab').forEach(function(t){t.classList.remove('active')});document.getElementById('tab-'+n).classList.add('active');event.target.classList.add('active')}
+</script></body></html>

@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eLibrary Manager - Settings</title>
+    <link rel="stylesheet" href="/static/css/main.css?v=4">
+</head>
+<body>
+    <div class="settings-container">
+        <!-- Settings Sidebar -->
+        <aside class="settings-sidebar">
+            <!-- Logo Section -->
+            <div class="settings-logo">
+                <div class="logo-icon" style="background:transparent;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                        <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
+                    </svg>
+                </div>
+                <div class="logo-text-group">
+                    <span class="logo-text" style="font-weight:800;">eLibrary</span>
+                    <span class="logo-subtitle" style="font-size:11px; opacity:0.7;">Manager</span>
+                </div>
+                <span class="logo-badge">PRO</span>
+            </div>
+
+            <!-- Settings Navigation -->
+            <nav class="settings-nav">
+                <div class="settings-nav-item active" data-tab="general" onclick="switchTab('general')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">General</span>
+                </div>
+
+                <div class="settings-nav-item" data-tab="reading" onclick="switchTab('reading')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Reading</span>
+                </div>
+
+                <div class="settings-nav-item" data-tab="appearance" onclick="switchTab('appearance')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Appearance</span>
+                </div>
+
+                <div class="settings-nav-item" data-tab="tts" onclick="switchTab('tts')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Text-to-Speech</span>
+                </div>
+
+                <div class="settings-nav-item" data-tab="hotkeys" onclick="switchTab('hotkeys')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20 5H4c-1.1 0-1.99.9-1.99 2L2 17c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm-9 3h2v2h-2V8zm0 3h2v2h-2v-2zM8 8h2v2H8V8zm0 3h2v2H8v-2zm-1 2H5v-2h2v2zm0-3H5V8h2v2zm9 7H8v-2h8v2zm0-4h-2v-2h2v2zm0-3h-2V8h2v2zm3 3h-2v-2h2v2zm0-3h-2V8h2v2z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Hotkeys</span>
+                </div>
+
+                <div class="settings-nav-item" data-tab="ai" onclick="switchTab('ai')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M21 11.5v-6c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v6c-.55 0-1 .45-1 1v2c0 .55.45 1 1 1h1v1c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-1h1c.55 0 1-.45 1-1v-2c0-.55-.45-1-1-1zM5 5.5h14v6H5v-6zm14 10H5v-1h14v1zM7 9h10v1H7V9z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">AI Provider</span>
+                </div>
+
+                <div class="settings-nav-item" data-tab="nas" onclick="switchTab('nas')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">NAS Storage</span>
+                </div>
+
+                <div class="settings-nav-item" data-tab="about" onclick="switchTab('about')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">About</span>
+                </div>
+            </nav>
+
+            <!-- Footer -->
+            <div class="settings-footer">
+                <button class="settings-footer-btn" onclick="window.location.href='/'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                    </svg>
+                    Back to Library
+                </button>
+            </div>
+        </aside>
+
+        <!-- Settings Content -->
+        <main class="settings-main">
+            <!-- Header -->
+            <header class="settings-header">
+                <h1 class="settings-title">Settings</h1>
+            </header>
+
+            <!-- Settings Panels -->
+            <div class="settings-content">
+                <!-- General Settings -->
+                <div class="settings-panel active" id="panel-general">
+                    <h2 class="panel-title">General Settings</h2>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Library Path</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Default Library Directory</div>
+                                <div class="setting-description">Path to your ebook collection</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="text" id="library-path" class="settings-input" value="/home/user/ebooks" placeholder="/path/to/ebooks">
+                                <button class="settings-btn" onclick="browseLibraryPath()">Browse...</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Library Behavior</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Auto-scan on startup</div>
+                                <div class="setting-description">Automatically scan library directory when app starts</div>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="auto-scan">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Watch for changes</div>
+                                <div class="setting-description">Automatically detect new books in library</div>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="watch-changes">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reading Settings -->
+                <div class="settings-panel" id="panel-reading">
+                    <h2 class="panel-title">Reading Settings</h2>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Default View</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Page Layout</div>
+                                <div class="setting-description">Choose how pages are displayed</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="page-layout" class="settings-select">
+                                    <option value="single">Single Page</option>
+                                    <option value="double">Double Page</option>
+                                    <option value="continuous">Continuous Scroll</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Text Alignment</div>
+                                <div class="setting-description">Default text alignment for reading</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="text-align" class="settings-select">
+                                    <option value="justify">Justified</option>
+                                    <option value="left">Left Aligned</option>
+                                    <option value="center">Center</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Font Settings</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Default Font Size</div>
+                                <div class="setting-description">Base font size for reading</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="range" id="font-size" class="settings-slider" min="50" max="200" value="100" oninput="updateFontSizeDisplay(this.value)">
+                                <span class="slider-value" id="font-size-display">100%</span>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Font Family</div>
+                                <div class="setting-description">Preferred font for reading</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="font-family" class="settings-select">
+                                    <option value="georgia">Georgia</option>
+                                    <option value="times">Times New Roman</option>
+                                    <option value="arial">Arial</option>
+                                    <option value="verdana">Verdana</option>
+                                    <option value="custom">Custom...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Line Height</div>
+                                <div class="setting-description">Spacing between lines of text</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="line-height" class="settings-select">
+                                    <option value="1.4">Compact</option>
+                                    <option value="1.6">Normal</option>
+                                    <option value="1.8" selected>Relaxed</option>
+                                    <option value="2.0">Loose</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Margins</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Page Margins</div>
+                                <div class="setting-description">Margin size around reading content</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="page-margins" class="settings-select">
+                                    <option value="narrow">Narrow</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="wide">Wide</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Auto Page Flip</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Enable Auto Flip</div>
+                                <div class="setting-description">Automatically advance pages</div>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="auto-flip">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Flip Interval (seconds)</div>
+                                <div class="setting-description">Time between automatic page turns</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="number" id="flip-interval" class="settings-input-number" value="30" min="5" max="300">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Appearance Settings -->
+                <div class="settings-panel" id="panel-appearance">
+                    <h2 class="panel-title">Appearance</h2>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Theme</h3>
+                        <div class="theme-options">
+                            <div class="theme-option" data-theme="day" onclick="selectTheme('day')">
+                                <div class="theme-preview day">
+                                    <span class="theme-letter">Aa</span>
+                                </div>
+                                <span class="theme-name">Day</span>
+                            </div>
+                            <div class="theme-option" data-theme="sepia" onclick="selectTheme('sepia')">
+                                <div class="theme-preview sepia">
+                                    <span class="theme-letter">Aa</span>
+                                </div>
+                                <span class="theme-name">Sepia</span>
+                            </div>
+                            <div class="theme-option" data-theme="night" onclick="selectTheme('night')">
+                                <div class="theme-preview night">
+                                    <span class="theme-letter">Aa</span>
+                                </div>
+                                <span class="theme-name">Night</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Interface</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Sidebar Width</div>
+                                <div class="setting-description">Width of the library sidebar</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="sidebar-width" class="settings-select">
+                                    <option value="narrow">Narrow (200px)</option>
+                                    <option value="medium" selected>Medium (240px)</option>
+                                    <option value="wide">Wide (280px)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Book Card Size</div>
+                                <div class="setting-description">Size of book covers in grid view</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="card-size" class="settings-select">
+                                    <option value="small">Small</option>
+                                    <option value="medium" selected>Medium</option>
+                                    <option value="large">Large</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TTS Settings -->
+                <div class="settings-panel" id="panel-tts">
+                    <h2 class="panel-title">Text-to-Speech</h2>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">TTS Engine</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Text-to-Speech Engine</div>
+                                <div class="setting-description">Choose between EdgeTTS (neural), browser, or gTTS</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="tts-engine" class="settings-select" onchange="changeTTSEngine(this.value)">
+                                    <option value="edgetts" selected>EdgeTTS (Neural - Recommended)</option>
+                                    <option value="webspeech">Browser (Web Speech API)</option>
+                                    <option value="gtts">gTTS (Google Translate)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group" id="tts-voice-settings">
+                        <h3 class="group-title">Voice Settings</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Default Voice/Language</div>
+                                <div class="setting-description">Voice or language for text-to-speech playback</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="tts-voice" class="settings-select">
+                                    <option value="">Loading voices...</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Default Speed</div>
+                                <div class="setting-description">Speech playback rate</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="tts-speed" class="settings-select">
+                                    <option value="0.5">0.5x (Slow)</option>
+                                    <option value="0.75">0.75x</option>
+                                    <option value="1.0" selected>1.0x (Normal)</option>
+                                    <option value="1.25">1.25x</option>
+                                    <option value="1.5">1.5x</option>
+                                    <option value="2.0">2.0x (Fast)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Pitch (Web Speech)</div>
+                                <div class="setting-description">Voice pitch adjustment (browser only)</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="range" id="tts-pitch" class="settings-slider" min="0.5" max="2" step="0.1" value="1" oninput="updatePitchDisplay(this.value)">
+                                <span class="slider-value" id="pitch-display">1.0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Test TTS</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Test Voice</div>
+                                <div class="setting-description">Play a sample with current settings</div>
+                            </div>
+                            <div class="setting-control">
+                                <button class="btn btn-secondary" onclick="testTTS()">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="margin-right: 6px;">
+                                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                                    </svg>
+                                    Play Sample
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hotkeys Settings -->
+                <div class="settings-panel" id="panel-hotkeys">
+                    <h2 class="panel-title">Keyboard Shortcuts</h2>
+
+                    <div class="hotkeys-table">
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Show hotkeys</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">F1</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Go to previous page/chapter</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">Left</span>
+                                <span class="hotkey-key">Up</span>
+                                <span class="hotkey-key">PgUp</span>
+                                <span class="hotkey-key">Backspace</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Go to next page/chapter</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">Right</span>
+                                <span class="hotkey-key">Down</span>
+                                <span class="hotkey-key">PgDn</span>
+                                <span class="hotkey-key">Space</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Zoom in / Increase font</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">+</span>
+                                <span class="hotkey-key">=</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Zoom out / Decrease font</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">-</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Toggle fullscreen</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">F11</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Close current panel</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">Escape</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Search</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">Ctrl</span>
+                                <span class="hotkey-key">+</span>
+                                <span class="hotkey-key">F</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Add new book</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">Ctrl</span>
+                                <span class="hotkey-key">+</span>
+                                <span class="hotkey-key">N</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Open library</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">Ctrl</span>
+                                <span class="hotkey-key">+</span>
+                                <span class="hotkey-key">L</span>
+                            </div>
+                        </div>
+                        <div class="hotkey-row">
+                            <div class="hotkey-action">Toggle favorite</div>
+                            <div class="hotkey-keys">
+                                <span class="hotkey-key">Ctrl</span>
+                                <span class="hotkey-key">+</span>
+                                <span class="hotkey-key">D</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="settings-btn settings-btn-primary" onclick="saveSettings(event)">Save Settings</button>
+                        <button class="settings-btn settings-btn-secondary" onclick="resetHotkeys()">Reset to Defaults</button>
+                    </div>
+                </div>
+
+                <!-- AI Provider Settings -->
+                <div class="settings-panel" id="panel-ai">
+                    <h2 class="panel-title">AI Provider Settings</h2>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Provider</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">AI Provider</div>
+                                <div class="setting-description">Select the AI service for summaries</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="ai-provider" class="settings-select" onchange="updateAIProviderSettings()">
+                                    <option value="google">Google Gemini</option>
+                                    <option value="groq">Groq</option>
+                                    <option value="ollama">Ollama (Local)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">API Key</div>
+                                <div class="setting-description">Your API key for the selected provider</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="password" id="ai-api-key" class="settings-input" placeholder="Enter API key...">
+                            </div>
+                        </div>
+
+                        <div class="setting-row" id="ollama-url-row" style="display: none;">
+                            <div class="setting-info">
+                                <div class="setting-label">Ollama URL</div>
+                                <div class="setting-description">Local Ollama server address</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="text" id="ollama-url" class="settings-input" value="http://localhost:11434" placeholder="http://localhost:11434">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Summary Settings</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Summary Length</div>
+                                <div class="setting-description">Target length for generated summaries</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="summary-length" class="settings-select">
+                                    <option value="short">Short (~100 words)</option>
+                                    <option value="medium" selected>Medium (~250 words)</option>
+                                    <option value="long">Long (~500 words)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Auto-generate summaries</div>
+                                <div class="setting-description">Generate summary when opening chapters</div>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="auto-summary">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="settings-btn settings-btn-primary" onclick="testAIConnection(event)">Test Connection</button>
+                    </div>
+                </div>
+
+                <!-- NAS Storage Panel -->
+                <div class="settings-panel" id="panel-nas">
+                    <h2 class="panel-title">NAS Storage</h2>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Connection</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Enable NAS Storage</div>
+                                <div class="setting-description">Index and read books stored on your Synology NAS</div>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="nas-enabled">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Protocol</div>
+                                <div class="setting-description">Network protocol for NAS connection</div>
+                            </div>
+                            <div class="setting-control">
+                                <select id="nas-protocol" class="settings-select">
+                                    <option value="smb">SMB/CIFS</option>
+                                    <option value="nfs">NFS</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">NAS Host</div>
+                                <div class="setting-description">IP address or hostname of your NAS</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="text" id="nas-host" class="settings-input" placeholder="192.168.1.100">
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Share Name</div>
+                                <div class="setting-description">Name of the shared folder on your NAS</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="text" id="nas-share" class="settings-input" placeholder="ebook_library">
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Mount Path</div>
+                                <div class="setting-description">Local mount point where the NAS share is mounted</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="text" id="nas-mount-path" class="settings-input" placeholder="/mnt/nas/ebooks">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Authentication</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Username</div>
+                                <div class="setting-description">NAS account username</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="text" id="nas-username" class="settings-input" placeholder="nas_user">
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Password</div>
+                                <div class="setting-description">NAS account password (encrypted at rest)</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="password" id="nas-password" class="settings-input" placeholder="Enter password...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Offline Access</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Auto-cache on read</div>
+                                <div class="setting-description">Automatically cache books when opened for offline reading</div>
+                            </div>
+                            <div class="setting-control">
+                                <span class="setting-value" style="color: #4CAF50;">Enabled</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="settings-btn settings-btn-primary" onclick="testNASConnection(event)">Test Connection</button>
+                        <button class="settings-btn settings-btn-secondary" onclick="saveSettings(event)">Save Settings</button>
+                    </div>
+
+                    <div id="nas-status" style="margin-top: 12px; display: none;">
+                        <div class="settings-group">
+                            <h3 class="group-title">Status</h3>
+                            <div id="nas-status-content" style="padding: 12px; border-radius: 6px; background: var(--bg-secondary, #f5f5f5);">
+                                <span id="nas-status-dot" style="display: inline-block; width: 10px; height: 10px; border-radius: 50; margin-right: 8px;"></span>
+                                <span id="nas-status-text">Checking...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- About Panel -->
+                <div class="settings-panel" id="panel-about">
+                    <h2 class="panel-title">About eLibrary Manager</h2>
+
+                    <div class="about-info">
+                        <div class="about-logo">
+                            <div class="logo-icon-large">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="white">
+                                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                                </svg>
+                            </div>
+                            <h3 class="about-name">eLibrary Manager</h3>
+                            <span class="about-badge">PRO</span>
+                        </div>
+
+                        <div class="about-details">
+                            <div class="about-row">
+                                <span class="about-label">Version:</span>
+                                <span class="about-value">1.0.0</span>
+                            </div>
+                            <div class="about-row">
+                                <span class="about-label">Build:</span>
+                                <span class="about-value">2025.02.08</span>
+                            </div>
+                        </div>
+
+                        <p class="about-description">
+                            A lightweight web application for managing and reading large ebook collections with AI-powered chapter summarization.
+                            Designed as a pixel-perfect digital twin of Icecream eBook Reader Pro 6.53.
+                        </p>
+
+                        <div class="about-section">
+                            <h4>Features</h4>
+                            <ul class="about-features">
+                                <li>Support for EPUB, PDF, and MOBI formats</li>
+                                <li>AI-powered chapter summaries</li>
+                                <li>Text-to-speech support</li>
+                                <li>Multiple reading themes (Day, Sepia, Night)</li>
+                                <li>Progress tracking and bookmarks</li>
+                                <li>Full-text search</li>
+                            </ul>
+                        </div>
+
+                        <div class="about-links">
+                            <a href="#" class="about-link">Documentation</a>
+                            <a href="#" class="about-link">GitHub Repository</a>
+                            <a href="#" class="about-link">Report Issue</a>
+                            <a href="#" class="about-link">License</a>
+                        </div>
+
+                        <p class="about-copyright">
+                            © 2025 eLibrary Manager. All rights reserved.<br>
+                            Built with FastAPI, Python, and modern web technologies.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Save Button Bar -->
+            <div class="settings-save-bar">
+                <button class="settings-btn settings-btn-secondary" onclick="resetSettings()">Reset to Defaults</button>
+                <button class="settings-btn settings-btn-primary" onclick="saveSettings(event)">Save Settings</button>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/settings.js?v=2"></script>
+</body>
+</html>

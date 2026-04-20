@@ -1,0 +1,3986 @@
+/* ========================================
+   ICECREAM EBOOK READER - Exact Clone
+   Based on Icecream eBook Reader Pro UI
+   ======================================== */
+
+/* === CSS VARIABLES === */
+:root {
+    /* Colors - Exact Icecream palette */
+    --ic-white: #ffffff;
+    --ic-gray-50: #fafafa;
+    --ic-gray-100: #f5f5f5;
+    --ic-gray-200: #eeeeee;
+    --ic-gray-300: #e0e0e0;
+    --ic-gray-400: #bdbdbd;
+    --ic-gray-500: #9e9e9e;
+    --ic-gray-600: #757575;
+    --ic-gray-700: #616161;
+    --ic-gray-800: #424242;
+    --ic-gray-900: #212121;
+
+    /* Blue accent */
+    --ic-blue: #2196F3;
+    --ic-blue-hover: #1976D2;
+    --ic-blue-light: #E3F2FD;
+
+    /* Reading backgrounds - Exact Icecream hex codes */
+    --ic-reader-bg-day: #ffffff;
+    --ic-reader-bg-sepia: #f4ecd8;
+    --ic-reader-bg-night: #1e1e1e;
+
+    /* Text colors */
+    --ic-text-day: #1a1a1a;
+    --ic-text-sepia: #5b4636;
+    --ic-text-night: #d1d1d1;
+
+    /* Annotation colors */
+    --ic-highlight-yellow: #fff59d;
+    --ic-highlight-green: #c8e6c9;
+    --ic-highlight-blue: #bbdefb;
+    --ic-highlight-pink: #f8bbd0;
+
+    /* Sidebar colors */
+    --ic-sidebar-bg: #fafafa;
+    --ic-sidebar-border: #e0e0e0;
+
+    /* Accent (used by summary length btns, TOC sections, spinner, refresh link) */
+    --ic-accent: #2196F3;
+    --ic-accent-dark: #1976D2;
+}
+
+/* Theme application */
+html[data-theme="day"] {
+    --ic-reader-bg: var(--ic-reader-bg-day);
+    --ic-text: var(--ic-text-day);
+}
+
+html[data-theme="sepia"],
+html[data-theme="sepia-light"] {
+    --ic-reader-bg: var(--ic-reader-bg-sepia);
+    --ic-text: var(--ic-text-sepia);
+}
+
+html[data-theme="sepia-dark"] {
+    --ic-reader-bg: #2a2418;
+    --ic-text: #d4c5a5;
+}
+
+html[data-theme="night"] {
+    --ic-reader-bg: var(--ic-reader-bg-night);
+    --ic-text: var(--ic-text-night);
+}
+
+/* === RESET === */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    color: var(--ic-gray-800);
+    background: var(--ic-white);
+}
+
+/* === MAIN CONTAINER === */
+.icecream-reader {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ========================================
+   TOP HEADER (Title Bar) - Icecream minimal
+   ======================================== */
+.ic-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 34px;
+    background: var(--ic-white);
+    border-bottom: 1px solid var(--ic-gray-300);
+    padding: 0 8px;
+    flex-shrink: 0;
+    position: relative;
+}
+
+.ic-header-center {
+    flex: 1;
+    text-align: center;
+}
+
+.ic-book-title {
+    font-size: 14px;
+    font-weight: 400;
+    color: var(--ic-gray-700);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60vw;
+    letter-spacing: 0.01em;
+}
+
+.ic-header-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--ic-gray-500);
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.ic-header-close:hover {
+    background: var(--ic-gray-200);
+    color: var(--ic-gray-700);
+}
+
+/* ========================================
+   NAVIGATION TABS - Compact Icecream style
+   ======================================== */
+.ic-tabs {
+    display: flex;
+    align-items: center;
+    height: 40px;
+    background: #f5f5f5;
+    border-bottom: 1px solid var(--ic-gray-300);
+    padding: 0 8px;
+    flex-shrink: 0;
+    gap: 0;
+}
+
+.ic-tabs-left {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+}
+
+.ic-tabs-right {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    margin-left: auto;
+}
+
+.ic-tabs-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--ic-gray-300);
+    margin: 0 12px;
+    flex-shrink: 0;
+}
+
+.ic-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 32px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--ic-gray-600);
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+    white-space: nowrap;
+}
+
+.ic-tab:hover {
+    background: var(--ic-gray-200);
+    color: var(--ic-gray-800);
+}
+
+.ic-tab:active {
+    transform: scale(0.95);
+}
+
+.ic-tab-active {
+    background: #0078D7;
+    color: #ffffff;
+}
+
+.ic-tab-active:hover {
+    background: #006abe;
+    color: #ffffff;
+}
+
+.ic-tab svg {
+    flex-shrink: 0;
+}
+
+.ic-tabs-spacer {
+    flex: 1;
+}
+
+.ic-text-size-label,
+.ic-speed-label {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.ic-font-size-label {
+    font-weight: 600;
+    font-size: 16px;
+}
+
+/* ========================================
+   MAIN BODY - Three Column Layout
+   ======================================== */
+.ic-reader-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+}
+
+/* ========================================
+   LEFT SIDEBAR - Table of Contents
+   ======================================== */
+.ic-toc-sidebar,
+.ic-notes-sidebar,
+.ic-bookmarks-sidebar,
+.ic-search-sidebar {
+    width: 240px;
+    background: var(--ic-sidebar-bg);
+    border-right: 1px solid var(--ic-sidebar-border);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    z-index: 10;
+}
+
+.ic-toc-sidebar.collapsed,
+.ic-notes-sidebar.collapsed,
+.ic-bookmarks-sidebar.collapsed,
+.ic-search-sidebar.collapsed {
+    display: none;
+}
+
+/* Reader Left Sidebar Resize Handle */
+.ic-sidebar-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 11;
+    transition: background 0.2s;
+}
+
+.ic-sidebar-resize-handle:hover,
+.ic-sidebar-resize-handle.active {
+    background: var(--ic-blue, #4285f4);
+    opacity: 0.5;
+}
+
+/* Reader Right Sidebar Resize Handle */
+.ic-right-resize-handle {
+    position: absolute;
+    top: 0;
+    left: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 11;
+    transition: background 0.2s;
+}
+
+.ic-right-resize-handle:hover,
+.ic-right-resize-handle.active {
+    background: var(--ic-blue, #4285f4);
+    opacity: 0.5;
+}
+
+/* TOC Header */
+.ic-toc-header,
+.ic-notes-header,
+.ic-bookmarks-header,
+.ic-search-header,
+.ic-summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--ic-sidebar-border);
+    background: var(--ic-white);
+}
+
+/* Summary Options */
+.ic-summary-options {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--ic-gray-200);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ic-summary-options-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ic-summary-options-label {
+    font-size: 11px;
+    color: var(--ic-gray-600);
+    white-space: nowrap;
+}
+
+.ic-summary-length-btns {
+    display: flex;
+    gap: 2px;
+    background: var(--ic-gray-100);
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.ic-length-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--ic-gray-600);
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.ic-length-btn.active {
+    background: var(--ic-accent);
+    color: var(--ic-white);
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.ic-length-btn:hover:not(.active) {
+    color: var(--ic-gray-800);
+}
+
+.ic-toggle-switch.ic-toggle-sm {
+    transform: scale(0.8);
+    transform-origin: right center;
+}
+
+.ic-summary-provider {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+}
+
+.ic-summary-provider-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ic-gray-400);
+    flex-shrink: 0;
+}
+
+.ic-summary-provider-dot.available {
+    background: #4caf50;
+}
+
+.ic-summary-provider-dot.unavailable {
+    background: #f44336;
+}
+
+.ic-summary-provider-text {
+    font-size: 10px;
+    color: var(--ic-gray-500);
+}
+
+/* Summary Actions */
+.ic-summary-actions {
+    display: flex;
+    padding: 8px 12px;
+    border-top: 1px solid var(--ic-gray-200);
+    gap: 6px;
+}
+
+.ic-summary-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    padding: 4px 10px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    background: var(--ic-white);
+    color: var(--ic-gray-700);
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ic-summary-action-btn:hover {
+    background: var(--ic-gray-100);
+}
+
+.ic-toc-title,
+.ic-notes-title,
+.ic-bookmarks-title,
+.ic-search-title,
+.ic-summary-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ic-gray-800);
+}
+
+.ic-toc-close,
+.ic-notes-close,
+.ic-bookmarks-close,
+.ic-search-close,
+.ic-summary-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--ic-gray-600);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ic-toc-close:hover,
+.ic-notes-close:hover,
+.ic-bookmarks-close:hover,
+.ic-search-close:hover,
+.ic-summary-close:hover {
+    background: var(--ic-gray-200);
+}
+
+/* TOC List */
+.ic-toc-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+/* Custom Scrollbar */
+.ic-toc-list::-webkit-scrollbar,
+.ic-notes-list::-webkit-scrollbar,
+.ic-bookmarks-list::-webkit-scrollbar,
+.ic-search-results::-webkit-scrollbar,
+.ic-summary-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.ic-toc-list::-webkit-scrollbar-track,
+.ic-notes-list::-webkit-scrollbar-track,
+.ic-bookmarks-list::-webkit-scrollbar-track,
+.ic-search-results::-webkit-scrollbar-track,
+.ic-summary-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ic-toc-list::-webkit-scrollbar-thumb,
+.ic-notes-list::-webkit-scrollbar-thumb,
+.ic-bookmarks-list::-webkit-scrollbar-thumb,
+.ic-search-results::-webkit-scrollbar-thumb,
+.ic-summary-content::-webkit-scrollbar-thumb {
+    background: var(--ic-gray-400);
+    border-radius: 4px;
+}
+
+.ic-toc-list::-webkit-scrollbar-thumb:hover,
+.ic-notes-list::-webkit-scrollbar-thumb:hover,
+.ic-bookmarks-list::-webkit-scrollbar-thumb:hover,
+.ic-search-results::-webkit-scrollbar-thumb:hover,
+.ic-summary-content::-webkit-scrollbar-thumb:hover {
+    background: var(--ic-gray-500);
+}
+
+/* Chapter Items with Expand/Collapse */
+.ic-chapter-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--ic-gray-700);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+    border-left: 4px solid transparent;
+    line-height: 1.4;
+}
+
+.ic-chapter-item .ic-chapter-page {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--ic-gray-400);
+    white-space: nowrap;
+    padding-left: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ic-chapter-item:hover {
+    background: var(--ic-blue-light);
+    color: var(--ic-blue);
+}
+
+.ic-chapter-item.active {
+    background: var(--ic-blue-light);
+    color: var(--ic-blue);
+    border-left-color: var(--ic-blue);
+    font-weight: 500;
+}
+
+.ic-chapter-number {
+    color: var(--ic-gray-500);
+    margin-right: 6px;
+    font-size: 11px;
+    min-width: 22px;
+}
+
+.ic-chapter-item.active .ic-chapter-number {
+    color: var(--ic-blue);
+}
+
+.ic-chapter-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Expandable sections */
+.ic-toc-section {
+    margin-bottom: 2px;
+}
+
+.ic-toc-section-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--ic-gray-800);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+}
+
+.ic-toc-section-header:hover {
+    background: var(--ic-gray-100);
+}
+
+.ic-toc-section-header.active {
+    background: var(--ic-accent);
+    color: var(--ic-white);
+}
+
+.ic-toc-section-title {
+    flex: 1;
+    cursor: pointer;
+}
+
+.ic-toc-section-header .ic-chapter-page {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--ic-gray-400);
+    white-space: nowrap;
+    padding-left: 4px;
+    font-variant-numeric: tabular-nums;
+}
+
+.ic-toc-section-header .ic-chevron {
+    margin-left: 4px;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+    opacity: 0.5;
+}
+
+.ic-toc-section.collapsed .ic-chevron {
+    transform: rotate(-90deg);
+}
+
+.ic-toc-section-content {
+    max-height: 1000px;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.ic-toc-section.collapsed .ic-toc-section-content {
+    max-height: 0;
+}
+
+.ic-toc-section-content .ic-chapter-item {
+    padding-left: 24px;
+}
+
+/* Loading State */
+.ic-loading {
+    padding: 20px;
+    text-align: center;
+    color: var(--ic-gray-500);
+    font-size: 13px;
+}
+
+/* ========================================
+   NOTES SIDEBAR
+   ======================================== */
+.ic-notes-instructions {
+    padding: 16px;
+    border-bottom: 1px solid var(--ic-sidebar-border);
+    font-size: 12px;
+    color: var(--ic-gray-600);
+}
+
+.ic-notes-instructions p {
+    margin-bottom: 8px;
+}
+
+.ic-notes-instructions ol {
+    margin-left: 20px;
+}
+
+.ic-notes-instructions li {
+    margin-bottom: 4px;
+}
+
+.ic-notes-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+}
+
+.ic-note-item {
+    background: var(--ic-white);
+    border-radius: 6px;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-left: 4px solid var(--ic-highlight-yellow);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.ic-note-text {
+    font-size: 13px;
+    color: var(--ic-gray-800);
+    margin-bottom: 6px;
+    font-style: italic;
+}
+
+.ic-note-comment {
+    font-size: 12px;
+    color: var(--ic-gray-600);
+}
+
+.ic-note-meta {
+    font-size: 10px;
+    color: var(--ic-gray-500);
+    margin-top: 4px;
+}
+
+/* ========================================
+   BOOKMARKS SIDEBAR
+   ======================================== */
+.ic-add-bookmark-btn {
+    margin: 12px;
+    padding: 10px;
+    background: var(--ic-blue);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ic-add-bookmark-btn:hover {
+    background: var(--ic-blue-hover);
+}
+
+.ic-bookmarks-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 12px 12px;
+}
+
+.ic-bookmark-item {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    border-bottom: 1px solid var(--ic-gray-200);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.ic-bookmark-item:hover {
+    background: var(--ic-gray-100);
+}
+
+/* ========================================
+   SEARCH SIDEBAR
+   ======================================== */
+.ic-search-input-container {
+    position: relative;
+    padding: 12px;
+    border-bottom: 1px solid var(--ic-sidebar-border);
+}
+
+.ic-search-input {
+    width: 100%;
+    padding: 8px 32px 8px 12px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.ic-search-input:focus {
+    border-color: var(--ic-blue);
+}
+
+.ic-search-clear {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    background: transparent;
+    border: none;
+    color: var(--ic-gray-500);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ic-search-clear:hover {
+    color: var(--ic-gray-700);
+}
+
+.ic-search-options {
+    padding: 12px;
+    border-bottom: 1px solid var(--ic-sidebar-border);
+}
+
+.ic-search-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ic-gray-700);
+    cursor: pointer;
+}
+
+.ic-search-option input[type="radio"] {
+    cursor: pointer;
+}
+
+.ic-search-results {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+}
+
+.ic-search-result-item {
+    padding: 10px;
+    border-bottom: 1px solid var(--ic-gray-200);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.ic-search-result-item:hover {
+    background: var(--ic-gray-100);
+}
+
+.ic-search-result-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ic-gray-800);
+    margin-bottom: 4px;
+}
+
+.ic-search-result-excerpt {
+    font-size: 12px;
+    color: var(--ic-gray-600);
+    line-height: 1.4;
+}
+
+.ic-search-result-excerpt mark {
+    background: var(--ic-highlight-yellow);
+    padding: 0 2px;
+}
+
+.ic-sidebar-empty {
+    padding: 40px 20px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--ic-gray-500);
+}
+
+.ic-sidebar-empty-icon {
+    display: block;
+    margin: 0 auto 12px auto;
+    opacity: 0.3;
+    color: var(--ic-gray-400);
+}
+
+.ic-sidebar-empty-text {
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
+.ic-sidebar-empty-hint {
+    font-size: 11px;
+    color: var(--ic-gray-400);
+    font-style: italic;
+}
+
+/* ========================================
+   CENTER - Reading Area
+   ======================================== */
+.ic-reading-area {
+    flex: 1;
+    min-width: 0;
+    background: var(--ic-reader-bg);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    scroll-behavior: smooth;
+    transition: background-color 0.3s ease;
+    position: relative;
+    z-index: 1;
+}
+
+.ic-reading-area::-webkit-scrollbar {
+    width: 8px;
+}
+
+.ic-reading-area::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.ic-reading-area::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 5px;
+}
+
+.ic-reading-area::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.35);
+}
+
+.ic-chapter-content {
+    max-width: 100%;
+    margin: 0;
+    padding: 30px 40px 60px 40px;
+    overflow-wrap: break-word;
+}
+
+.ic-chapter-content.layout-double {
+    max-width: 100%;
+    padding: 30px 40px;
+}
+
+.ic-chapter-content.layout-continuous {
+    max-width: 100%;
+}
+
+/* Chapter Text - Matches Icecream exactly */
+.ic-chapter-text {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.8;
+    color: var(--ic-text);
+    text-align: justify;
+    word-break: break-word;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: 0.01em;
+}
+
+/* Ensure all block children inherit proper line-height and are in normal flow */
+.ic-chapter-text div,
+.ic-chapter-text section,
+.ic-chapter-text article,
+.ic-chapter-text aside,
+.ic-chapter-text p,
+.ic-chapter-text span,
+.ic-chapter-text h1,
+.ic-chapter-text h2,
+.ic-chapter-text h3,
+.ic-chapter-text h4,
+.ic-chapter-text h5,
+.ic-chapter-text h6,
+.ic-chapter-text li,
+.ic-chapter-text td,
+.ic-chapter-text th,
+.ic-chapter-text pre,
+.ic-chapter-text blockquote {
+    position: static;
+    line-height: inherit;
+}
+
+/* Restore position for images */
+.ic-chapter-text img {
+    position: static;
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.5em auto;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Let images, tables, and figures go full width */
+.ic-chapter-text img,
+.ic-chapter-text table,
+.ic-chapter-text figure {
+    max-width: 100%;
+    break-inside: avoid;
+}
+
+/* First paragraph after a heading — slightly larger opening */
+.ic-chapter-text h1 + p,
+.ic-chapter-text h2 + p {
+    font-size: 1.05em;
+}
+
+/* Double-page column layout */
+.layout-double .ic-chapter-text {
+    column-count: 2;
+    column-gap: 60px;
+    column-rule: 1px solid var(--ic-gray-200);
+}
+
+.layout-double .ic-chapter-text h1,
+.layout-double .ic-chapter-text h2,
+.layout-double .ic-chapter-text h3,
+.layout-double .ic-chapter-text h4,
+.layout-double .ic-chapter-text .pdf-heading,
+.layout-double .ic-chapter-text .pdf-subheading {
+    column-span: all;
+}
+
+.layout-double .ic-chapter-text p,
+.layout-double .ic-chapter-text .pdf-line {
+    break-inside: avoid;
+}
+
+.ic-chapter-text p {
+    margin-bottom: 1em;
+    orphans: 3;
+    widows: 3;
+}
+
+/* Drop Cap Styling */
+.ic-chapter-text p.first-paragraph::first-letter {
+    float: left;
+    font-size: 3.5em;
+    line-height: 0.8;
+    margin: 0.1em 0.1em 0 0;
+    font-weight: bold;
+    color: var(--ic-blue);
+    font-family: inherit;
+}
+
+.ic-chapter-text h1 {
+    font-size: 1.8em;
+    font-weight: 700;
+    color: var(--ic-text);
+    margin-bottom: 0.7em;
+    margin-top: 0.4em;
+    line-height: 1.3;
+    text-align: left;
+    padding-bottom: 0.4em;
+    border-bottom: 1px solid var(--ic-gray-200);
+}
+
+.ic-chapter-text h2 {
+    font-size: 1.4em;
+    font-weight: 700;
+    color: var(--ic-text);
+    margin-bottom: 0.6em;
+    margin-top: 1.5em;
+    line-height: 1.3;
+}
+
+.ic-chapter-text h3 {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: var(--ic-text);
+    margin-bottom: 0.5em;
+    margin-top: 1.2em;
+}
+
+/* List Styling */
+.ic-chapter-text ul,
+.ic-chapter-text ol {
+    margin: 1em 0;
+    padding-left: 2em;
+}
+
+.ic-chapter-text li {
+    margin-bottom: 0.4em;
+}
+
+/* Blockquote Styling */
+.ic-chapter-text blockquote {
+    margin: 2em 0;
+    padding: 1em 2em;
+    border-left: 4px solid var(--ic-blue);
+    background: rgba(33, 150, 243, 0.05);
+    font-style: italic;
+    font-size: 0.95em;
+    color: var(--ic-gray-700);
+}
+
+.ic-chapter-text blockquote p {
+    margin-bottom: 0;
+}
+
+.ic-chapter-text a {
+    color: var(--ic-blue);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+}
+
+.ic-chapter-text a:hover {
+    border-bottom-color: var(--ic-blue);
+}
+
+.ic-chapter-text img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 2.5em auto;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ic-chapter-text em {
+    font-style: italic;
+}
+
+.ic-chapter-text strong {
+    font-weight: 700;
+}
+
+/* Figure captions */
+.ic-chapter-text figure {
+    margin: 2.5em 0;
+    text-align: center;
+}
+
+.ic-chapter-text figcaption {
+    font-style: italic;
+    font-size: 0.85em;
+    color: var(--ic-gray-600);
+    margin-top: 1em;
+}
+
+/* Horizontal Rule */
+.ic-chapter-text hr {
+    border: none;
+    border-top: 1px solid var(--ic-gray-300);
+    margin: 3em 0;
+    position: relative;
+    overflow: visible;
+}
+
+.ic-chapter-text hr::after {
+    content: "•••";
+    position: absolute;
+    top: -0.6em;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ic-reader-bg);
+    padding: 0 1em;
+    color: var(--ic-gray-400);
+    letter-spacing: 0.5em;
+}
+
+/* ========================================
+   SELECTION CONTEXT MENU
+   ======================================== */
+.ic-selection-menu {
+    position: fixed;
+    z-index: 9999;
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18), 0 0 1px rgba(0, 0, 0, 0.25);
+    padding: 6px;
+    display: flex;
+    animation: ic-pop-in 0.15s ease-out;
+}
+
+@keyframes ic-pop-in {
+    from {
+        opacity: 0;
+        transform: scale(0.8) translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+.ic-menu-tools {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ic-tool-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--ic-gray-700);
+    transition: background 0.15s;
+}
+
+.ic-tool-btn:hover {
+    background: var(--ic-gray-200);
+}
+
+.ic-swatch {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.ic-menu-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--ic-gray-300);
+    margin: 0 4px;
+}
+
+/* Highlights */
+.hl-yellow {
+    background-color: var(--ic-highlight-yellow);
+}
+
+.hl-green {
+    background-color: var(--ic-highlight-green);
+}
+
+.hl-blue {
+    background-color: var(--ic-highlight-blue);
+}
+
+.hl-pink {
+    background-color: var(--ic-highlight-pink);
+}
+
+.ic-highlight {
+    cursor: pointer;
+    transition: filter 0.15s;
+}
+
+.ic-highlight:hover {
+    filter: brightness(0.95);
+}
+
+/* ========================================
+   RIGHT SIDEBAR - Book Info Panel
+   ======================================== */
+.ic-bookinfo-sidebar {
+    width: 260px;
+    background: var(--ic-white);
+    border-left: 1px solid var(--ic-gray-300);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    z-index: 10;
+}
+
+.ic-bookinfo-sidebar.collapsed {
+    display: none;
+}
+
+.ic-bookinfo-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ic-sidebar-border);
+    background: var(--ic-white);
+}
+
+.ic-bookinfo-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ic-gray-800);
+}
+
+.ic-bookinfo-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--ic-gray-600);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ic-bookinfo-close:hover {
+    background: var(--ic-gray-200);
+}
+
+.ic-bookinfo-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.ic-bookinfo-cover {
+    width: 100%;
+    aspect-ratio: 2/3;
+    background: var(--ic-gray-100);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.ic-bookinfo-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.ic-cover-upload-btn {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.5);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.ic-bookinfo-cover:hover .ic-cover-upload-btn {
+    opacity: 1;
+}
+
+.ic-bookinfo-title-text {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ic-gray-900);
+    margin-bottom: 4px;
+}
+
+.ic-bookinfo-author {
+    font-size: 13px;
+    color: var(--ic-gray-600);
+    margin-bottom: 16px;
+}
+
+.ic-bookinfo-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--ic-gray-50);
+    border-radius: 6px;
+}
+
+.ic-bookinfo-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+}
+
+.ic-stat-label {
+    color: var(--ic-gray-600);
+}
+
+.ic-stat-value {
+    color: var(--ic-gray-800);
+    font-weight: 500;
+}
+
+.ic-bookinfo-description {
+    font-size: 13px;
+    color: var(--ic-gray-700);
+    line-height: 1.5;
+}
+
+.ic-bookinfo-description p {
+    margin: 0.5em 0 0;
+}
+
+.ic-bookinfo-meta {
+    font-size: 12px;
+    color: var(--ic-gray-600);
+    line-height: 1.6;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--ic-gray-200);
+}
+
+.ic-bookinfo-meta strong {
+    color: var(--ic-gray-800);
+}
+
+/* Rating Stars in Book Info */
+.ic-rating-stars {
+    display: inline-flex;
+    gap: 2px;
+    vertical-align: middle;
+}
+
+.ic-rating-star {
+    font-size: 14px;
+    color: #d0d0d0;
+    cursor: pointer;
+    transition: color 0.15s;
+    user-select: none;
+}
+
+.ic-rating-star.filled {
+    color: #f5a623;
+}
+
+.ic-rating-star:hover {
+    color: #f5c566;
+}
+
+/* ========================================
+   RIGHT SIDEBAR - Settings Panel (Exact Icecream)
+   ======================================== */
+.ic-settings-sidebar {
+    width: 260px;
+    background: var(--ic-white);
+    border-left: 1px solid var(--ic-gray-300);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    z-index: 10;
+}
+
+.ic-settings-sidebar.collapsed {
+    display: none;
+}
+
+.ic-settings-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ic-sidebar-border);
+    background: var(--ic-white);
+}
+
+.ic-settings-sidebar-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ic-gray-800);
+}
+
+.ic-settings-sidebar-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: transparent;
+    border: none;
+    border-radius: 3px;
+    color: var(--ic-gray-600);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ic-settings-sidebar-close:hover {
+    background: var(--ic-gray-200);
+}
+
+.ic-settings-sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 16px;
+}
+
+/* AI Provider cards */
+.ic-ai-providers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.ic-ai-provider-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: var(--ic-gray-50);
+    border: 1px solid var(--ic-gray-200);
+    font-size: 12px;
+}
+
+.ic-ai-provider-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.ic-ai-provider-dot.online { background: #4caf50; }
+.ic-ai-provider-dot.offline { background: #bbb; }
+.ic-ai-provider-dot.current { background: #2196F3; box-shadow: 0 0 0 2px rgba(33,150,243,0.3); }
+
+.ic-ai-provider-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.ic-ai-provider-name {
+    font-weight: 600;
+    color: var(--ic-gray-800);
+}
+
+.ic-ai-provider-model {
+    color: var(--ic-gray-500);
+    font-size: 11px;
+}
+
+.ic-ai-provider-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #e3f2fd;
+    color: #1565c0;
+    font-weight: 600;
+}
+
+.ic-ai-provider-badge.inactive {
+    background: var(--ic-gray-100);
+    color: var(--ic-gray-400);
+}
+
+.ic-ai-key-section {
+    border-top: 1px solid var(--ic-gray-200);
+    padding-top: 10px;
+    margin-top: 4px;
+}
+
+.ic-ai-provider-select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    font-size: 12px;
+    background: var(--ic-white);
+    color: var(--ic-gray-800);
+    margin-bottom: 8px;
+}
+
+.ic-ai-key-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.ic-ai-key-input {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    font-size: 12px;
+    background: var(--ic-white);
+    color: var(--ic-gray-800);
+    min-width: 0;
+}
+
+.ic-ai-key-input:focus {
+    outline: none;
+    border-color: var(--ic-gray-400);
+}
+
+.ic-ai-test-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    background: var(--ic-white);
+    color: var(--ic-gray-700);
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ic-ai-test-btn:hover { background: var(--ic-gray-50); }
+.ic-ai-test-btn:active { transform: scale(0.97); }
+
+.ic-ai-test-btn.testing {
+    color: #1976D2;
+    border-color: #90caf9;
+}
+
+.ic-ai-test-btn.success {
+    color: #2e7d32;
+    border-color: #a5d6a7;
+}
+
+.ic-ai-test-btn.fail {
+    color: #c62828;
+    border-color: #ef9a9a;
+}
+
+.ic-ai-save-btn {
+    width: 100%;
+    padding: 7px 12px;
+    border: none;
+    border-radius: 4px;
+    background: #1976D2;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.ic-ai-save-btn:hover { background: #1565c0; }
+.ic-ai-save-btn:active { transform: scale(0.98); }
+
+.ic-ai-ollama-section {
+    border-top: 1px solid var(--ic-gray-200);
+    padding-top: 10px;
+    margin-top: 4px;
+}
+
+.ic-ai-provider-loading {
+    text-align: center;
+    color: var(--ic-gray-400);
+    font-size: 12px;
+    padding: 8px;
+}
+
+/* Night theme for AI provider cards */
+html[data-theme="night"] .ic-ai-provider-card {
+    background: #2a2a2a;
+    border-color: #333;
+}
+
+html[data-theme="night"] .ic-ai-provider-name { color: #ddd; }
+html[data-theme="night"] .ic-ai-provider-model { color: #888; }
+html[data-theme="night"] .ic-ai-provider-select,
+html[data-theme="night"] .ic-ai-key-input {
+    background: #333;
+    border-color: #444;
+    color: #e0e0e0;
+}
+html[data-theme="night"] .ic-ai-test-btn {
+    background: #333;
+    border-color: #444;
+    color: #ccc;
+}
+html[data-theme="night"] .ic-ai-key-section,
+html[data-theme="night"] .ic-ai-ollama-section {
+    border-top-color: #333;
+}
+
+.ic-settings-group {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--ic-gray-200);
+}
+
+.ic-settings-group:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.ic-settings-group-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ic-gray-500);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+
+/* Theme Buttons - Icecream style */
+.ic-theme-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.ic-theme-toggle-btn {
+    flex: 1;
+    padding: 10px 12px;
+    background: var(--ic-gray-100);
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    color: var(--ic-gray-700);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.ic-theme-toggle-btn:hover {
+    background: var(--ic-blue-light);
+    border-color: var(--ic-blue);
+}
+
+.ic-theme-toggle-btn.active {
+    background: var(--ic-blue);
+    border-color: var(--ic-blue);
+    color: white;
+}
+
+/* Sepia Options - Radio buttons */
+.ic-sepia-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.ic-sepia-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--ic-gray-700);
+    cursor: pointer;
+}
+
+.ic-sepia-option input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--ic-blue);
+}
+
+/* Toggle Switch for Dimming */
+.ic-settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ic-settings-label {
+    font-size: 13px;
+    color: var(--ic-gray-700);
+}
+
+.ic-toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+}
+
+.ic-toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.ic-toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--ic-gray-300);
+    transition: 0.3s;
+    border-radius: 24px;
+}
+
+.ic-toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.ic-toggle-switch input:checked + .ic-toggle-slider {
+    background-color: var(--ic-blue);
+}
+
+.ic-toggle-switch input:checked + .ic-toggle-slider:before {
+    transform: translateX(20px);
+}
+
+/* Page View Buttons */
+.ic-page-view-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.ic-page-view-btn {
+    flex: 1;
+    padding: 10px 12px;
+    background: var(--ic-gray-100);
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    color: var(--ic-gray-700);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.ic-page-view-btn:hover {
+    background: var(--ic-blue-light);
+    border-color: var(--ic-blue);
+}
+
+.ic-page-view-btn.active {
+    background: var(--ic-blue);
+    border-color: var(--ic-blue);
+    color: white;
+}
+
+/* Font Select Dropdown */
+.ic-font-select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--ic-white);
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    color: var(--ic-gray-700);
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+}
+
+.ic-font-select:focus {
+    border-color: var(--ic-blue);
+}
+
+/* Font Size Control */
+.ic-font-size-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.ic-slider-label {
+    font-size: 12px;
+    color: var(--ic-gray-600);
+    font-family: Georgia, serif;
+    flex-shrink: 0;
+}
+
+.ic-font-size-slider-sidebar {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ic-gray-300);
+    border-radius: 2px;
+    outline: none;
+}
+
+.ic-font-size-slider-sidebar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+}
+
+.ic-font-size-slider-sidebar::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+    border: none;
+}
+
+.ic-font-size-value {
+    font-size: 12px;
+    color: var(--ic-gray-600);
+    text-align: center;
+}
+
+/* Line Spacing Control */
+.ic-line-spacing-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ic-line-spacing-slider-sidebar {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ic-gray-300);
+    border-radius: 2px;
+    outline: none;
+}
+
+.ic-line-spacing-slider-sidebar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+}
+
+.ic-line-spacing-slider-sidebar::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+    border: none;
+}
+
+.ic-line-spacing-value {
+    font-size: 12px;
+    color: var(--ic-gray-600);
+    min-width: 28px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Volume Control in Sidebar */
+.ic-volume-control-sidebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ic-volume-control-sidebar svg {
+    flex-shrink: 0;
+    color: var(--ic-gray-600);
+}
+
+.ic-volume-slider-sidebar {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ic-gray-300);
+    border-radius: 2px;
+    outline: none;
+}
+
+.ic-volume-slider-sidebar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+}
+
+.ic-volume-slider-sidebar::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+    border: none;
+}
+
+/* ========================================
+   RIGHT SIDEBAR - Summary & AI
+   ======================================== */
+.ic-summary-sidebar {
+    width: 280px;
+    background: var(--ic-white);
+    border-left: 1px solid var(--ic-gray-300);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+    z-index: 10;
+}
+
+.ic-summary-sidebar.collapsed {
+    display: none;
+}
+
+.ic-summary-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.ic-summary-empty {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.ic-summary-empty-text {
+    font-size: 13px;
+    color: var(--ic-gray-600);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.ic-generate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--ic-blue);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ic-generate-btn:hover {
+    background: var(--ic-blue-hover);
+}
+
+.ic-generate-btn-persist {
+    display: flex;
+    width: calc(100% - 24px);
+    justify-content: center;
+    margin: 8px 12px;
+    padding: 8px 16px;
+}
+
+.ic-generate-btn.loading {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.ic-generate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.ic-summary-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ic-gray-800);
+    padding: 16px;
+}
+
+.ic-summary-text p {
+    margin-bottom: 1em;
+}
+
+.ic-summary-meta {
+    font-size: 11px;
+    color: var(--ic-gray-500);
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--ic-gray-200);
+}
+
+.ic-refresh-link {
+    background: none;
+    border: none;
+    color: var(--ic-accent);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0;
+    text-decoration: underline;
+}
+
+.ic-refresh-link:hover {
+    color: var(--ic-accent-dark);
+}
+
+.ic-summary-heading {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ic-gray-900);
+    margin: 16px 0 8px 0;
+}
+
+.ic-summary-list {
+    margin: 8px 0;
+    padding-left: 20px;
+    list-style-type: disc;
+}
+
+.ic-summary-list li {
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
+.ic-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--ic-gray-200);
+    border-top-color: var(--ic-accent);
+    border-radius: 50%;
+    animation: ic-spin 0.8s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes ic-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Summary Tabs */
+.ic-summary-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--ic-gray-200);
+    padding: 0 12px;
+}
+
+.ic-summary-tab {
+    flex: 1;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ic-gray-500);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.ic-summary-tab:hover {
+    color: var(--ic-gray-700);
+}
+
+.ic-summary-tab.active {
+    color: var(--ic-blue);
+    border-bottom-color: var(--ic-blue);
+}
+
+/* Note badges and headers */
+.ic-note-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.ic-note-badge {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ic-gray-500);
+    background: var(--ic-gray-100);
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.ic-note-delete,
+.ic-bookmark-delete {
+    background: none;
+    border: none;
+    color: var(--ic-gray-400);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.ic-note-delete:hover,
+.ic-bookmark-delete:hover {
+    color: #d32f2f;
+    background: rgba(211, 47, 47, 0.08);
+}
+
+.ic-note-quote {
+    font-size: 12px;
+    font-style: italic;
+    color: var(--ic-gray-500);
+    border-left: 2px solid var(--ic-gray-300);
+    padding-left: 8px;
+    margin-bottom: 6px;
+}
+
+/* Bookmark item with delete button */
+.ic-bookmark-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid var(--ic-gray-200);
+}
+
+.ic-bookmark-content {
+    flex: 1;
+    cursor: pointer;
+}
+
+.ic-bookmark-content:hover > div:first-child {
+    color: var(--ic-blue);
+}
+
+/* ========================================
+   BOTTOM FOOTER - Icecream compact style
+   ======================================== */
+.ic-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 32px;
+    background: var(--ic-white);
+    border-top: 1px solid var(--ic-gray-300);
+    padding: 0 12px;
+    flex-shrink: 0;
+}
+
+.ic-footer-left {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--ic-gray-600);
+    min-width: 80px;
+}
+
+.ic-page-number {
+    font-weight: 600;
+    color: var(--ic-gray-800);
+    font-variant-numeric: tabular-nums;
+}
+
+.ic-page-separator {
+    color: var(--ic-gray-400);
+}
+
+.ic-total-pages {
+    color: var(--ic-gray-500);
+    font-variant-numeric: tabular-nums;
+}
+
+.ic-footer-chapter-title {
+    font-size: 11px;
+    color: var(--ic-gray-400);
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid var(--ic-gray-300);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 200px;
+}
+
+.ic-footer-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 0 16px;
+    max-width: 600px;
+    position: relative;
+}
+
+/* Progress slider tooltip */
+.ic-progress-tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.82);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    pointer-events: none;
+    margin-bottom: 8px;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.ic-progress-tooltip::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 4px solid transparent;
+    border-top-color: rgba(0, 0, 0, 0.82);
+}
+
+/* Progress Slider - Icecream compact */
+.ic-progress-slider {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ic-gray-300);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+.ic-progress-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: var(--ic-blue);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.ic-progress-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.ic-progress-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    background: var(--ic-blue);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.ic-progress-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+.ic-footer-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 100px;
+    justify-content: flex-end;
+}
+
+.ic-nav-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 3px;
+    background: var(--ic-white);
+    color: var(--ic-gray-600);
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.ic-nav-btn:hover:not(:disabled) {
+    background: var(--ic-gray-100);
+    border-color: var(--ic-gray-400);
+}
+
+.ic-nav-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.ic-nav-info {
+    font-size: 12px;
+    color: var(--ic-gray-600);
+    min-width: 44px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+/* ========================================
+   POPUP MENUS
+   ======================================== */
+.ic-popup-menu {
+    position: fixed;
+    top: 90px;
+    right: 20px;
+    background: var(--ic-white);
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 240px;
+    z-index: 10000;
+    padding: 8px 0;
+}
+
+.ic-popup-header {
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ic-gray-800);
+    border-bottom: 1px solid var(--ic-gray-200);
+    margin-bottom: 4px;
+}
+
+.ic-popup-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 16px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--ic-gray-800);
+    text-align: left;
+    transition: background-color 0.2s;
+}
+
+.ic-popup-item:hover {
+    background-color: var(--ic-blue-light);
+}
+
+.ic-popup-item svg {
+    flex-shrink: 0;
+}
+
+.ic-popup-item span {
+    flex: 1;
+}
+
+/* Font Size Controls */
+.ic-font-slider-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+}
+
+.ic-font-btn {
+    width: 32px;
+    height: 32px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    background: var(--ic-white);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.ic-font-btn:hover {
+    background-color: var(--ic-blue-light);
+    border-color: var(--ic-blue);
+}
+
+.ic-font-slider {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ic-gray-300);
+    border-radius: 2px;
+    outline: none;
+}
+
+.ic-font-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+}
+
+.ic-font-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+    border: none;
+}
+
+.ic-font-presets,
+.ic-speed-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 0 16px 12px;
+}
+
+.ic-preset-btn {
+    padding: 8px 12px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    background: var(--ic-white);
+    font-size: 12px;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.ic-preset-btn:hover {
+    background-color: var(--ic-blue-light);
+    border-color: var(--ic-blue);
+}
+
+/* Settings Menu */
+.ic-settings-section {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--ic-gray-200);
+}
+
+.ic-settings-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ic-gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.ic-theme-options {
+    display: flex;
+    gap: 8px;
+}
+
+.ic-theme-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 8px;
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    background: var(--ic-white);
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+    font-size: 12px;
+}
+
+.ic-theme-btn:hover {
+    background-color: var(--ic-blue-light);
+    border-color: var(--ic-blue);
+}
+
+.ic-theme-btn.active {
+    border-color: var(--ic-blue);
+    background-color: var(--ic-blue-light);
+}
+
+.ic-theme-icon {
+    font-size: 20px;
+}
+
+/* ========================================
+   INLINE CONTROLS IN TABS
+   ======================================== */
+.ic-zoom-inline {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--ic-gray-700);
+    min-width: 32px;
+    text-align: center;
+}
+
+.ic-volume-control {
+    display: flex;
+    align-items: center;
+    width: 80px;
+}
+
+.ic-volume-slider {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--ic-gray-300);
+    border-radius: 2px;
+    outline: none;
+}
+
+.ic-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+}
+
+.ic-volume-slider::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ic-blue);
+    cursor: pointer;
+    border: none;
+}
+
+/* ========================================
+   RESPONSIVE ADJUSTMENTS
+   ======================================== */
+@media (max-width: 1024px) {
+    .ic-summary-sidebar {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 1000;
+        box-shadow: -2px 0 10px rgba(0, 0, 0, 0.15);
+    }
+}
+
+@media (max-width: 768px) {
+    .ic-toc-sidebar,
+    .ic-notes-sidebar,
+    .ic-bookmarks-sidebar,
+    .ic-search-sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 1000;
+        box-shadow: 2px 0 10px rgba(0, 0, 0, 0.15);
+    }
+
+    .ic-bookinfo-sidebar,
+    .ic-settings-sidebar {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 1000;
+        box-shadow: -2px 0 10px rgba(0, 0, 0, 0.15);
+    }
+
+    .ic-book-title {
+        display: none;
+    }
+
+
+    .ic-chapter-content {
+        padding: 30px 20px;
+    }
+
+    .ic-tab span {
+        display: none;
+    }
+}
+
+/* ========================================
+   UTILITIES
+   ======================================== */
+.hidden {
+    display: none !important;
+}
+
+/* Accessibility - Focus Indicators */
+.ic-tab:focus-visible,
+.ic-window-btn:focus-visible,
+.ic-chapter-item:focus-visible {
+    outline: 2px solid var(--ic-blue);
+    outline-offset: 2px;
+}
+
+/* Remove outline for mouse users */
+.ic-tab:focus:not(:focus-visible),
+.ic-window-btn:focus:not(:focus-visible),
+.ic-chapter-item:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* ========================================
+   BUTTON ACTIVE/PRESSED STATES
+   ======================================== */
+.ic-tab:active {
+    transform: scale(0.97);
+}
+
+.ic-window-btn:active {
+    background: var(--ic-gray-300);
+}
+
+.ic-close-btn:active {
+    background: #bf0e1c;
+}
+
+.ic-nav-btn:active:not(:disabled) {
+    transform: scale(0.95);
+    background: var(--ic-gray-200);
+}
+
+.ic-tool-btn:active {
+    background: var(--ic-gray-300);
+    transform: scale(0.92);
+}
+
+.ic-generate-btn:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.ic-add-bookmark-btn:active {
+    transform: scale(0.98);
+}
+
+.ic-toc-close:active,
+.ic-notes-close:active,
+.ic-bookmarks-close:active,
+.ic-search-close:active,
+.ic-summary-close:active,
+.ic-bookinfo-close:active,
+.ic-settings-sidebar-close:active {
+    background: var(--ic-gray-300);
+}
+
+.ic-theme-toggle-btn:active,
+.ic-page-view-btn:active {
+    transform: scale(0.97);
+}
+
+.ic-length-btn:active {
+    transform: scale(0.95);
+}
+
+.ic-font-btn:active,
+.ic-preset-btn:active,
+.ic-line-spacing-btn:active {
+    transform: scale(0.95);
+    background-color: var(--ic-gray-200);
+}
+
+.ic-summary-action-btn:active {
+    transform: scale(0.97);
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+/* TTS Active State */
+.ic-tts-active {
+    background: rgba(76, 175, 80, 0.15) !important;
+    color: #4caf50 !important;
+}
+
+/* ========================================
+   PERFORMANCE OPTIMIZATIONS
+   ======================================== */
+
+
+
+/* Fast loading spinner */
+.ic-loading-fast {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+}
+
+.ic-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--ic-gray-200);
+    border-top-color: var(--ic-blue);
+    border-radius: 50%;
+    animation: ic-spin 0.6s linear infinite;
+}
+
+@keyframes ic-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Skeleton loading placeholder */
+.ic-skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--ic-gray-100) 25%,
+        var(--ic-gray-200) 50%,
+        var(--ic-gray-100) 75%
+    );
+    background-size: 200% 100%;
+    animation: ic-shimmer 1.2s ease-in-out infinite;
+    border-radius: 4px;
+}
+
+.ic-skeleton-line {
+    height: 1em;
+    margin-bottom: 0.8em;
+}
+
+.ic-skeleton-line:last-child {
+    width: 60%;
+}
+
+@keyframes ic-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Instant transition for cached content */
+.ic-chapter-text.ic-cached {
+    animation: ic-fade-in 0.1s ease-out;
+}
+
+/* Smooth transition for freshly loaded content */
+.ic-chapter-text.ic-loaded {
+    animation: ic-fade-in 0.2s ease-out;
+}
+
+@keyframes ic-fade-in {
+    from {
+        opacity: 0.6;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* ========================================
+   TOAST NOTIFICATIONS
+   ======================================== */
+.ic-toast-container {
+    position: fixed;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10000;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.ic-toast {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: rgba(0, 0, 0, 0.82);
+    color: #ffffff;
+    border-radius: 24px;
+    font-size: 13px;
+    white-space: nowrap;
+    pointer-events: auto;
+    animation: ic-toast-in 0.3s ease-out forwards;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.ic-toast.ic-toast-out {
+    animation: ic-toast-out 0.25s ease-in forwards;
+}
+
+@keyframes ic-toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(16px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes ic-toast-out {
+    from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.95);
+    }
+}
+
+/* ========================================
+   SCROLL PROGRESS BAR
+   ======================================== */
+.ic-scroll-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: transparent;
+    z-index: 100;
+    pointer-events: none;
+}
+
+.ic-scroll-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: var(--ic-blue);
+    transition: width 0.1s linear;
+    border-radius: 0 2px 2px 0;
+}
+
+/* ========================================
+   HELP MODAL
+   ======================================== */
+.ic-help-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 10001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: ic-overlay-in 0.2s ease-out;
+}
+
+@keyframes ic-overlay-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.ic-help-modal {
+    background: var(--ic-white);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
+    width: 380px;
+    max-height: 80vh;
+    overflow-y: auto;
+    animation: ic-modal-in 0.2s ease-out;
+}
+
+@keyframes ic-modal-in {
+    from { opacity: 0; transform: scale(0.95) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.ic-help-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--ic-gray-200);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ic-gray-800);
+}
+
+.ic-help-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--ic-gray-600);
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.ic-help-close:hover {
+    background: var(--ic-gray-200);
+}
+
+.ic-help-content {
+    padding: 16px 20px;
+}
+
+.ic-help-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--ic-gray-100);
+    font-size: 13px;
+    color: var(--ic-gray-700);
+}
+
+.ic-help-row:last-child {
+    border-bottom: none;
+}
+
+.ic-help-row kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 24px;
+    padding: 0 6px;
+    background: var(--ic-gray-100);
+    border: 1px solid var(--ic-gray-300);
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ic-gray-800);
+}
+
+/* ========================================
+   PAGE LAYOUT MODES
+   ======================================== */
+
+/* Layout modes defined near .ic-chapter-content above */
+
+/* Dark mode for popups */
+html[data-theme="night"] .ic-popup-menu {
+    background: var(--ic-gray-800);
+    border-color: var(--ic-gray-700);
+}
+
+html[data-theme="night"] .ic-popup-header {
+    color: var(--ic-white);
+    border-bottom-color: var(--ic-gray-700);
+}
+
+html[data-theme="night"] .ic-popup-item {
+    color: var(--ic-white);
+}
+
+html[data-theme="night"] .ic-popup-item:hover {
+    background-color: var(--ic-gray-700);
+}
+
+html[data-theme="night"] .ic-font-btn,
+html[data-theme="night"] .ic-preset-btn,
+html[data-theme="night"] .ic-theme-btn {
+    background: var(--ic-gray-700);
+    border-color: var(--ic-gray-600);
+    color: var(--ic-white);
+}
+
+html[data-theme="night"] .ic-font-btn:hover,
+html[data-theme="night"] .ic-preset-btn:hover,
+html[data-theme="night"] .ic-theme-btn:hover {
+    background-color: var(--ic-gray-600);
+}
+
+html[data-theme="night"] .ic-font-slider {
+    background: var(--ic-gray-600);
+}
+
+/* Night theme - Sidebars */
+html[data-theme="night"] .ic-toc-sidebar,
+html[data-theme="night"] .ic-notes-sidebar,
+html[data-theme="night"] .ic-bookmarks-sidebar,
+html[data-theme="night"] .ic-search-sidebar {
+    background: #252525;
+    border-color: #333;
+}
+
+html[data-theme="night"] .ic-toc-header,
+html[data-theme="night"] .ic-notes-header,
+html[data-theme="night"] .ic-bookmarks-header,
+html[data-theme="night"] .ic-search-header,
+html[data-theme="night"] .ic-summary-header {
+    background: #2a2a2a;
+    border-bottom-color: #333;
+}
+
+/* Night theme - Right panels */
+html[data-theme="night"] .ic-bookinfo-sidebar,
+html[data-theme="night"] .ic-settings-sidebar,
+html[data-theme="night"] .ic-summary-sidebar {
+    background: #252525;
+    border-color: #333;
+}
+
+html[data-theme="night"] .ic-bookinfo-header,
+html[data-theme="night"] .ic-settings-sidebar-header {
+    background: #2a2a2a;
+    border-bottom-color: #333;
+}
+
+html[data-theme="night"] .ic-bookinfo-title,
+html[data-theme="night"] .ic-settings-sidebar-title,
+html[data-theme="night"] .ic-summary-title,
+html[data-theme="night"] .ic-toc-title,
+html[data-theme="night"] .ic-notes-title,
+html[data-theme="night"] .ic-bookmarks-title,
+html[data-theme="night"] .ic-search-title {
+    color: #e0e0e0;
+}
+
+html[data-theme="night"] .ic-toc-close,
+html[data-theme="night"] .ic-notes-close,
+html[data-theme="night"] .ic-bookmarks-close,
+html[data-theme="night"] .ic-search-close,
+html[data-theme="night"] .ic-summary-close,
+html[data-theme="night"] .ic-bookinfo-close,
+html[data-theme="night"] .ic-settings-sidebar-close {
+    color: #aaa;
+}
+
+html[data-theme="night"] .ic-toc-close:hover,
+html[data-theme="night"] .ic-notes-close:hover,
+html[data-theme="night"] .ic-bookmarks-close:hover,
+html[data-theme="night"] .ic-search-close:hover,
+html[data-theme="night"] .ic-summary-close:hover,
+html[data-theme="night"] .ic-bookinfo-close:hover,
+html[data-theme="night"] .ic-settings-sidebar-close:hover {
+    background: #444;
+}
+
+/* Night theme - Footer & Header */
+html[data-theme="night"] .ic-header,
+html[data-theme="night"] .ic-tabs,
+html[data-theme="night"] .ic-footer {
+    background: #252525;
+    border-color: #333;
+}
+
+html[data-theme="night"] .ic-header-close {
+    color: #888;
+}
+
+html[data-theme="night"] .ic-header-close:hover {
+    background: #444;
+    color: #bbb;
+}
+
+html[data-theme="night"] .ic-tabs-divider {
+    background: #444;
+}
+
+html[data-theme="night"] .ic-tab {
+    color: #999;
+}
+
+html[data-theme="night"] .ic-tab:hover {
+    background: #444;
+    color: #ddd;
+}
+
+html[data-theme="night"] .ic-tab-active {
+    background: #005a9e;
+    color: #fff;
+}
+
+html[data-theme="night"] .ic-tab-active:hover {
+    background: #004a85;
+    color: #fff;
+}
+
+html[data-theme="night"] .ic-book-title {
+    color: #999;
+}
+
+html[data-theme="night"] .ic-tab {
+    color: #aaa;
+}
+
+html[data-theme="night"] .ic-tab:hover {
+    background: #333;
+}
+
+html[data-theme="night"] .ic-tab.ic-tab-active {
+    background: #005a9e;
+    color: #ffffff;
+}
+
+html[data-theme="night"] .ic-window-btn {
+    color: #aaa;
+}
+
+html[data-theme="night"] .ic-window-btn:hover {
+    background: #444;
+}
+
+html[data-theme="night"] .ic-footer-left,
+html[data-theme="night"] .ic-footer-right {
+    color: #aaa;
+}
+
+html[data-theme="night"] .ic-footer-chapter-title {
+    color: #777;
+    border-left-color: #444;
+}
+
+/* Night theme - Chapter items */
+html[data-theme="night"] .ic-chapter-item {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-chapter-item:hover {
+    background: rgba(33, 150, 243, 0.15);
+    color: #90caf9;
+}
+
+html[data-theme="night"] .ic-chapter-item.active {
+    background: rgba(33, 150, 243, 0.2);
+    color: #90caf9;
+    border-left-color: #90caf9;
+}
+
+html[data-theme="night"] .ic-chapter-item.active .ic-chapter-number {
+    color: #90caf9;
+}
+
+html[data-theme="night"] .ic-toc-section-header {
+    color: #ddd;
+}
+
+html[data-theme="night"] .ic-toc-section-header:hover {
+    background: #333;
+}
+
+html[data-theme="night"] .ic-toc-section-header.active {
+    background: var(--ic-blue);
+    color: #fff;
+}
+
+/* Night theme - Selection menu */
+html[data-theme="night"] .ic-selection-menu {
+    background: #333;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="night"] .ic-tool-btn {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-tool-btn:hover {
+    background: #444;
+}
+
+/* Night theme - Toast */
+html[data-theme="night"] .ic-toast {
+    background: rgba(50, 50, 50, 0.92);
+}
+
+/* Night theme - Progress tooltip */
+html[data-theme="night"] .ic-progress-tooltip {
+    background: rgba(50, 50, 50, 0.95);
+}
+
+/* Night theme - Progress slider */
+html[data-theme="night"] .ic-progress-slider {
+    background: #444;
+}
+
+html[data-theme="night"] .ic-progress-slider::-webkit-slider-thumb {
+    background: #90caf9;
+}
+
+html[data-theme="night"] .ic-progress-slider::-moz-range-thumb {
+    background: #90caf9;
+}
+
+/* Night theme - Help modal */
+html[data-theme="night"] .ic-help-overlay {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+html[data-theme="night"] .ic-help-modal {
+    background: #2a2a2a;
+}
+
+html[data-theme="night"] .ic-help-header {
+    color: #e0e0e0;
+    border-bottom-color: #333;
+}
+
+html[data-theme="night"] .ic-help-content {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-help-row {
+    border-bottom-color: #333;
+    color: #aaa;
+}
+
+html[data-theme="night"] .ic-help-row kbd {
+    background: #333;
+    border-color: #444;
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-help-close {
+    color: #aaa;
+}
+
+html[data-theme="night"] .ic-help-close:hover {
+    background: #444;
+}
+
+/* Night theme - Bookmarks, Notes, Search */
+html[data-theme="night"] .ic-note-item {
+    background: #2a2a2a;
+    box-shadow: none;
+}
+
+html[data-theme="night"] .ic-note-text {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-note-comment,
+html[data-theme="night"] .ic-note-meta {
+    color: #888;
+}
+
+html[data-theme="night"] .ic-search-input {
+    background: #333;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+html[data-theme="night"] .ic-search-input:focus {
+    border-color: #90caf9;
+}
+
+html[data-theme="night"] .ic-search-result-item {
+    border-bottom-color: #333;
+}
+
+html[data-theme="night"] .ic-search-result-item:hover {
+    background: #333;
+}
+
+html[data-theme="night"] .ic-search-result-title {
+    color: #ddd;
+}
+
+html[data-theme="night"] .ic-search-result-excerpt {
+    color: #999;
+}
+
+html[data-theme="night"] .ic-bookmark-item {
+    border-bottom-color: #333;
+}
+
+html[data-theme="night"] .ic-bookmark-item:hover {
+    background: #333;
+}
+
+/* Night theme - Nav buttons */
+html[data-theme="night"] .ic-nav-btn {
+    background: #333;
+    border-color: #444;
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-nav-btn:hover:not(:disabled) {
+    background: #444;
+    border-color: #555;
+}
+
+/* Night theme - Scrollbars */
+html[data-theme="night"] .ic-reading-area::-webkit-scrollbar-thumb {
+    background: #555;
+    border-color: transparent;
+}
+
+html[data-theme="night"] .ic-reading-area::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+html[data-theme="night"] .ic-toc-list::-webkit-scrollbar-thumb,
+html[data-theme="night"] .ic-notes-list::-webkit-scrollbar-thumb,
+html[data-theme="night"] .ic-bookmarks-list::-webkit-scrollbar-thumb,
+html[data-theme="night"] .ic-search-results::-webkit-scrollbar-thumb,
+html[data-theme="night"] .ic-summary-content::-webkit-scrollbar-thumb {
+    background: #555;
+}
+
+html[data-theme="night"] .ic-toc-list::-webkit-scrollbar-thumb:hover,
+html[data-theme="night"] .ic-notes-list::-webkit-scrollbar-thumb:hover,
+html[data-theme="night"] .ic-bookmarks-list::-webkit-scrollbar-thumb:hover,
+html[data-theme="night"] .ic-search-results::-webkit-scrollbar-thumb:hover,
+html[data-theme="night"] .ic-summary-content::-webkit-scrollbar-thumb:hover {
+    background: #666;
+}
+
+/* Night theme - Settings panel */
+html[data-theme="night"] .ic-settings-sidebar-content {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-settings-group-label {
+    color: #888;
+}
+
+html[data-theme="night"] .ic-settings-label {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-theme-toggle-btn,
+html[data-theme="night"] .ic-page-view-btn {
+    background: #333;
+    border-color: #444;
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-theme-toggle-btn:hover,
+html[data-theme="night"] .ic-page-view-btn:hover {
+    background: rgba(33, 150, 243, 0.15);
+    border-color: #90caf9;
+}
+
+html[data-theme="night"] .ic-theme-toggle-btn.active,
+html[data-theme="night"] .ic-page-view-btn.active {
+    background: var(--ic-blue);
+    border-color: var(--ic-blue);
+    color: #fff;
+}
+
+html[data-theme="night"] .ic-font-select {
+    background: #333;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+html[data-theme="night"] .ic-line-spacing-btn {
+    background: #333;
+    border-color: #444;
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-line-spacing-btn:hover {
+    background: rgba(33, 150, 243, 0.15);
+    border-color: #90caf9;
+}
+
+html[data-theme="night"] .ic-font-size-slider-sidebar {
+    background: #444;
+}
+
+html[data-theme="night"] .ic-font-size-slider-sidebar::-webkit-slider-thumb {
+    background: #90caf9;
+}
+
+html[data-theme="night"] .ic-line-spacing-slider-sidebar {
+    background: #444;
+}
+
+html[data-theme="night"] .ic-line-spacing-slider-sidebar::-webkit-slider-thumb {
+    background: #90caf9;
+}
+
+html[data-theme="night"] .ic-line-spacing-value,
+html[data-theme="night"] .ic-slider-label {
+    color: #aaa;
+}
+
+html[data-theme="night"] .ic-volume-slider-sidebar {
+    background: #444;
+}
+
+html[data-theme="night"] .ic-volume-slider-sidebar::-webkit-slider-thumb {
+    background: #90caf9;
+}
+
+/* Night theme - Summary panel */
+html[data-theme="night"] .ic-summary-text {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-summary-meta {
+    color: #888;
+    border-bottom-color: #333;
+}
+
+html[data-theme="night"] .ic-summary-tabs {
+    border-bottom-color: #333;
+}
+
+html[data-theme="night"] .ic-summary-tab {
+    color: #888;
+}
+
+html[data-theme="night"] .ic-summary-tab:hover {
+    color: #bbb;
+}
+
+html[data-theme="night"] .ic-summary-tab.active {
+    color: #90caf9;
+    border-bottom-color: #90caf9;
+}
+
+html[data-theme="night"] .ic-summary-options {
+    border-bottom-color: #333;
+}
+
+html[data-theme="night"] .ic-summary-provider-text {
+    color: #888;
+}
+
+html[data-theme="night"] .ic-summary-actions {
+    border-top-color: #333;
+}
+
+html[data-theme="night"] .ic-summary-action-btn {
+    background: #333;
+    border-color: #444;
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-summary-action-btn:hover {
+    background: #444;
+}
+
+/* Night theme - Book info */
+html[data-theme="night"] .ic-bookinfo-content {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-bookinfo-title-text {
+    color: #e0e0e0;
+}
+
+html[data-theme="night"] .ic-bookinfo-author {
+    color: #999;
+}
+
+html[data-theme="night"] .ic-bookinfo-stats {
+    background: #2a2a2a;
+}
+
+html[data-theme="night"] .ic-stat-label {
+    color: #888;
+}
+
+html[data-theme="night"] .ic-stat-value {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-bookinfo-description {
+    color: #bbb;
+}
+
+html[data-theme="night"] .ic-bookinfo-meta {
+    color: #999;
+    border-bottom-color: #333;
+}
+
+html[data-theme="night"] .ic-bookinfo-meta strong {
+    color: #ccc;
+}
+
+html[data-theme="night"] .ic-bookinfo-cover {
+    background: #333;
+}
+
+html[data-theme="night"] .ic-add-bookmark-btn {
+    background: var(--ic-blue);
+}
+
+/* Night theme - Summary length btns */
+html[data-theme="night"] .ic-summary-length-btns {
+    background: #333;
+}
+
+html[data-theme="night"] .ic-length-btn {
+    color: #aaa;
+}
+
+html[data-theme="night"] .ic-length-btn.active {
+    background: var(--ic-accent);
+    color: #fff;
+}
+
+/* Night theme - Sidebar empty states */
+html[data-theme="night"] .ic-sidebar-empty {
+    color: #888;
+}
+
+html[data-theme="night"] .ic-sidebar-empty-icon {
+    color: #555;
+}
+
+html[data-theme="night"] .ic-sidebar-empty-hint {
+    color: #666;
+}
+
+/* Night theme - Notes instructions */
+html[data-theme="night"] .ic-notes-instructions {
+    color: #999;
+    border-bottom-color: #333;
+}
+
+html[data-theme="night"] .ic-toggle-slider {
+    background-color: #555;
+}
+
+/* Night theme - Chapter divider */
+html[data-theme="night"] .ic-chapter-divider {
+    border-top-color: #333;
+}
+
+html[data-theme="night"] .ic-chapter-divider-title {
+    color: #777;
+}
+
+/* Night theme - Loading */
+html[data-theme="night"] .ic-loading {
+    color: #888;
+}
+
+/* Night theme - Skeleton */
+html[data-theme="night"] .ic-skeleton {
+    background: linear-gradient(90deg, #2a2a2a 25%, #333 50%, #2a2a2a 75%);
+    background-size: 200% 100%;
+}
+
+/* ========================================
+   SEPIA THEME EXTENSIONS
+   ======================================== */
+html[data-theme="sepia"] .ic-header,
+html[data-theme="sepia"] .ic-tabs,
+html[data-theme="sepia"] .ic-footer,
+html[data-theme="sepia-light"] .ic-header,
+html[data-theme="sepia-light"] .ic-tabs,
+html[data-theme="sepia-light"] .ic-footer {
+    background: #efe6d0;
+    border-color: #ddd0b8;
+}
+
+html[data-theme="sepia"] .ic-tabs-divider,
+html[data-theme="sepia-light"] .ic-tabs-divider {
+    background: #ddd0b8;
+}
+
+html[data-theme="sepia"] .ic-toc-sidebar,
+html[data-theme="sepia"] .ic-notes-sidebar,
+html[data-theme="sepia"] .ic-bookmarks-sidebar,
+html[data-theme="sepia"] .ic-search-sidebar,
+html[data-theme="sepia-light"] .ic-toc-sidebar,
+html[data-theme="sepia-light"] .ic-notes-sidebar,
+html[data-theme="sepia-light"] .ic-bookmarks-sidebar,
+html[data-theme="sepia-light"] .ic-search-sidebar {
+    background: #f5edd8;
+    border-color: #ddd0b8;
+}
+
+html[data-theme="sepia"] .ic-toc-header,
+html[data-theme="sepia"] .ic-notes-header,
+html[data-theme="sepia"] .ic-bookmarks-header,
+html[data-theme="sepia"] .ic-search-header,
+html[data-theme="sepia-light"] .ic-toc-header,
+html[data-theme="sepia-light"] .ic-notes-header,
+html[data-theme="sepia-light"] .ic-bookmarks-header,
+html[data-theme="sepia-light"] .ic-search-header {
+    background: #efe6d0;
+    border-bottom-color: #ddd0b8;
+}
+
+html[data-theme="sepia"] .ic-bookinfo-sidebar,
+html[data-theme="sepia"] .ic-settings-sidebar,
+html[data-theme="sepia"] .ic-summary-sidebar,
+html[data-theme="sepia-light"] .ic-bookinfo-sidebar,
+html[data-theme="sepia-light"] .ic-settings-sidebar,
+html[data-theme="sepia-light"] .ic-summary-sidebar {
+    background: #f5edd8;
+    border-color: #ddd0b8;
+}
+
+html[data-theme="sepia-dark"] .ic-header,
+html[data-theme="sepia-dark"] .ic-tabs,
+html[data-theme="sepia-dark"] .ic-footer {
+    background: #221e14;
+    border-color: #3a3225;
+}
+
+html[data-theme="sepia-dark"] .ic-tabs-divider {
+    background: #3a3225;
+}
+
+html[data-theme="sepia-dark"] .ic-tab {
+    color: #a89880;
+}
+
+html[data-theme="sepia-dark"] .ic-tab:hover {
+    background: #3a3225;
+    color: #d4c5a5;
+}
+
+html[data-theme="sepia-dark"] .ic-toc-sidebar,
+html[data-theme="sepia-dark"] .ic-notes-sidebar,
+html[data-theme="sepia-dark"] .ic-bookmarks-sidebar,
+html[data-theme="sepia-dark"] .ic-search-sidebar {
+    background: #282218;
+    border-color: #3a3225;
+}
+
+html[data-theme="sepia-dark"] .ic-toc-header,
+html[data-theme="sepia-dark"] .ic-notes-header,
+html[data-theme="sepia-dark"] .ic-bookmarks-header,
+html[data-theme="sepia-dark"] .ic-search-header {
+    background: #2a2418;
+    border-bottom-color: #3a3225;
+}
+
+html[data-theme="sepia-dark"] .ic-bookinfo-sidebar,
+html[data-theme="sepia-dark"] .ic-settings-sidebar,
+html[data-theme="sepia-dark"] .ic-summary-sidebar {
+    background: #282218;
+    border-color: #3a3225;
+}
+
+html[data-theme="sepia-dark"] .ic-chapter-item {
+    color: #b8a888;
+}
+
+html[data-theme="sepia-dark"] .ic-chapter-item:hover {
+    background: rgba(200, 180, 130, 0.1);
+    color: #d4c5a5;
+}
+
+html[data-theme="sepia-dark"] .ic-chapter-item.active {
+    background: rgba(200, 180, 130, 0.15);
+    color: #d4c5a5;
+    border-left-color: #d4c5a5;
+}
+
+html[data-theme="sepia-dark"] .ic-logo,
+html[data-theme="sepia-dark"] .ic-book-title {
+    color: #d4c5a5;
+}
+
+html[data-theme="sepia-dark"] .ic-tab {
+    color: #8a7d6a;
+}
+
+html[data-theme="sepia-dark"] .ic-tab:hover {
+    background: rgba(200, 180, 130, 0.08);
+}
+
+html[data-theme="sepia-dark"] .ic-tab.ic-tab-active {
+    background: rgba(200, 180, 130, 0.12);
+    color: #d4c5a5;
+}
+
+/* PDF Page Rendering - Layout-Preserving Display */
+.pdf-page-text {
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    color: inherit;
+}
+
+/* PDF headings inside page text */
+.pdf-page-text .pdf-heading {
+    font-weight: 700;
+    margin: 1em 0 0.4em;
+    line-height: 1.3;
+    color: inherit;
+}
+
+.pdf-page-text .pdf-subheading {
+    font-weight: 600;
+    margin: 0.8em 0 0.3em;
+    line-height: 1.4;
+    color: inherit;
+}
+
+/* Paragraphs — merged lines for clean flow */
+.pdf-page-text p.pdf-line {
+    margin: 0 0 0.6em 0;
+    padding: 0;
+    line-height: inherit;
+    text-align: justify;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    orphans: 2;
+    widows: 2;
+}
+
+/* PDF bold/italic classes */
+.pdf-page-text .pdf-bold {
+    font-weight: 600;
+}
+
+.pdf-page-text .pdf-italic {
+    font-style: italic;
+}
+
+.pdf-page-text .pdf-bold.pdf-italic {
+    font-weight: 600;
+    font-style: italic;
+}
+
+/* Spacing between blocks */
+.pdf-page-text .pdf-space {
+    height: 0.8em;
+}
+
+.pdf-page-text .pdf-empty-page {
+    min-height: 100px;
+}
+
+/* PDF inline images */
+.pdf-page-text .pdf-image {
+    margin: 1.2em 0;
+    text-align: center;
+}
+.pdf-page-text .pdf-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* PDF tables */
+.pdf-page-text table.pdf-table {
+    border-collapse: collapse;
+    margin: 1.5em 0;
+    width: 100%;
+    font-size: 0.9em;
+    overflow-x: auto;
+    display: block;
+}
+.pdf-page-text table.pdf-table th,
+.pdf-page-text table.pdf-table td {
+    border: 1px solid var(--ic-gray-300);
+    padding: 0.4em 0.6em;
+    text-align: left;
+}
+.pdf-page-text table.pdf-table th {
+    background: var(--ic-gray-100);
+    font-weight: 600;
+}
+.pdf-page-text table.pdf-table tr:nth-child(even) {
+    background: rgba(0, 0, 0, 0.02);
+}
+
+/* PDF rendered page (image mode for complex layouts) */
+.pdf-rendered-page {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 0 auto;
+    border-radius: 2px;
+}
+
+/* Continuous scroll chapter dividers */
+.ic-chapter-divider {
+    margin: 2em 0 1em;
+    padding: 0.5em 0;
+    border-top: 1px solid var(--ic-gray-200);
+    text-align: center;
+}
+.ic-chapter-divider-title {
+    font-size: 0.85em;
+    color: var(--ic-gray-500);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.ic-continuous-chapter {
+    padding-bottom: 2em;
+}
+
+/* Legacy paragraph support */
+.pdf-page-text p.pdf-text {
+    margin: 0 0 1em 0;
+    text-align: justify;
+    hyphens: auto;
+    line-height: 1.65;
+}
+
+.pdf-page-text h2.pdf-heading {
+    font-size: 1.4em;
+    font-weight: 700;
+    margin: 1.2em 0 0.5em 0;
+    line-height: 1.3;
+    color: var(--reader-text);
+}
+
+.pdf-page-text h2.pdf-heading:first-child {
+    margin-top: 0;
+}
+
+.pdf-page-text h3.pdf-subheading {
+    font-size: 1.15em;
+    font-weight: 600;
+    margin: 1em 0 0.4em 0;
+    line-height: 1.4;
+    color: var(--reader-text);
+}
+
+.pdf-page-text span {
+    display: inline;
+}
+
+.pdf-page-text ::selection {
+    background-color: rgba(33, 150, 243, 0.35);
+    color: inherit;
+}
+
+@media (max-width: 768px) {
+    .pdf-page-text {
+        padding: 0;
+    }
+}
+
+/* EPUB Content Formatting */
+/* EPUB tables — keep display: table for proper layout */
+.ic-chapter-text table {
+    border-collapse: collapse;
+    margin: 1.5em 0;
+    width: 100%;
+    font-size: 0.9em;
+    overflow-x: auto;
+    display: block;
+    max-width: 100%;
+    break-inside: avoid;
+}
+.ic-chapter-text table th,
+.ic-chapter-text table td {
+    border: 1px solid var(--ic-gray-300);
+    padding: 0.5em 0.75em;
+    text-align: left;
+}
+.ic-chapter-text table th {
+    background: var(--ic-gray-100);
+    font-weight: 600;
+}
+
+/* EPUB embedded styles from _extract_epub_styles */
+.ic-chapter-text .epub-style {
+    display: block;
+}
+
+.ic-chapter-text blockquote {
+    border-left: 4px solid var(--ic-gray-400);
+    padding-left: 1em;
+    margin: 1em 0;
+    font-style: italic;
+    color: var(--ic-gray-600);
+}
+
+.ic-chapter-text code {
+    background: var(--ic-gray-100);
+    padding: 0.2em 0.4em;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.ic-chapter-text pre {
+    background: var(--ic-gray-100);
+    padding: 1em;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 1em 0;
+}
+
+.ic-chapter-text pre code {
+    background: none;
+    padding: 0;
+}
+
+.ic-chapter-text ul,
+.ic-chapter-text ol {
+    margin: 1em 0;
+    padding-left: 2em;
+}
+
+.ic-chapter-text li {
+    margin-bottom: 0.3em;
+}
+
+.ic-chapter-text a {
+    color: var(--ic-blue);
+    text-decoration: none;
+}
+
+.ic-chapter-text a:hover {
+    text-decoration: underline;
+}
+
+/* Ensure EPUB wrapper divs/sections don't collapse */
+.ic-chapter-text div,
+.ic-chapter-text section,
+.ic-chapter-text article,
+.ic-chapter-text aside,
+.ic-chapter-text nav {
+    display: block;
+}
+
+/* Empty content state */
+.ic-chapter-text .empty-content {
+    text-align: center;
+    color: var(--ic-gray-500);
+    font-style: italic;
+    padding: 4em 2em;
+}

@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="day">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eLibrary Manager - Reader</title>
+    <link rel="stylesheet" href="/static/css/reader.css?v=39">
+</head>
+
+<body>
+    <!-- Icecream Reader Container -->
+    <div class="icecream-reader">
+        <!-- Scroll Progress Bar (fixed overlay) -->
+        <div class="ic-scroll-progress" id="ic-scroll-progress">
+            <div class="ic-scroll-progress-bar" id="ic-scroll-progress-bar"></div>
+        </div>
+
+        <!-- Top Header - Icecream Style (minimal: title + close) -->
+        <header class="ic-header" role="banner">
+            <div class="ic-header-center">
+                <span class="ic-book-title" id="ic-book-title">Loading...</span>
+            </div>
+            <button class="ic-header-close" onclick="goToLibrary()" title="Back to Library">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Navigation Tabs - Icecream Style (Exact Match) -->
+        <nav class="ic-tabs" role="navigation">
+            <!-- LEFT GROUP: Navigation & Organization -->
+            <div class="ic-tabs-left">
+                <!-- Library Tab -->
+                <button class="ic-tab" onclick="goToLibrary()" title="Library">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
+                    </svg>
+                </button>
+
+                <!-- Contents Tab -->
+                <button class="ic-tab ic-tab-active" id="ic-tab-contents" onclick="toggleTOCPanel()" title="Contents">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" />
+                    </svg>
+                </button>
+
+                <!-- Bookmarks Tab -->
+                <button class="ic-tab" id="ic-tab-bookmarks" onclick="showBookmarksPanel()" title="Bookmarks">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17 3H7c-1.1 0-1.99.9-1.99 2L5 21l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+                    </svg>
+                </button>
+
+                <!-- Notes & Annotations Tab -->
+                <button class="ic-tab" id="ic-tab-notes" onclick="showNotesPanel()" title="Notes & Annotations">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                    </svg>
+                </button>
+
+                <!-- Search Icon -->
+                <button class="ic-tab" onclick="showSearchPanel()" title="Search">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Vertical Separator -->
+            <div class="ic-tabs-divider"></div>
+
+            <!-- RIGHT GROUP: Actions & Tools -->
+            <div class="ic-tabs-right">
+                <!-- Book Info -->
+                <button class="ic-tab" onclick="toggleBookInfoPanel()" title="Book Info">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z" />
+                    </svg>
+                </button>
+
+                <!-- Summary -->
+                <button class="ic-tab" onclick="toggleSummaryPanel()" title="Summary" id="ic-tab-summary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+                    </svg>
+                </button>
+
+                <!-- Read Aloud / TTS -->
+                <button class="ic-tab" id="ic-tts-toggle" onclick="toggleTTS()" title="Read Aloud">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+                    </svg>
+                </button>
+
+                <!-- Fullscreen Toggle -->
+                <button class="ic-tab" onclick="toggleFullscreen()" title="Fullscreen">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+                    </svg>
+                </button>
+
+                <!-- Print -->
+                <button class="ic-tab" onclick="printChapter()" title="Print">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 8H5c-1.66 0-3 1.34-3 3v6h4v4h12v-4h4v-6c0-1.66-1.34-3-3-3zm-3 11H8v-5h8v5zm3-7c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-1-9H6v4h12V3z"/>
+                    </svg>
+                </button>
+
+                <!-- Settings -->
+                <button class="ic-tab" onclick="toggleSettingsPanel()" title="Settings">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.99 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                    </svg>
+                </button>
+
+                <!-- Help -->
+                <button class="ic-tab" onclick="showHelp()" title="Help">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z" />
+                    </svg>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Selection Context Menu (Popup) -->
+        <div id="ic-selection-menu" class="ic-selection-menu" style="display: none;">
+            <div class="ic-menu-tools">
+                <button onclick="applyHighlight('yellow')" class="ic-tool-btn highlight-yellow" title="Yellow">
+                    <div class="ic-swatch" style="background: #fff59d;"></div>
+                </button>
+                <button onclick="applyHighlight('green')" class="ic-tool-btn highlight-green" title="Green">
+                    <div class="ic-swatch" style="background: #c8e6c9;"></div>
+                </button>
+                <button onclick="applyHighlight('blue')" class="ic-tool-btn highlight-blue" title="Blue">
+                    <div class="ic-swatch" style="background: #bbdefb;"></div>
+                </button>
+                <button onclick="applyHighlight('pink')" class="ic-tool-btn highlight-pink" title="Pink">
+                    <div class="ic-swatch" style="background: #f8bbd0;"></div>
+                </button>
+                <div class="ic-menu-divider"></div>
+                <button onclick="addSelectionNote()" class="ic-tool-btn" title="Add Note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                </button>
+                <button onclick="copySelection()" class="ic-tool-btn" title="Copy">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="ic-reader-body">
+
+            <!-- Left Sidebar: Table of Contents -->
+            <aside class="ic-toc-sidebar" id="ic-toc-sidebar" aria-label="Table of contents">
+                <!-- Resize Handle -->
+                <div class="ic-sidebar-resize-handle" id="reader-sidebar-resize-handle"></div>
+                <div class="ic-toc-header">
+                    <span class="ic-toc-title">Table of contents</span>
+                    <button class="ic-toc-close" onclick="toggleTOCPanel()" title="Close">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="ic-toc-list" id="ic-toc-content" role="list">
+                    <div class="ic-loading">Loading chapters...</div>
+                </div>
+            </aside>
+
+            <!-- Notes Panel (Left Sidebar alternative) -->
+            <aside class="ic-notes-sidebar collapsed" id="ic-notes-sidebar" aria-label="Notes">
+                <div class="ic-notes-header">
+                    <span class="ic-notes-title">Notes</span>
+                    <button class="ic-notes-close" onclick="closeNotesPanel()" title="Close">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="ic-notes-instructions">
+                    <p><strong>To add a note:</strong></p>
+                    <ol>
+                        <li>Select the text you want to annotate</li>
+                        <li>Then click the color or the 'Add note' button in the opened menu</li>
+                    </ol>
+                </div>
+                <div class="ic-notes-list" id="ic-notes-list" role="list">
+                    <div class="ic-sidebar-empty">No notes yet. Select text to add a note or highlight.</div>
+                </div>
+            </aside>
+
+            <!-- Bookmarks Panel (Left Sidebar alternative) -->
+            <aside class="ic-bookmarks-sidebar collapsed" id="ic-bookmarks-sidebar" aria-label="Bookmarks">
+                <div class="ic-bookmarks-header">
+                    <span class="ic-bookmarks-title">Bookmarks</span>
+                    <button class="ic-bookmarks-close" onclick="closeBookmarksPanel()" title="Close">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
+                    </button>
+                </div>
+                <button class="ic-add-bookmark-btn" onclick="addBookmark()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                    Add bookmark
+                </button>
+                <div class="ic-bookmarks-list" id="ic-bookmarks-list" role="list">
+                    <div class="ic-sidebar-empty">No bookmarks set.</div>
+                </div>
+            </aside>
+
+            <!-- Search Panel (Left Sidebar alternative) -->
+            <aside class="ic-search-sidebar collapsed" id="ic-search-sidebar" aria-label="Search">
+                <div class="ic-search-header">
+                    <span class="ic-search-title">Search</span>
+                    <button class="ic-search-close" onclick="closeSearchPanel()" title="Close">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="ic-search-input-container">
+                    <input type="text" class="ic-search-input" id="ic-search-input" placeholder="Search in book..." onkeyup="handleSearch(event)">
+                    <button class="ic-search-clear" onclick="clearSearch()" style="display: none;" id="ic-search-clear">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="ic-search-options">
+                    <label class="ic-search-option">
+                        <input type="radio" name="search-type" value="text" checked> Text / Page number
+                    </label>
+                </div>
+                <div class="ic-search-results" id="ic-search-results">
+                    <div class="ic-sidebar-empty">Enter search term to find content in this book.</div>
+                </div>
+            </aside>
+
+            <!-- Center: Reading Area -->
+            <main class="ic-reading-area" id="ic-reading-area" aria-label="Chapter content">
+                <div class="ic-chapter-content" id="ic-chapter-content">
+                    <h1 class="ic-chapter-title" id="ic-chapter-title" style="display: none;"></h1>
+                    <div class="ic-chapter-text" id="ic-chapter-text">
+                        Loading chapter content...
+                    </div>
+                </div>
+            </main>
+
+            <!-- Book Info Panel (Right Sidebar) -->
+            <aside class="ic-bookinfo-sidebar collapsed" id="ic-bookinfo-sidebar" aria-label="Book Information">
+                <!-- Resize Handle (right panel, drag from left edge) -->
+                <div class="ic-right-resize-handle" id="bookinfo-resize-handle"></div>
+                <div class="ic-bookinfo-header">
+                    <span class="ic-bookinfo-title">Book Info</span>
+                    <button class="ic-bookinfo-close" onclick="toggleBookInfoPanel()" title="Close">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="ic-bookinfo-content" id="ic-bookinfo-content">
+                    <div class="ic-bookinfo-cover" id="ic-bookinfo-cover">
+                        <img src="/static/images/no-cover.svg" alt="Book Cover" id="ic-cover-image">
+                        <button class="ic-cover-upload-btn" onclick="uploadReaderCover()" title="Change Cover">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                        </button>
+                    </div>
+                    <div class="ic-bookinfo-details">
+                        <h3 class="ic-bookinfo-title-text" id="ic-bookinfo-book-title">Book Title</h3>
+                        <p class="ic-bookinfo-author" id="ic-bookinfo-author">Author Name</p>
+                        <div class="ic-bookinfo-stats">
+                            <div class="ic-bookinfo-stat">
+                                <span class="ic-stat-label">Pages:</span>
+                                <span class="ic-stat-value" id="ic-bookinfo-pages">0</span>
+                            </div>
+                            <div class="ic-bookinfo-stat">
+                                <span class="ic-stat-label">Chapters:</span>
+                                <span class="ic-stat-value" id="ic-bookinfo-chapters">0</span>
+                            </div>
+                            <div class="ic-bookinfo-stat">
+                                <span class="ic-stat-label">Progress:</span>
+                                <span class="ic-stat-value" id="ic-bookinfo-progress">0%</span>
+                            </div>
+                        </div>
+                        <div class="ic-bookinfo-description" id="ic-bookinfo-description">
+                            <p>No description available.</p>
+                        </div>
+                        <div class="ic-bookinfo-stat" style="margin-top:10px; font-size:11px; color:var(--ic-text-secondary, #888); word-break:break-all;">
+                            <span class="ic-stat-label">File:</span>
+                            <span class="ic-stat-value" id="ic-bookinfo-path" style="font-family:monospace; font-size:10px; user-select:all;">-</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Settings Panel (Right Sidebar - Exact Icecream Layout) -->
+            <aside class="ic-settings-sidebar collapsed" id="ic-settings-sidebar" aria-label="Reading Settings">
+                <!-- Resize Handle (right panel, drag from left edge) -->
+                <div class="ic-right-resize-handle" id="settings-resize-handle"></div>
+                <div class="ic-settings-sidebar-header">
+                    <span class="ic-settings-sidebar-title">Settings</span>
+                    <button class="ic-settings-sidebar-close" onclick="toggleSettingsPanel()" title="Close">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="ic-settings-sidebar-content">
+                    <!-- Theme Section -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-group-label">Reading Mode</div>
+                        <div class="ic-theme-buttons">
+                            <button class="ic-theme-toggle-btn active" data-theme="day" onclick="setTheme('day')">
+                                <span>Day</span>
+                            </button>
+                            <button class="ic-theme-toggle-btn" data-theme="night" onclick="setTheme('night')">
+                                <span>Night</span>
+                            </button>
+                        </div>
+                        <div class="ic-sepia-options">
+                            <label class="ic-sepia-option">
+                                <input type="radio" name="sepia" value="light" onclick="setTheme('sepia-light')">
+                                <span>Light sepia</span>
+                            </label>
+                            <label class="ic-sepia-option">
+                                <input type="radio" name="sepia" value="dark" onclick="setTheme('sepia-dark')">
+                                <span>Dark sepia</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Dimming Toggle -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-row">
+                            <span class="ic-settings-label">Dimming</span>
+                            <label class="ic-toggle-switch">
+                                <input type="checkbox" id="ic-dimming-toggle">
+                                <span class="ic-toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Page View Section -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-group-label">Page View</div>
+                        <div class="ic-page-view-buttons">
+                            <button class="ic-page-view-btn active" data-layout="double" onclick="setPageLayout('double')">
+                                <span>Double</span>
+                            </button>
+                            <button class="ic-page-view-btn" data-layout="single" onclick="setPageLayout('single')">
+                                <span>Single</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Text Font Section -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-group-label">Text Font</div>
+                        <select class="ic-font-select" id="ic-font-select" onchange="setFontFamily(this.value)">
+                            <option value="original">Original font</option>
+                            <option value="georgia">Georgia</option>
+                            <option value="times">Times New Roman</option>
+                            <option value="arial">Arial</option>
+                            <option value="verdana">Verdana</option>
+                        </select>
+                    </div>
+
+                    <!-- Font Size Section -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-group-label">Font Size</div>
+                        <div class="ic-font-size-control">
+                            <span class="ic-slider-label">A</span>
+                            <input type="range" class="ic-font-size-slider-sidebar" id="ic-font-size-slider-sidebar"
+                                   min="12" max="28" value="17" oninput="setFontSize(this.value)">
+                            <span class="ic-slider-label" style="font-size:18px;font-weight:700;">A</span>
+                        </div>
+                        <div class="ic-font-size-value" id="ic-font-size-value">17px</div>
+                    </div>
+
+                    <!-- Line Spacing Section -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-group-label">Line Spacing</div>
+                        <div class="ic-line-spacing-control">
+                            <input type="range" class="ic-line-spacing-slider-sidebar" id="ic-line-spacing-slider-sidebar"
+                                   min="10" max="30" value="18" oninput="setLineSpacing(this.value)">
+                            <span class="ic-line-spacing-value" id="ic-line-spacing-value">1.8</span>
+                        </div>
+                    </div>
+
+                    <!-- Volume Control Section -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-group-label">Volume</div>
+                        <div class="ic-volume-control-sidebar">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 9v6h4l5 5V4L7 9H3z"/>
+                            </svg>
+                            <input type="range" class="ic-volume-slider-sidebar" id="ic-volume-slider-sidebar"
+                                   min="0" max="100" value="80" oninput="setVolume(this.value)">
+                        </div>
+                    </div>
+
+                    <!-- AI Providers Section -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-group-label">AI Providers</div>
+                        <div id="ic-ai-providers-list" class="ic-ai-providers-list">
+                            <div class="ic-ai-provider-loading">Loading...</div>
+                        </div>
+                        <!-- Add / Update API Key -->
+                        <div class="ic-ai-key-section" id="ic-ai-key-section">
+                            <select class="ic-ai-provider-select" id="ic-ai-provider-select">
+                                <option value="google">Google Gemini</option>
+                                <option value="groq">Groq</option>
+                                <option value="ollama_local">Ollama Local</option>
+                            </select>
+                            <div class="ic-ai-key-row">
+                                <input type="password" class="ic-ai-key-input" id="ic-ai-key-input"
+                                       placeholder="Enter API key...">
+                                <button class="ic-ai-test-btn" id="ic-ai-test-btn" onclick="testAIConnection()">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                    </svg>
+                                    Test
+                                </button>
+                            </div>
+                            <button class="ic-ai-save-btn" onclick="saveAIKey()">Save & Connect</button>
+                        </div>
+                        <!-- Ollama URL -->
+                        <div class="ic-ai-ollama-section" id="ic-ai-ollama-section">
+                            <label class="ic-settings-label" style="margin-bottom:4px">Ollama URL</label>
+                            <input type="text" class="ic-ai-key-input" id="ic-ollama-url-input"
+                                   placeholder="http://localhost:11434" value="http://localhost:11434">
+                            <button class="ic-ai-save-btn" style="margin-top:6px" onclick="saveOllamaUrl()">Save URL</button>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Summary/AI Sidebar (Right - Collapsible) -->
+            <aside class="ic-summary-sidebar collapsed" id="ic-summary-sidebar" aria-label="Summary and tools">
+                <!-- Resize Handle (right panel, drag from left edge) -->
+                <div class="ic-right-resize-handle" id="summary-resize-handle"></div>
+                <div class="ic-summary-header">
+                    <span class="ic-summary-title">Summary</span>
+                    <button class="ic-summary-close" onclick="toggleSummaryPanel()" title="Close">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Summary Options -->
+                <div class="ic-summary-options" id="ic-summary-options">
+                    <div class="ic-summary-options-row">
+                        <span class="ic-summary-options-label">Length</span>
+                        <div class="ic-summary-length-btns">
+                            <button class="ic-length-btn" data-length="short" onclick="setSummaryLength('short')">Short</button>
+                            <button class="ic-length-btn active" data-length="medium" onclick="setSummaryLength('medium')">Medium</button>
+                            <button class="ic-length-btn" data-length="detailed" onclick="setSummaryLength('detailed')">Detailed</button>
+                        </div>
+                    </div>
+                    <div class="ic-summary-options-row">
+                        <span class="ic-summary-options-label">Auto-summarize</span>
+                        <label class="ic-toggle-switch ic-toggle-sm">
+                            <input type="checkbox" id="ic-auto-summary" onchange="toggleAutoSummary(this.checked)">
+                            <span class="ic-toggle-slider"></span>
+                        </label>
+                    </div>
+                    <div class="ic-summary-provider" id="ic-summary-provider">
+                        <span class="ic-summary-provider-dot"></span>
+                        <span class="ic-summary-provider-text" id="ic-summary-provider-text">Checking AI...</span>
+                    </div>
+                </div>
+
+                <div class="ic-summary-tabs">
+                    <button class="ic-summary-tab active" id="ic-summary-tab-chapter" onclick="switchSummaryTab('chapter')">Chapter</button>
+                    <button class="ic-summary-tab" id="ic-summary-tab-book" onclick="switchSummaryTab('book')">Full Book</button>
+                </div>
+                <button class="ic-generate-btn ic-generate-btn-persist" id="ic-generate-btn" onclick="window.readerApp.generateSummary()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" />
+                    </svg>
+                    <span id="ic-generate-btn-text">Generate Summary</span>
+                </button>
+                <div class="ic-summary-content" id="ic-summary-content" role="status" aria-live="polite">
+                    <div class="ic-summary-empty">
+                        <p class="ic-summary-empty-text">
+                            Click the button above to generate an AI-powered summary.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Summary Actions (shown when summary exists) -->
+                <div class="ic-summary-actions" id="ic-summary-actions" style="display: none;">
+                    <button class="ic-summary-action-btn" onclick="copySummary()" title="Copy summary">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                        </svg>
+                        Copy
+                    </button>
+                </div>
+            </aside>
+
+        </div>
+
+        <!-- Keyboard Shortcuts Modal -->
+        <div class="ic-help-overlay" id="ic-help-overlay" style="display: none;">
+            <div class="ic-help-modal">
+                <div class="ic-help-header">
+                    <span>Keyboard Shortcuts</span>
+                    <button class="ic-help-close" onclick="toggleHelpModal()" title="Close">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="ic-help-content">
+                    <div class="ic-help-row"><kbd>&larr;</kbd> <span>Previous page</span></div>
+                    <div class="ic-help-row"><kbd>&rarr;</kbd> <span>Next page</span></div>
+                    <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>&larr;</kbd> <span>Previous chapter</span></div>
+                    <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>&rarr;</kbd> <span>Next chapter</span></div>
+                    <div class="ic-help-row"><kbd>T</kbd> <span>Toggle Table of Contents</span></div>
+                    <div class="ic-help-row"><kbd>B</kbd> <span>Bookmarks panel</span></div>
+                    <div class="ic-help-row"><kbd>S</kbd> <span>Toggle AI Summary</span></div>
+                    <div class="ic-help-row"><kbd>F</kbd> <span>Toggle fullscreen</span></div>
+                    <div class="ic-help-row"><kbd>Esc</kbd> <span>Close all panels</span></div>
+                    <div class="ic-help-row"><kbd>+</kbd> / <kbd>-</kbd> <span>Zoom in / out</span></div>
+                    <div class="ic-help-row"><kbd>?</kbd> <span>Show this help</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Footer - Icecream Style -->
+        <footer class="ic-footer">
+            <!-- Page Info -->
+            <div class="ic-footer-left">
+                <span class="ic-page-number" id="ic-page-number">1-2</span>
+                <span class="ic-page-separator">/</span>
+                <span class="ic-total-pages" id="ic-total-pages">636</span>
+                <span class="ic-footer-chapter-title" id="ic-footer-chapter-title"></span>
+            </div>
+
+            <!-- Progress Slider -->
+            <div class="ic-footer-center">
+                <input type="range" class="ic-progress-slider" id="ic-progress-slider" min="0" max="100" value="0"
+                    aria-label="Reading progress">
+            </div>
+
+            <!-- Chapter Navigation -->
+            <div class="ic-footer-right">
+                <button class="ic-nav-btn" id="ic-prev-btn" onclick="goToChapter(IcecreamReader.currentChapter - 1)" title="Previous chapter" disabled>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                </button>
+                <span class="ic-nav-info" id="ic-nav-info">1 / 1</span>
+                <button class="ic-nav-btn" id="ic-next-btn" onclick="goToChapter(IcecreamReader.currentChapter + 1)" title="Next chapter">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+                </button>
+            </div>
+        </footer>
+
+    </div>
+
+    <!-- Reader JavaScript -->
+    <script src="/static/js/reader-icecream.js?v=36"></script>
+    <script src="/static/js/resize-sidebar.js"></script>
+    <script>
+        // Left sidebar (TOC)
+        initSidebarResize('ic-toc-sidebar', 'reader-sidebar-resize-handle', 'readerSidebarWidth', 240, 180, 500);
+        // Right sidebars (Book Info + Settings + Summary)
+        initSidebarResize('ic-bookinfo-sidebar', 'bookinfo-resize-handle', 'bookinfoSidebarWidth', 260, 200, 500, 'right');
+        initSidebarResize('ic-settings-sidebar', 'settings-resize-handle', 'settingsSidebarWidth', 260, 200, 500, 'right');
+        initSidebarResize('ic-summary-sidebar', 'summary-resize-handle', 'summarySidebarWidth', 280, 200, 500, 'right');
+    </script>
+    <script>
+        // Initialize reader app
+        window.readerApp.init({{ book_id }});
+    </script>
+</body>
+
+</html>

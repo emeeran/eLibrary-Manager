@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint with ruff
+        run: uv run ruff check backend/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests
+        env:
+          APP_ENV: testing
+          SECRET_KEY: ci-test-secret-key
+        run: uv run pytest tests/ -v --tb=short
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t elibrary-manager:ci-test .
+
+      - name: Verify image starts
+        run: |
+          docker run -d --name test-container \
+            -e APP_ENV=production \
+            -e SECRET_KEY=ci-test-secret-key-for-docker \
+            -e ADMIN_PASSWORD=test-password \
+            -p 8000:8000 \
+            elibrary-manager:ci-test
+          sleep 5
+          docker exec test-container python -c \
+            "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" \
+            || (docker logs test-container && exit 1)
+          docker stop test-container
