@@ -4925,13 +4925,30 @@ button {
    TTS WORD HIGHLIGHTING
    ======================================== */
 .tts-word {
-    transition: background-color 0.15s ease;
+    transition: background-color 0.15s ease, opacity 0.3s ease;
     border-radius: 2px;
 }
 
 .tts-word-highlight {
-    background-color: rgba(255, 235, 59, 0.5);
+    background-color: rgba(255, 235, 59, 0.35);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tts-word-spoken {
+    opacity: 0.45;
+}
+
+/* Sentence-level highlighting */
+.tts-sentence {
+    transition: background-color 0.2s ease;
+    border-radius: 3px;
+    padding: 2px 0;
+    display: inline;
+}
+
+.tts-sentence-highlight {
+    background-color: rgba(255, 235, 59, 0.5);
+    box-shadow: 0 0 6px rgba(255, 235, 59, 0.4);
 }
 
 /* Theme-aware highlighting */
@@ -4946,6 +4963,23 @@ html[data-theme="sepia-light"] .tts-word-highlight {
 
 html[data-theme="sepia-dark"] .tts-word-highlight {
     background-color: rgba(200, 170, 100, 0.25);
+}
+
+/* Theme-aware sentence highlighting */
+html[data-theme="night"] .tts-sentence-highlight {
+    background-color: rgba(255, 235, 59, 0.25);
+    box-shadow: 0 0 4px rgba(255, 235, 59, 0.2);
+}
+
+html[data-theme="sepia"] .tts-sentence-highlight,
+html[data-theme="sepia-light"] .tts-sentence-highlight {
+    background-color: rgba(180, 140, 60, 0.35);
+    box-shadow: 0 0 4px rgba(180, 140, 60, 0.25);
+}
+
+html[data-theme="sepia-dark"] .tts-sentence-highlight {
+    background-color: rgba(200, 170, 100, 0.3);
+    box-shadow: 0 0 4px rgba(200, 170, 100, 0.2);
 }
 
 /* ============================================

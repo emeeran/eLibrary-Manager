@@ -147,7 +147,6 @@
                 isServerLoading = true;
                 updateTTSButtonState('loading');
 
-                // Use streaming endpoint for instant playback
                 const response = await fetch('/api/tts/stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -159,13 +158,24 @@
                     throw new Error(errorData.detail || errorData.message || 'Failed to generate speech');
                 }
 
+                // Buffer all chunks, then play — avoids src-swap bugs
                 const reader = response.body.getReader();
                 const chunks = [];
-                let totalBytes = 0;
-                const PLAY_THRESHOLD = 16384; // Start after ~16KB
-                let objectUrl = null;
 
-                audioElement = new Audio();
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value);
+                }
+
+                if (chunks.length === 0) {
+                    throw new Error('No audio data received');
+                }
+
+                const objectUrl = URL.createObjectURL(new Blob(chunks, { type: 'audio/mpeg' }));
+
+                audioElement = new Audio(objectUrl);
+                audioElement.playbackRate = rate;
                 audioElement.onended = () => this.stop();
                 audioElement.onerror = (e) => {
                     console.error(`${this.engine} Audio Error:`, e);
@@ -176,60 +186,105 @@
                     if (!this.isPaused) updateTTSButtonState('idle');
                 };
 
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    chunks.push(value);
-                    totalBytes += value.length;
-
-                    // Start playing once we have enough initial data
-                    if (totalBytes >= PLAY_THRESHOLD && !audioElement.src) {
-                        const blob = new Blob(chunks, { type: 'audio/mpeg' });
-                        if (objectUrl) URL.revokeObjectURL(objectUrl);
-                        objectUrl = URL.createObjectURL(blob);
-                        audioElement.src = objectUrl;
-                        audioElement.playbackRate = rate;
-                        await audioElement.play();
-                    }
-                }
-
-                // Final blob with complete audio
-                if (chunks.length > 0) {
-                    const wasPlaying = !audioElement.paused;
-                    const currentTime = audioElement.currentTime;
-
-                    const finalBlob = new Blob(chunks, { type: 'audio/mpeg' });
-                    if (objectUrl) URL.revokeObjectURL(objectUrl);
-                    objectUrl = URL.createObjectURL(finalBlob);
-                    audioElement.src = objectUrl;
-
-                    if (wasPlaying) {
-                        audioElement.currentTime = currentTime;
-                        audioElement.playbackRate = rate;
-                        audioElement.play().catch(() => {});
-                    } else if (!audioElement.src || audioElement.src === '') {
-                        audioElement.playbackRate = rate;
-                        await audioElement.play();
-                    }
-                }
-
-                // Handle very short text that never hit threshold
-                if (!audioElement.src && chunks.length > 0) {
-                    const blob = new Blob(chunks, { type: 'audio/mpeg' });
-                    objectUrl = URL.createObjectURL(blob);
-                    audioElement.src = objectUrl;
-                    audioElement.playbackRate = rate;
-                    await audioElement.play();
-                }
+                await audioElement.play();
 
                 audioElement._objectUrl = objectUrl;
-                startServerWordTracking();
+                // Single-segment highlight: wrap text as one segment
+                _buildSegmentWordMap([text]);
+                _buildSegmentSentenceMap();
+                _startSegmentTracking(0);
                 this.isPlaying = true;
                 isServerLoading = false;
 
             } catch (error) {
                 console.error(`${this.engine} TTS Error:`, error);
+                isServerLoading = false;
+                updateTTSButtonState('idle');
+                throw error;
+            }
+        }
+
+        /**
+         * Speak text in segments — first segment plays immediately,
+         * remaining segments are fetched while current one plays.
+         */
+        async speakSegments(segments, options = {}) {
+            this.stop();
+            if (segments.length === 0) return;
+
+            const voice = options.voice || null;
+            const rate = options.rate || 1.0;
+            const pitch = options.pitch || '+0Hz';
+
+            try {
+                isServerLoading = true;
+                updateTTSButtonState('loading');
+
+                // Build segment-to-DOM-word mapping for highlighting
+                _buildSegmentWordMap(segments);
+                _buildSegmentSentenceMap();
+
+                // Fetch first segment immediately
+                const firstBlob = await _fetchAudioChunk(segments[0], voice, rate, pitch);
+
+                const objectUrl = URL.createObjectURL(firstBlob);
+                audioElement = new Audio(objectUrl);
+                audioElement.playbackRate = rate;
+                audioElement.onplay = () => updateTTSButtonState('playing');
+                audioElement.onpause = () => {
+                    if (!this.isPaused) updateTTSButtonState('idle');
+                };
+
+                this.isPlaying = true;
+                isServerLoading = false;
+                console.log('[TTS] Playing segment 0, duration:', audioElement.duration);
+                await audioElement.play();
+                audioElement._objectUrl = objectUrl;
+
+                // Start highlighting for segment 0
+                _startSegmentTracking(0);
+
+                // Prefetch next segment while current plays
+                let prefetchPromise = segments.length > 1
+                    ? _fetchAudioChunk(segments[1], voice, rate, pitch).catch(() => null)
+                    : null;
+
+                for (let i = 1; i < segments.length; i++) {
+                    // Wait for current audio to end (unless stopped)
+                    await new Promise((resolve) => {
+                        if (!audioElement) { resolve(); return; }
+                        audioElement.onended = () => resolve();
+                        const checkStop = setInterval(() => {
+                            if (!this.isPlaying) { clearInterval(checkStop); resolve(); }
+                        }, 200);
+                    });
+
+                    if (!this.isPlaying) break;
+
+                    // Use prefetched blob or fetch now
+                    const blob = await prefetchPromise ||
+                        await _fetchAudioChunk(segments[i], voice, rate, pitch).catch(() => null);
+                    if (!blob) break;
+
+                    // Start prefetching next segment
+                    prefetchPromise = (i + 1 < segments.length)
+                        ? _fetchAudioChunk(segments[i + 1], voice, rate, pitch).catch(() => null)
+                        : null;
+
+                    const newUrl = URL.createObjectURL(blob);
+                    if (audioElement._objectUrl) URL.revokeObjectURL(audioElement._objectUrl);
+                    audioElement.src = newUrl;
+                    audioElement._objectUrl = newUrl;
+                    await audioElement.play();
+
+                    _startSegmentTracking(i);
+                }
+
+                // Final segment ended
+                audioElement.onended = () => this.stop();
+
+            } catch (error) {
+                console.error(`${this.engine} Segment TTS Error:`, error);
                 isServerLoading = false;
                 updateTTSButtonState('idle');
                 throw error;
@@ -517,10 +572,9 @@
     }
 
     /**
-     * Speak current chapter
+     * Speak current chapter — splits into sentence chunks for fast first-byte.
      */
     async function speakCurrentChapter() {
-        // Read chapter text from the DOM (works with any reader template)
         const chapterTextEl = document.getElementById('ic-chapter-text');
         if (!chapterTextEl) return;
 
@@ -537,16 +591,38 @@
         if (!tts) return;
 
         if (engine === ENGINE_BROWSER) {
-            // Browser TTS: get voice object from index
             const voiceIndex = parseInt(voiceValue) || 0;
             await tts.speak(plainText, {
                 voice: webSpeechTTS?.getVoices()[voiceIndex],
                 rate
             });
         } else {
-            // Server TTS: pass voice ID directly
-            await tts.speak(plainText, { voice: voiceValue, rate });
+            // Server TTS: split into ~500-char segments so first chunk plays fast
+            const MAX_CHUNK = 500;
+            const segments = splitTextIntoSegments(plainText, MAX_CHUNK);
+            await tts.speakSegments(segments, { voice: voiceValue, rate });
         }
+    }
+
+    /**
+     * Split text into sentence-boundary chunks of roughly maxLen characters.
+     */
+    function splitTextIntoSegments(text, maxLen) {
+        const segments = [];
+        // Split on sentence boundaries
+        const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+        let current = '';
+
+        for (const sentence of sentences) {
+            if ((current + sentence).length > maxLen && current.length > 0) {
+                segments.push(current.trim());
+                current = sentence;
+            } else {
+                current += sentence;
+            }
+        }
+        if (current.trim()) segments.push(current.trim());
+        return segments.length > 0 ? segments : [text];
     }
 
     /**
@@ -677,179 +753,418 @@
     }
 
     // ========================================
-    // WORD HIGHLIGHTING
+    // SENTENCE HIGHLIGHTING (segment-aware)
     // ========================================
 
-    let _wordSpans = [];
-    let _currentWordIndex = -1;
+    let _wordSpans = [];         // All word spans in the chapter DOM
+    let _currentWordIndex = -1;  // Currently highlighted word
     let _isHighlighting = false;
+    let _segmentWordMap = [];    // [{startWord, endWord}, ...] per segment
+    let _trackRAF = null;        // RAF handle for tracking loop
+    let _sentenceSpans = [];     // All sentence spans in the chapter DOM
+    let _currentSentenceIndex = -1; // Currently highlighted sentence
+    let _segmentSentenceMap = []; // [{startSentence, endSentence}, ...] per segment
 
     /**
-     * Segment chapter text into word spans for highlighting.
+     * Wrap sentences and words in the chapter DOM with spans.
+     * First wraps sentences, then wraps words inside each sentence.
      */
-    function segmentWords() {
+    function segmentSentencesAndWords() {
         const chapterText = document.getElementById('ic-chapter-text');
-        if (!chapterText) return;
+        if (!chapterText) { console.warn('[TTS] #ic-chapter-text not found'); return; }
 
-        // Clean up any previous spans
-        clearHighlights();
+        // Unwrap any previous tts-sentence and tts-word spans
+        chapterText.querySelectorAll('span.tts-sentence, span.tts-word').forEach(span => {
+            const parent = span.parentNode;
+            if (parent) {
+                // Replace with text content
+                while (span.firstChild) {
+                    parent.insertBefore(span.firstChild, span);
+                }
+                span.remove();
+            }
+        });
+        chapterText.normalize();
 
-        const walker = document.createTreeWalker(
-            chapterText,
-            NodeFilter.SHOW_TEXT,
-            null
-        );
-
+        const walker = document.createTreeWalker(chapterText, NodeFilter.SHOW_TEXT, null);
         const textNodes = [];
         let node;
         while ((node = walker.nextNode())) {
-            if (node.textContent.trim()) {
-                textNodes.push(node);
-            }
+            if (node.textContent.trim()) textNodes.push(node);
         }
 
+        _sentenceSpans = [];
         _wordSpans = [];
+        let sentenceIndex = 0;
         let wordIndex = 0;
-        const BATCH_SIZE = 50;
-        let idx = 0;
 
-        function processBatch() {
-            const end = Math.min(idx + BATCH_SIZE, textNodes.length);
-            for (; idx < end; idx++) {
-                const textNode = textNodes[idx];
-                const text = textNode.textContent;
-                const words = text.split(/(\s+)/);
+        // Sentence boundary regex: split on . ! ? followed by space or end
+        const sentenceRegex = /([.!?]+\s*)/g;
 
-                if (words.length <= 1 && !text.trim()) continue;
+        for (const textNode of textNodes) {
+            const text = textNode.textContent;
+            const parts = text.split(sentenceRegex);
 
-                const parent = textNode.parentNode;
-                if (!parent) continue;
-                const fragment = document.createDocumentFragment();
+            const parent = textNode.parentNode;
+            if (!parent) continue;
+            const fragment = document.createDocumentFragment();
 
-                words.forEach(part => {
-                    if (part.trim() === '') {
-                        fragment.appendChild(document.createTextNode(part));
-                    } else {
-                        const span = document.createElement('span');
-                        span.className = 'tts-word';
-                        span.dataset.wordIndex = wordIndex;
-                        span.textContent = part;
-                        _wordSpans.push(span);
-                        wordIndex++;
-                        fragment.appendChild(span);
+            let currentSentence = '';
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                if (part.trim() === '') continue;
+                
+                currentSentence += part;
+                
+                // Check if this part ends with sentence boundary (. ! ?)
+                if (/[.!?]$/.test(part.trim())) {
+                    const trimmed = currentSentence.trim();
+                    if (trimmed) {
+                        // Create sentence span
+                        const sentenceSpan = document.createElement('span');
+                        sentenceSpan.className = 'tts-sentence';
+                        sentenceSpan.dataset.sentenceIndex = sentenceIndex;
+                        
+                        // Now split this sentence into words
+                        const words = currentSentence.split(/(\s+)/);
+                        for (const wordPart of words) {
+                            if (wordPart.trim() === '') {
+                                sentenceSpan.appendChild(document.createTextNode(wordPart));
+                            } else {
+                                const wordSpan = document.createElement('span');
+                                wordSpan.className = 'tts-word';
+                                wordSpan.dataset.wordIndex = wordIndex;
+                                wordSpan.textContent = wordPart;
+                                _wordSpans.push(wordSpan);
+                                wordIndex++;
+                                sentenceSpan.appendChild(wordSpan);
+                            }
+                        }
+                        
+                        _sentenceSpans.push(sentenceSpan);
+                        sentenceIndex++;
+                        fragment.appendChild(sentenceSpan);
+                        currentSentence = '';
                     }
-                });
-
-                parent.replaceChild(fragment, textNode);
+                }
             }
-
-            if (idx < textNodes.length) {
-                requestAnimationFrame(processBatch);
-            } else {
-                _isHighlighting = true;
+            // Handle any remaining text without sentence boundary
+            if (currentSentence.trim()) {
+                const sentenceSpan = document.createElement('span');
+                sentenceSpan.className = 'tts-sentence';
+                sentenceSpan.dataset.sentenceIndex = sentenceIndex;
+                
+                // Split into words
+                const words = currentSentence.split(/(\s+)/);
+                for (const wordPart of words) {
+                    if (wordPart.trim() === '') {
+                        sentenceSpan.appendChild(document.createTextNode(wordPart));
+                    } else {
+                        const wordSpan = document.createElement('span');
+                        wordSpan.className = 'tts-word';
+                        wordSpan.dataset.wordIndex = wordIndex;
+                        wordSpan.textContent = wordPart;
+                        _wordSpans.push(wordSpan);
+                        wordIndex++;
+                        sentenceSpan.appendChild(wordSpan);
+                    }
+                }
+                
+                _sentenceSpans.push(sentenceSpan);
+                sentenceIndex++;
+                fragment.appendChild(sentenceSpan);
             }
+            parent.replaceChild(fragment, textNode);
         }
 
-        if (textNodes.length === 0) return;
-        requestAnimationFrame(processBatch);
+        console.log('[TTS] segmentSentencesAndWords: wrapped', _sentenceSpans.length, 'sentences,', _wordSpans.length, 'words');
     }
 
     /**
-     * Highlight a specific word by index.
+     * Wrap every word in the chapter DOM with a <span class="tts-word">.
+     * Deprecated: use segmentSentencesAndWords() instead.
      */
+    function segmentWords() {
+        segmentSentencesAndWords();
+    }
+
+    /**
+     * Wrap sentences in the chapter DOM with <span class="tts-sentence">.
+     * Deprecated: use segmentSentencesAndWords() instead.
+     */
+    function segmentSentences() {
+        segmentSentencesAndWords();
+    }
+
+    /**
+     * Build a map from TTS segment index → DOM word range.
+     */
+    function _buildSegmentWordMap(segments) {
+        segmentWords();
+
+        const allWords = _wordSpans.map(s => s.textContent.trim());
+        _segmentWordMap = [];
+
+        let searchStart = 0;
+        for (const seg of segments) {
+            const segWords = seg.split(/\s+/).filter(w => w.length > 0);
+            if (segWords.length === 0) {
+                _segmentWordMap.push({ startWord: searchStart, endWord: searchStart });
+                continue;
+            }
+
+            let found = false;
+            for (let i = searchStart; i <= allWords.length - segWords.length; i++) {
+                let match = true;
+                for (let j = 0; j < Math.min(segWords.length, 5); j++) {
+                    if (allWords[i + j].toLowerCase() !== segWords[j].toLowerCase()) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) {
+                    const endWord = Math.min(i + segWords.length, allWords.length);
+                    _segmentWordMap.push({ startWord: i, endWord: endWord });
+                    searchStart = endWord;
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                const startWord = searchStart;
+                const endWord = Math.min(searchStart + segWords.length, allWords.length);
+                _segmentWordMap.push({ startWord, endWord });
+                searchStart = endWord;
+            }
+        }
+        _isHighlighting = _wordSpans.length > 0;
+        console.log('[TTS] segmentMap:', JSON.stringify(_segmentWordMap));
+    }
+
+    /**
+     * Build a map from TTS segment index → DOM sentence range.
+     * Uses text matching to find which sentences contain the segment's words.
+     */
+    function _buildSegmentSentenceMap() {
+        // segmentSentencesAndWords is already called by _buildSegmentWordMap
+        if (_wordSpans.length === 0 || _sentenceSpans.length === 0) {
+            _segmentSentenceMap = [];
+            return;
+        }
+
+        // Build word index for each sentence
+        const sentenceWordRanges = [];
+        let wordIndex = 0;
+
+        for (const sentence of _sentenceSpans) {
+            const sentenceWords = sentence.textContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+            sentenceWordRanges.push({ start: wordIndex, end: wordIndex + sentenceWords });
+            wordIndex += sentenceWords;
+        }
+
+        // Map each segment to its sentence range
+        _segmentSentenceMap = _segmentWordMap.map(range => {
+            if (range.startWord >= range.endWord) {
+                return { startSentence: 0, endSentence: 1 };
+            }
+
+            // Find which sentence contains the start word
+            let startSentence = 0;
+            for (let s = 0; s < sentenceWordRanges.length; s++) {
+                if (range.startWord >= sentenceWordRanges[s].start && range.startWord < sentenceWordRanges[s].end) {
+                    startSentence = s;
+                    break;
+                }
+            }
+
+            // Find which sentence contains the end word
+            let endSentence = startSentence + 1;
+            for (let s = 0; s < sentenceWordRanges.length; s++) {
+                if (range.endWord > sentenceWordRanges[s].start && range.endWord <= sentenceWordRanges[s].end) {
+                    endSentence = s + 1;
+                    break;
+                }
+            }
+
+            return { startSentence, endSentence };
+        });
+    }
+
+    /**
+     * Highlight the sentence for the current segment.
+     */
+    function _highlightSentence(segIndex) {
+        // Clear previous sentence highlight
+        if (_currentSentenceIndex >= 0 && _currentSentenceIndex < _sentenceSpans.length) {
+            _sentenceSpans[_currentSentenceIndex].classList.remove('tts-sentence-highlight');
+        }
+
+        const sentenceRange = _segmentSentenceMap[segIndex];
+        if (!sentenceRange || sentenceRange.startSentence >= sentenceRange.endSentence) {
+            return;
+        }
+
+        // Highlight the first sentence in the range (most segments contain one sentence)
+        _currentSentenceIndex = sentenceRange.startSentence;
+        if (_currentSentenceIndex < _sentenceSpans.length) {
+            _sentenceSpans[_currentSentenceIndex].classList.add('tts-sentence-highlight');
+        }
+    }
+
+    /**
+     * Start timeupdate-based word tracking for a given segment index.
+     * Uses actual audio duration for precise sync.
+     */
+    function _startSegmentTracking(segIndex) {
+        if (_trackRAF) cancelAnimationFrame(_trackRAF);
+
+        const range = _segmentWordMap[segIndex];
+        if (!range || range.startWord >= range.endWord) {
+            console.warn('[TTS] No range for segment', segIndex, range);
+            return;
+        }
+
+        console.log('[TTS] Tracking segment', segIndex, 'words', range.startWord, '-', range.endWord);
+
+        const totalSegWords = range.endWord - range.startWord;
+        _dimSegmentWords(segIndex);
+        _highlightSentence(segIndex);
+
+        // Estimate speech rate: ~150 WPM at 1x, scaled by playback rate
+        const rate = parseFloat(document.getElementById('speed-selector')?.value || 1.0) || 1.0;
+        const wordsPerSec = (150 * rate) / 60;
+        const startTime = performance.now();
+        let loggedOnce = false;
+
+        function tick() {
+            if (!audioElement || !_isHighlighting) {
+                if (!loggedOnce) console.warn('[TTS] tick exit: audio=', !!audioElement, 'highlighting=', _isHighlighting);
+                return;
+            }
+
+            let progress;
+            if (audioElement.duration && isFinite(audioElement.duration)) {
+                progress = Math.min(audioElement.currentTime / audioElement.duration, 1);
+            } else {
+                const elapsedSec = (performance.now() - startTime) / 1000;
+                const estDuration = totalSegWords / wordsPerSec;
+                progress = Math.min(elapsedSec / estDuration, 1);
+            }
+
+            const wordOffset = Math.min(Math.floor(progress * totalSegWords), totalSegWords - 1);
+            const wordIndex = range.startWord + wordOffset;
+
+            if (!loggedOnce) {
+                console.log('[TTS] first tick: rate=', rate, 'wps=', wordsPerSec, 'progress=', progress, 'word=', wordIndex);
+                loggedOnce = true;
+            }
+
+            if (wordIndex !== _currentWordIndex && wordIndex < _wordSpans.length) {
+                if (_currentWordIndex >= 0 && _currentWordIndex < _wordSpans.length) {
+                    _wordSpans[_currentWordIndex].classList.remove('tts-word-highlight');
+                }
+                _currentWordIndex = wordIndex;
+                _wordSpans[wordIndex].classList.add('tts-word-highlight');
+                _wordSpans[wordIndex].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            if (segIndex < _segmentWordMap.length - 1 || progress < 0.99) {
+                _trackRAF = requestAnimationFrame(tick);
+            }
+        }
+
+        _trackRAF = requestAnimationFrame(tick);
+    }
+
+    /**
+     * Dim words from previous segments, keep current segment normal.
+     */
+    function _dimSegmentWords(currentSegIndex) {
+        for (let i = 0; i < _segmentWordMap.length; i++) {
+            const range = _segmentWordMap[i];
+            for (let w = range.startWord; w < range.endWord; w++) {
+                if (w < _wordSpans.length) {
+                    if (i < currentSegIndex) {
+                        _wordSpans[w].classList.add('tts-word-spoken');
+                        _wordSpans[w].classList.remove('tts-word-highlight');
+                    } else {
+                        _wordSpans[w].classList.remove('tts-word-spoken');
+                    }
+                }
+            }
+        }
+    }
+
     function highlightWord(index) {
         if (index < 0 || index >= _wordSpans.length) return;
-
-        // Remove previous highlight
         if (_currentWordIndex >= 0 && _currentWordIndex < _wordSpans.length) {
             _wordSpans[_currentWordIndex].classList.remove('tts-word-highlight');
         }
-
         _currentWordIndex = index;
         _wordSpans[index].classList.add('tts-word-highlight');
-
-        // Auto-scroll into view
         _wordSpans[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 
-    /**
-     * Clear all word highlights and restore original text.
-     */
     function clearHighlights() {
         const chapterText = document.getElementById('ic-chapter-text');
         if (!chapterText) return;
-
-        // Remove highlights
-        chapterText.querySelectorAll('.tts-word-highlight').forEach(el => {
-            el.classList.remove('tts-word-highlight');
+        chapterText.querySelectorAll('.tts-word-highlight, .tts-word-spoken').forEach(el => {
+            el.classList.remove('tts-word-highlight', 'tts-word-spoken');
         });
-
+        chapterText.querySelectorAll('.tts-sentence-highlight').forEach(el => {
+            el.classList.remove('tts-sentence-highlight');
+        });
         _wordSpans = [];
+        _sentenceSpans = [];
         _currentWordIndex = -1;
+        _currentSentenceIndex = -1;
         _isHighlighting = false;
+        _segmentWordMap = [];
+        _segmentSentenceMap = [];
+        if (_trackRAF) cancelAnimationFrame(_trackRAF);
+        _trackRAF = null;
     }
 
     /**
      * Start word tracking for browser TTS.
      */
     function startBrowserWordTracking(utterance) {
-        segmentWords();
-        let charCount = 0;
+        segmentSentencesAndWords();
         const text = utterance.text;
-        const words = text.split(/\s+/);
 
         utterance.onboundary = (event) => {
             if (event.name === 'word') {
-                const charIndex = event.charIndex;
-                // Count words up to this character index
-                const textUpTo = text.substring(0, charIndex);
+                const textUpTo = text.substring(0, event.charIndex);
                 const wordIndex = textUpTo.split(/\s+/).length - 1;
-                if (wordIndex >= 0) {
-                    highlightWord(wordIndex);
-                }
+                if (wordIndex >= 0) highlightWord(wordIndex);
             }
         };
-
-        utterance.onend = () => {
-            clearHighlights();
-        };
+        utterance.onend = () => clearHighlights();
     }
 
     /**
-     * Start word tracking for server TTS using RAF timing estimation.
+     * Fetch a single audio chunk from the server and return as Blob.
      */
-    function startServerWordTracking() {
-        segmentWords();
-        if (_wordSpans.length === 0) return;
-
-        const startTime = Date.now();
-        const totalWords = _wordSpans.length;
-
-        // Estimate ~150 words per minute at 1x speed
-        const rate = parseFloat(document.getElementById('speed-selector')?.value || 1.0);
-        const wordsPerMs = (150 * rate) / 60000;
-
-        function trackWord() {
-            if (!_isHighlighting) return;
-
-            const elapsed = Date.now() - startTime;
-            const currentIndex = Math.min(
-                Math.floor(elapsed * wordsPerMs),
-                totalWords - 1
-            );
-
-            if (currentIndex !== _currentWordIndex) {
-                highlightWord(currentIndex);
-            }
-
-            if (currentIndex < totalWords - 1) {
-                requestAnimationFrame(trackWord);
-            } else {
-                clearHighlights();
-            }
+    async function _fetchAudioChunk(text, voice, rate, pitch) {
+        const response = await fetch('/api/tts/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, voice, rate, pitch })
+        });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'TTS chunk failed');
         }
-
-        requestAnimationFrame(trackWord);
+        const reader = response.body.getReader();
+        const chunks = [];
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+        }
+        if (chunks.length === 0) throw new Error('Empty audio response');
+        return new Blob(chunks, { type: 'audio/mpeg' });
     }
 
     // Export public API
