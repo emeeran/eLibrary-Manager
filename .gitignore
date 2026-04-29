@@ -58,6 +58,7 @@ env/
 library/
 uploads/
 dawnstar_data/
+backups/
 static_covers/
 static_book_images/
 nas_cache/

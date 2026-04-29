@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eLibrary Manager - Maintenance</title>
+    <link rel="stylesheet" href="/static/css/main.css?v=4">
+    <style>
+        .maint-card {
+            background: var(--bg-primary, #fff);
+            border: 1px solid var(--content-border, #e0e0e0);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .maint-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .maint-card-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary, #1a1a1a);
+        }
+        .maint-stat {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .maint-stat-good { background: #e8f5e9; color: #2e7d32; }
+        .maint-stat-warn { background: #fff3e0; color: #e65100; }
+        .maint-stat-bad  { background: #ffebee; color: #c62828; }
+        .maint-stat-info { background: #e3f2fd; color: #1565c0; }
+
+        .maint-stats-row {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .maint-progress {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-secondary, #f0f0f0);
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 12px 0;
+            display: none;
+        }
+        .maint-progress.active { display: block; }
+        .maint-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #4285f4, #34a853);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .maint-progress-text {
+            font-size: 12px;
+            color: var(--text-secondary, #666);
+            margin-top: 4px;
+            display: none;
+        }
+        .maint-progress-text.active { display: block; }
+
+        .maint-detail-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid var(--content-border, #e0e0e0);
+            border-radius: 8px;
+            margin-top: 12px;
+        }
+        .maint-detail-row {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--content-border, #e0e0e0);
+            font-size: 13px;
+            gap: 10px;
+        }
+        .maint-detail-row:last-child { border-bottom: none; }
+        .maint-detail-row .path {
+            color: var(--text-secondary, #666);
+            font-family: monospace;
+            font-size: 11px;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .maint-detail-row .title {
+            font-weight: 500;
+            min-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .maint-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .maint-badge-stale { background: #ffebee; color: #c62828; }
+        .maint-badge-keep  { background: #e8f5e9; color: #2e7d32; }
+        .maint-badge-remove { background: #fff3e0; color: #e65100; }
+
+        .maint-result-box {
+            margin-top: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+        .maint-result-box.active { display: block; }
+        .maint-result-success { background: #e8f5e9; border: 1px solid #a5d6a7; }
+        .maint-result-dryrun  { background: #fff8e1; border: 1px solid #ffe082; }
+        .maint-result-error   { background: #ffebee; border: 1px solid #ef9a9a; }
+
+        .maint-btn-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .maint-detail-toggle {
+            font-size: 12px;
+            color: var(--accent-blue, #4285f4);
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 0;
+        }
+        .maint-detail-toggle:hover { text-decoration: underline; }
+
+        .maint-overview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .maint-overview-card {
+            background: var(--bg-primary, #fff);
+            border: 1px solid var(--content-border, #e0e0e0);
+            border-radius: 10px;
+            padding: 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .maint-overview-card:hover {
+            border-color: var(--accent-blue, #4285f4);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .maint-overview-number {
+            font-size: 28px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+        .maint-overview-label {
+            font-size: 12px;
+            color: var(--text-secondary, #666);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-container">
+        <!-- Sidebar -->
+        <aside class="settings-sidebar">
+            <div class="settings-logo">
+                <div class="logo-icon" style="background:transparent;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                        <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
+                    </svg>
+                </div>
+                <div class="logo-text-group">
+                    <span class="logo-text" style="font-weight:800;">eLibrary</span>
+                    <span class="logo-subtitle" style="font-size:11px; opacity:0.7;">Manager</span>
+                </div>
+                <span class="logo-badge">PRO</span>
+            </div>
+
+            <nav class="settings-nav">
+                <div class="settings-nav-item active" data-tab="overview" onclick="switchTab('overview')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Overview</span>
+                </div>
+                <div class="settings-nav-item" data-tab="stale" onclick="switchTab('stale')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Missing Files</span>
+                </div>
+                <div class="settings-nav-item" data-tab="duplicates" onclick="switchTab('duplicates')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Duplicates</span>
+                </div>
+                <div class="settings-nav-item" data-tab="orphans" onclick="switchTab('orphans')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Orphans</span>
+                </div>
+                <div class="settings-nav-item" data-tab="database" onclick="switchTab('database')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 3C7.58 3 4 4.79 4 7v10c0 2.21 3.58 4 8 4s8-1.79 8-4V7c0-2.21-3.58-4-8-4zm0 2c3.87 0 6 1.5 6 2s-2.13 2-6 2-6-1.5-6-2 2.13-2 6-2z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Database</span>
+                </div>
+            </nav>
+
+            <div class="settings-footer">
+                <button class="settings-footer-btn" onclick="window.location.href='/'">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                    </svg>
+                    Back to Library
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="settings-main">
+            <header class="settings-header">
+                <h1 class="settings-title">Maintenance</h1>
+            </header>
+
+            <div class="settings-content">
+                <!-- Overview Panel -->
+                <div class="settings-panel active" id="panel-overview">
+                    <h2 class="panel-title">Library Health</h2>
+                    <p style="color:var(--text-secondary,#666);font-size:13px;margin-bottom:20px;">
+                        Detect and fix issues: missing files, duplicates, orphaned data.
+                    </p>
+
+                    <div class="maint-overview-grid" id="overview-grid">
+                        <!-- Filled by JS -->
+                    </div>
+
+                    <div class="maint-stats-row" id="overview-actions">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Stale Books Panel -->
+                <div class="settings-panel" id="panel-stale">
+                    <h2 class="panel-title">Missing Files</h2>
+                    <p style="color:var(--text-secondary,#666);font-size:13px;margin-bottom:16px;">
+                        Books whose files have been moved, renamed, or deleted from disk.
+                    </p>
+
+                    <div class="maint-stats-row" id="stale-stats"></div>
+
+                    <div class="maint-card">
+                        <div class="maint-card-header">
+                            <span class="maint-card-title">Stale Book Entries</span>
+                            <button class="maint-detail-toggle" onclick="detectStale()">Refresh</button>
+                        </div>
+                        <div class="maint-detail-list" id="stale-list" style="display:none;">
+                            <div style="padding:20px;text-align:center;color:var(--text-secondary,#666);">Loading...</div>
+                        </div>
+                    </div>
+
+                    <div class="maint-btn-group">
+                        <button class="settings-btn settings-btn-secondary" onclick="purgeStale(true)">Preview Deletion</button>
+                        <button class="settings-btn settings-btn-primary" style="background:linear-gradient(135deg,#c62828,#b71c1c);" onclick="confirmAction('purgeStale', false)">Delete All Stale</button>
+                    </div>
+                    <div class="maint-progress" id="stale-progress"><div class="maint-progress-bar" id="stale-progress-bar"></div></div>
+                    <div class="maint-progress-text" id="stale-progress-text"></div>
+                    <div class="maint-result-box" id="stale-result"></div>
+                </div>
+
+                <!-- Duplicates Panel -->
+                <div class="settings-panel" id="panel-duplicates">
+                    <h2 class="panel-title">Duplicate Books</h2>
+                    <p style="color:var(--text-secondary,#666);font-size:13px;margin-bottom:16px;">
+                        Books with the same title and author at different file paths.
+                    </p>
+
+                    <div class="maint-stats-row" id="dup-stats"></div>
+
+                    <div class="maint-card">
+                        <div class="maint-card-header">
+                            <span class="maint-card-title">Duplicate Groups</span>
+                            <button class="maint-detail-toggle" onclick="detectDuplicates()">Refresh</button>
+                        </div>
+                        <div class="maint-detail-list" id="dup-list" style="display:none;">
+                            <div style="padding:20px;text-align:center;color:var(--text-secondary,#666);">Loading...</div>
+                        </div>
+                    </div>
+
+                    <div class="maint-btn-group">
+                        <button class="settings-btn settings-btn-secondary" onclick="dedup(true)">Preview Dedup</button>
+                        <button class="settings-btn settings-btn-primary" onclick="confirmAction('dedup', false)">Remove Duplicates</button>
+                    </div>
+                    <div class="maint-progress" id="dup-progress"><div class="maint-progress-bar" id="dup-progress-bar"></div></div>
+                    <div class="maint-progress-text" id="dup-progress-text"></div>
+                    <div class="maint-result-box" id="dup-result"></div>
+                </div>
+
+                <!-- Orphans Panel -->
+                <div class="settings-panel" id="panel-orphans">
+                    <h2 class="panel-title">Orphaned Records</h2>
+                    <p style="color:var(--text-secondary,#666);font-size:13px;margin-bottom:16px;">
+                        Bookmarks, notes, and annotations that reference deleted books.
+                    </p>
+
+                    <div class="maint-stats-row" id="orphan-stats"></div>
+
+                    <div class="maint-btn-group">
+                        <button class="settings-btn settings-btn-secondary" onclick="purgeOrphans(true)">Preview Cleanup</button>
+                        <button class="settings-btn settings-btn-primary" onclick="confirmAction('purgeOrphans', false)">Clean Orphans</button>
+                    </div>
+                    <div class="maint-result-box" id="orphan-result"></div>
+                </div>
+
+                <!-- Database Panel -->
+                <div class="settings-panel" id="panel-database">
+                    <h2 class="panel-title">Database</h2>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Foreign Key Enforcement</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">FK Status</div>
+                                <div class="setting-description" id="fk-desc">Checking...</div>
+                            </div>
+                            <div class="setting-control">
+                                <span class="maint-stat" id="fk-badge">...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Database Size</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Current Size</div>
+                                <div class="setting-description" id="db-size-desc">Loading...</div>
+                            </div>
+                            <div class="setting-control">
+                                <span class="maint-stat maint-stat-info" id="db-size-badge">...</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="maint-btn-group">
+                        <button class="settings-btn settings-btn-primary" onclick="vacuumDb()">Vacuum Database</button>
+                    </div>
+                    <div class="maint-result-box" id="vacuum-result"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+    // ---- Tab Switching ----
+    function switchTab(tab) {
+        document.querySelectorAll('.settings-nav-item').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.settings-panel').forEach(el => el.classList.remove('active'));
+        document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+        document.getElementById(`panel-${tab}`).classList.add('active');
+
+        if (tab === 'stale') detectStale();
+        if (tab === 'duplicates') detectDuplicates();
+        if (tab === 'orphans') detectOrphans();
+        if (tab === 'database') loadDbInfo();
+    }
+
+    // ---- Helpers ----
+    function fmt(n) { return n.toLocaleString(); }
+    function fmtBytes(b) {
+        if (b < 1024) return b + ' B';
+        if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+        if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
+        return (b / 1073741824).toFixed(2) + ' GB';
+    }
+    function showResult(id, cls, html) {
+        const el = document.getElementById(id);
+        el.className = 'maint-result-box active ' + cls;
+        el.innerHTML = html;
+    }
+    function confirmAction(fn, ...args) {
+        if (confirm('This will permanently modify your database. Are you sure?')) {
+            window[fn](...args);
+        }
+    }
+
+    // ---- Overview ----
+    async function loadOverview() {
+        try {
+            const r = await fetch('/api/maintenance/summary');
+            if (!r.ok) return;
+            const d = await r.json();
+
+            const grid = document.getElementById('overview-grid');
+            grid.innerHTML = `
+                <div class="maint-overview-card" onclick="switchTab('stale')">
+                    <div class="maint-overview-number" style="color:${d.stale_books_count > 0 ? '#c62828' : '#2e7d32'}">${fmt(d.stale_books_count)}</div>
+                    <div class="maint-overview-label">Missing Files</div>
+                </div>
+                <div class="maint-overview-card" onclick="switchTab('duplicates')">
+                    <div class="maint-overview-number" style="color:${d.extra_copies_count > 0 ? '#e65100' : '#2e7d32'}">${fmt(d.duplicate_groups_count)}</div>
+                    <div class="maint-overview-label">Duplicate Groups (${fmt(d.extra_copies_count)} extras)</div>
+                </div>
+                <div class="maint-overview-card" onclick="switchTab('orphans')">
+                    <div class="maint-overview-number" style="color:${(d.orphaned_bookmarks+d.orphaned_notes+d.orphaned_annotations) > 0 ? '#c62828' : '#2e7d32'}">${fmt(d.orphaned_bookmarks + d.orphaned_notes + d.orphaned_annotations)}</div>
+                    <div class="maint-overview-label">Orphaned Records</div>
+                </div>
+                <div class="maint-overview-card" onclick="switchTab('database')">
+                    <div class="maint-overview-number" style="color:#1565c0">${fmtBytes(d.db_size_bytes)}</div>
+                    <div class="maint-overview-label">Database (${fmt(d.total_books)} books)</div>
+                </div>
+            `;
+        } catch (e) {
+            console.error('Failed to load overview:', e);
+        }
+    }
+
+    // ---- Stale Books ----
+    async function detectStale() {
+        const list = document.getElementById('stale-list');
+        const stats = document.getElementById('stale-stats');
+        list.style.display = 'block';
+        list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary,#666);">Scanning filesystem...</div>';
+
+        try {
+            const r = await fetch('/api/maintenance/stale-books?page_size=100');
+            const d = await r.json();
+            stats.innerHTML = `<span class="maint-stat ${d.total_stale > 0 ? 'maint-stat-bad' : 'maint-stat-good'}">${fmt(d.total_stale)} stale books</span>`;
+
+            if (d.stale_books.length === 0) {
+                list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary,#666);">No stale books found.</div>';
+                return;
+            }
+            list.innerHTML = d.stale_books.map(b => `
+                <div class="maint-detail-row">
+                    <span class="maint-badge maint-badge-stale">ID ${b.id}</span>
+                    <span class="title">${b.title}</span>
+                    <span class="maint-badge" style="background:#f5f5f5;color:#666;">${b.format}</span>
+                    <span class="path">${b.path}</span>
+                </div>
+            `).join('');
+            if (d.total_stale > d.stale_books.length) {
+                list.innerHTML += `<div style="padding:12px;text-align:center;color:var(--text-secondary,#666);font-size:12px;">Showing ${d.stale_books.length} of ${d.total_stale}</div>`;
+            }
+        } catch (e) {
+            list.innerHTML = `<div style="padding:20px;text-align:center;color:#c62828;">Error: ${e.message}</div>`;
+        }
+    }
+
+    async function purgeStale(dryRun) {
+        if (dryRun) {
+            const r = await fetch('/api/maintenance/stale-books?dry_run=true', { method: 'DELETE' });
+            const d = await r.json();
+            showResult('stale-result', 'maint-result-dryrun',
+                `<strong>Dry Run:</strong> Would delete <strong>${fmt(d.books_deleted)}</strong> stale books and their child records.`);
+            return;
+        }
+        await runBackgroundTask('stale', '/api/maintenance/stale-books?dry_run=false', 'DELETE');
+    }
+
+    // ---- Duplicates ----
+    async function detectDuplicates() {
+        const list = document.getElementById('dup-list');
+        const stats = document.getElementById('dup-stats');
+        list.style.display = 'block';
+        list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary,#666);">Detecting duplicates...</div>';
+
+        try {
+            const r = await fetch('/api/maintenance/duplicates?page_size=30');
+            const d = await r.json();
+            stats.innerHTML = `
+                <span class="maint-stat ${d.total_groups > 0 ? 'maint-stat-warn' : 'maint-stat-good'}">${fmt(d.total_groups)} groups</span>
+                <span class="maint-stat maint-stat-info">${fmt(d.total_extra_copies)} extra copies</span>
+            `;
+
+            if (d.duplicate_groups.length === 0) {
+                list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-secondary,#666);">No duplicates found.</div>';
+                return;
+            }
+            list.innerHTML = d.duplicate_groups.map(g => `
+                <div style="padding:8px 12px;border-bottom:1px solid var(--content-border,#e0e0e0);">
+                    <div style="font-weight:500;font-size:13px;margin-bottom:4px;">${g.title} <span style="color:var(--text-secondary,#666)">by ${g.author || 'Unknown'}</span></div>
+                    ${g.copies.map(c => `
+                        <div class="maint-detail-row" style="padding:4px 0;border:none;">
+                            <span class="maint-badge ${c.id === g.recommended_keep_id ? 'maint-badge-keep' : 'maint-badge-remove'}">${c.id === g.recommended_keep_id ? 'KEEP' : 'REMOVE'}</span>
+                            <span style="font-size:12px;color:${c.file_exists ? '#2e7d32' : '#c62828'};">${c.file_exists ? 'EXISTS' : 'MISSING'}</span>
+                            <span class="path">${c.path}</span>
+                        </div>
+                    `).join('')}
+                    <div style="font-size:11px;color:var(--text-secondary,#666);margin-top:2px;">Keep #${g.recommended_keep_id}: ${g.recommended_keep_reason}</div>
+                </div>
+            `).join('');
+        } catch (e) {
+            list.innerHTML = `<div style="padding:20px;text-align:center;color:#c62828;">Error: ${e.message}</div>`;
+        }
+    }
+
+    async function dedup(dryRun) {
+        if (dryRun) {
+            const r = await fetch('/api/maintenance/duplicates?dry_run=true', { method: 'DELETE' });
+            const d = await r.json();
+            showResult('dup-result', 'maint-result-dryrun',
+                `<strong>Dry Run:</strong> Would remove <strong>${fmt(d.books_removed)}</strong> duplicates across <strong>${fmt(d.duplicate_groups_processed)}</strong> groups.`);
+            return;
+        }
+        await runBackgroundTask('dup', '/api/maintenance/duplicates?dry_run=false', 'DELETE');
+    }
+
+    // ---- Orphans ----
+    async function detectOrphans() {
+        const stats = document.getElementById('orphan-stats');
+        try {
+            const r = await fetch('/api/maintenance/orphans');
+            const d = await r.json();
+            const total = d.orphaned_bookmarks + d.orphaned_notes + d.orphaned_annotations + d.orphaned_chapter_summaries + d.orphaned_book_summaries + d.orphaned_book_categories;
+            stats.innerHTML = `
+                <span class="maint-stat ${total > 0 ? 'maint-stat-bad' : 'maint-stat-good'}">${fmt(total)} orphaned records</span>
+                <span class="maint-stat maint-stat-info">${d.orphaned_bookmarks} bookmarks</span>
+                <span class="maint-stat maint-stat-info">${d.orphaned_notes} notes</span>
+                <span class="maint-stat maint-stat-info">${d.orphaned_annotations} annotations</span>
+                ${d.orphaned_chapter_summaries > 0 ? `<span class="maint-stat maint-stat-info">${d.orphaned_chapter_summaries} summaries</span>` : ''}
+                ${d.orphaned_book_categories > 0 ? `<span class="maint-stat maint-stat-info">${d.orphaned_book_categories} categories</span>` : ''}
+            `;
+        } catch (e) {
+            stats.innerHTML = `<span class="maint-stat maint-stat-bad">Error: ${e.message}</span>`;
+        }
+    }
+
+    async function purgeOrphans(dryRun) {
+        const url = `/api/maintenance/orphans?dry_run=${dryRun}`;
+        const r = await fetch(url, { method: 'DELETE' });
+        const d = await r.json();
+        const cls = d.dry_run ? 'maint-result-dryrun' : 'maint-result-success';
+        const label = d.dry_run ? 'Would delete' : 'Deleted';
+        showResult('orphan-result', cls,
+            `<strong>${d.dry_run ? 'Dry Run' : 'Done'}:</strong> ${label} ${fmt(d.bookmarks_deleted)} bookmarks, ${fmt(d.notes_deleted)} notes, ${fmt(d.annotations_deleted)} annotations.`);
+        if (!d.dry_run) { loadOverview(); detectOrphans(); }
+    }
+
+    // ---- Database ----
+    async function loadDbInfo() {
+        try {
+            const [fkR, sumR] = await Promise.all([
+                fetch('/api/maintenance/fk-status'),
+                fetch('/api/maintenance/summary')
+            ]);
+            const fk = await fkR.json();
+            const sum = await sumR.json();
+
+            const fkBadge = document.getElementById('fk-badge');
+            fkBadge.textContent = fk.foreign_keys_enabled ? 'Enabled' : 'Disabled';
+            fkBadge.className = `maint-stat ${fk.foreign_keys_enabled ? 'maint-stat-good' : 'maint-stat-bad'}`;
+            document.getElementById('fk-desc').textContent = fk.message;
+
+            document.getElementById('db-size-badge').textContent = fmtBytes(sum.db_size_bytes);
+            document.getElementById('db-size-desc').textContent = `${fmt(sum.total_books)} books stored`;
+        } catch (e) {
+            console.error('DB info error:', e);
+        }
+    }
+
+    async function vacuumDb() {
+        showResult('vacuum-result', 'maint-result-dryrun', '<strong>Vacuuming...</strong> This may take a moment.');
+        try {
+            const r = await fetch('/api/maintenance/vacuum', { method: 'POST' });
+            const d = await r.json();
+            showResult('vacuum-result', 'maint-result-success',
+                `<strong>Done!</strong> Freed <strong>${fmtBytes(d.freed_bytes)}</strong> (${fmtBytes(d.size_before_bytes)} &rarr; ${fmtBytes(d.size_after_bytes)})`);
+            loadOverview(); loadDbInfo();
+        } catch (e) {
+            showResult('vacuum-result', 'maint-result-error', `<strong>Error:</strong> ${e.message}`);
+        }
+    }
+
+    // ---- Background Task Runner ----
+    async function runBackgroundTask(prefix, url, method) {
+        const prog = document.getElementById(`${prefix}-progress`);
+        const bar = document.getElementById(`${prefix}-progress-bar`);
+        const ptext = document.getElementById(`${prefix}-progress-text`);
+        prog.classList.add('active');
+        ptext.classList.add('active');
+        bar.style.width = '0%';
+
+        try {
+            const r = await fetch(url, { method });
+            const d = await r.json();
+            if (d.task_id) {
+                ptext.textContent = 'Task started...';
+                const evtSource = new EventSource(`/api/maintenance/progress/${d.task_id}`);
+                evtSource.onmessage = (e) => {
+                    const p = JSON.parse(e.data);
+                    const pct = p.total_found > 0 ? Math.round((p.processed / p.total_found) * 100) : 0;
+                    bar.style.width = pct + '%';
+                    ptext.textContent = p.message || `${p.processed}/${p.total_found}`;
+                    if (p.status === 'completed' || p.status === 'failed') {
+                        evtSource.close();
+                        bar.style.width = '100%';
+                        const cls = p.status === 'completed' ? 'maint-result-success' : 'maint-result-error';
+                        const errNote = p.errors > 0 ? ` <span style="color:#c62828;">(${p.errors} errors)</span>` : '';
+                        showResult(`${prefix}-result`, cls,
+                            `<strong>${p.status === 'completed' ? 'Complete' : 'Failed'}:</strong> ${p.message}${errNote}`);
+                        setTimeout(() => { prog.classList.remove('active'); ptext.classList.remove('active'); }, 3000);
+                        loadOverview();
+                    }
+                };
+                evtSource.onerror = () => {
+                    evtSource.close();
+                    showResult(`${prefix}-result`, 'maint-result-error', '<strong>Error:</strong> Lost connection to server.');
+                    prog.classList.remove('active'); ptext.classList.remove('active');
+                };
+            } else {
+                // Immediate result (error or dry-run fallback)
+                showResult(`${prefix}-result`, 'maint-result-error', `<strong>Error:</strong> ${d.detail || JSON.stringify(d)}`);
+                prog.classList.remove('active'); ptext.classList.remove('active');
+            }
+        } catch (e) {
+            showResult(`${prefix}-result`, 'maint-result-error', `<strong>Error:</strong> ${e.message}`);
+            prog.classList.remove('active'); ptext.classList.remove('active');
+        }
+    }
+
+    // ---- Init ----
+    loadOverview();
+    </script>
+</body>
+</html>

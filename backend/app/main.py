@@ -27,7 +27,7 @@ from app.logging_config import get_logger, setup_logging
 from app.middleware import ProductionMiddleware
 
 # Import route modules
-from app.routes import ai_tts, auth, library, reader, settings, stats
+from app.routes import ai_tts, auth, library, maintenance, reader, settings, stats
 
 # Setup logging
 setup_logging()
@@ -157,6 +157,7 @@ app.include_router(reader.router)
 app.include_router(settings.router)
 app.include_router(ai_tts.router)
 app.include_router(stats.router)
+app.include_router(maintenance.router)
 
 
 @app.get("/api/health")
@@ -266,6 +267,15 @@ async def settings_page(request: Request) -> HTMLResponse:
     """
     return templates.TemplateResponse(
         "settings.html",
+        {"request": request}
+    )
+
+
+@app.get("/maintenance", response_class=HTMLResponse)
+async def maintenance_page(request: Request) -> HTMLResponse:
+    """Render maintenance page."""
+    return templates.TemplateResponse(
+        "maintenance.html",
         {"request": request}
     )
 

@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from sqlalchemy import and_, asc, desc, func, or_, select
+from sqlalchemy import and_, asc, desc, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import ResourceNotFoundError, ValidationError
@@ -337,6 +337,51 @@ class BookRepository:
             query = query.where(Book.is_hidden == False)
         query = query.offset(offset).limit(limit)
         result = await self.session.execute(query)
+        return list(result.scalars().all())
+
+    async def get_all_paths(self) -> dict[str, int]:
+        """Load all book paths with their IDs for stale-file detection.
+
+        Returns:
+            Dict mapping path -> book_id
+        """
+        result = await self.session.execute(select(Book.id, Book.path))
+        return {row.path: row.id for row in result.all()}
+
+    async def find_duplicate_groups(self) -> list[dict]:
+        """Find groups of books with the same lower(title)+lower(author).
+
+        Returns rows with: norm_title, norm_author, ids (list), cnt.
+        """
+        result = await self.session.execute(
+            select(
+                func.lower(Book.title).label("norm_title"),
+                func.lower(func.coalesce(Book.author, "")).label("norm_author"),
+                func.group_concat(Book.id).label("ids"),
+                func.count(Book.id).label("cnt"),
+            )
+            .group_by("norm_title", "norm_author")
+            .having(func.count(Book.id) > 1)
+            .order_by(func.count(Book.id).desc())
+        )
+        groups = []
+        for row in result.all():
+            ids = [int(x) for x in row.ids.split(",")]
+            groups.append({
+                "title": row.norm_title,
+                "author": row.norm_author,
+                "ids": ids,
+                "count": row.cnt,
+            })
+        return groups
+
+    async def get_books_by_ids(self, ids: list[int]) -> list[Book]:
+        """Load multiple books by ID for batch inspection."""
+        if not ids:
+            return []
+        result = await self.session.execute(
+            select(Book).where(Book.id.in_(ids))
+        )
         return list(result.scalars().all())
 
 

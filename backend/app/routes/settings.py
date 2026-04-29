@@ -183,15 +183,6 @@ async def test_ai_connection(request: AIConnectionTest) -> dict:
         )
 
 
-@router.get("/health")
-async def health_check() -> dict:
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "version": "0.1.0"
-    }
-
-
 @router.get("/settings/nas-health", response_model=NASHealthResponse)
 async def get_nas_health(request: Request) -> NASHealthResponse:
     """Get current NAS mount health status."""

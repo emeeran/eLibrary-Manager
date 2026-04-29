@@ -93,82 +93,12 @@ class BookListResponse(BaseModel):
     counts: Optional[dict[str, int]] = None  # Sidebar counts (all, recent, favorites, etc.)
 
 
-class ChapterSummaryBase(BaseModel):
-    """Base schema for chapter summary."""
-
-    chapter_index: int = Field(..., ge=0, description="Zero-based chapter index")
-    chapter_title: Optional[str] = Field(None, max_length=500)
-    summary_text: str = Field(..., min_length=1, description="Generated summary")
-
-
-class ChapterSummaryCreate(ChapterSummaryBase):
-    """Schema for creating a chapter summary."""
-
-    book_id: int
-
-
-class ChapterSummaryResponse(ChapterSummaryBase):
-    """Schema for chapter summary response."""
-
-    id: int
-    book_id: int
-    provider: str
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-class BookSummaryResponse(BaseModel):
-    """Schema for book summary response."""
-
-    id: int
-    book_id: int
-    summary_text: str
-    provider: str
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
 class ProgressUpdate(BaseModel):
     """Schema for updating reading progress."""
 
     chapter_index: int = Field(..., ge=0)
     progress: float = Field(..., ge=0, le=100)
 
-
-class LibraryStats(BaseModel):
-    """Schema for library statistics."""
-
-    total_books: int
-    favorite_books: int
-    recent_books: int
-    total_size_bytes: int
-
-
-class ErrorResponse(BaseModel):
-    """Schema for error responses."""
-
-    error: str = Field(..., description="Error type")
-    message: str = Field(..., description="Human-readable error message")
-    details: Optional[dict] = Field(None, description="Additional error context")
-
-
-class AIProviderStatus(BaseModel):
-    """Schema for AI provider status."""
-
-    name: str
-    available: bool
-    model: str
-    priority: int
-
-
-class AIProvidersResponse(BaseModel):
-    """Schema for AI providers list response."""
-
-    providers: list[AIProviderStatus]
-    active_provider: str
-    default_provider: str
 
 
 class DirectoryImportRequest(BaseModel):
@@ -193,13 +123,6 @@ class BookmarkCreate(BookmarkBase):
 
     chapter_index: int = Field(..., ge=0, description="Chapter index")
     position_in_chapter: int = Field(0, ge=0, description="Character position in chapter")
-
-
-class BookmarkUpdate(BaseModel):
-    """Schema for updating a bookmark."""
-
-    title: Optional[str] = Field(None, max_length=500)
-    notes: Optional[str] = None
 
 
 class BookmarkResponse(BookmarkBase):
@@ -239,13 +162,6 @@ class NoteCreate(NoteBase):
     position_in_chapter: int = Field(0, ge=0, description="Character position in chapter")
 
 
-class NoteUpdate(BaseModel):
-    """Schema for updating a note."""
-
-    content: Optional[str] = Field(None, min_length=1)
-    color: Optional[str] = Field(None, pattern="^(yellow|green|blue|pink|orange)$")
-
-
 class NoteResponse(NoteBase):
     """Schema for note response."""
 
@@ -283,13 +199,6 @@ class AnnotationCreate(AnnotationBase):
     chapter_index: int = Field(..., ge=0, description="Chapter index")
     start_position: int = Field(..., ge=0, description="Start character position")
     end_position: int = Field(..., ge=0, description="End character position")
-
-
-class AnnotationUpdate(BaseModel):
-    """Schema for updating an annotation."""
-
-    color: Optional[str] = Field(None, pattern="^(yellow|green|blue|pink|orange)$")
-    note: Optional[str] = None
 
 
 class AnnotationResponse(AnnotationBase):
@@ -425,15 +334,6 @@ class NASHealthResponse(BaseModel):
     details: Optional[str] = None
 
 
-class NASCacheStatusResponse(BaseModel):
-    """Schema for NAS cache status response."""
-
-    cached_books: int
-    total_cache_size_bytes: int
-    max_cache_size_bytes: int
-    books: list[dict]  # [{"book_id": int, "title": str, "size_bytes": int}]
-
-
 # ============================================
 # CATEGORY SCHEMAS
 # ============================================
@@ -460,3 +360,133 @@ class CategoryAssignRequest(BaseModel):
     """Schema for assigning categories to a book."""
 
     category_ids: list[int] = Field(..., description="List of category IDs to assign")
+
+
+# ============================================
+# MAINTENANCE SCHEMAS
+# ============================================
+
+class StaleBookItem(BaseModel):
+    """A single stale book whose file is missing from disk."""
+
+    id: int
+    title: str
+    author: Optional[str] = None
+    path: str
+    format: str
+    file_size: int
+
+
+class StaleBooksResponse(BaseModel):
+    """Paginated response for stale books detection."""
+
+    stale_books: list[StaleBookItem]
+    total_stale: int
+    page: int
+    page_size: int
+
+
+class DuplicateBookItem(BaseModel):
+    """One copy within a duplicate group."""
+
+    id: int
+    path: str
+    format: str
+    file_size: int
+    file_exists: bool
+
+
+class DuplicateGroup(BaseModel):
+    """A group of books sharing the same title+author."""
+
+    title: str
+    author: Optional[str] = None
+    copies: list[DuplicateBookItem]
+    recommended_keep_id: int
+    recommended_keep_reason: str
+
+
+class DuplicatesResponse(BaseModel):
+    """Paginated response for duplicate detection."""
+
+    duplicate_groups: list[DuplicateGroup]
+    total_groups: int
+    total_extra_copies: int
+    page: int
+    page_size: int
+
+
+class OrphansReport(BaseModel):
+    """Report of orphaned child records."""
+
+    orphaned_bookmarks: int
+    orphaned_notes: int
+    orphaned_annotations: int
+    orphaned_chapter_summaries: int
+    orphaned_book_summaries: int
+    orphaned_book_categories: int
+
+
+class FKStatusResponse(BaseModel):
+    """Foreign key enforcement status."""
+
+    foreign_keys_enabled: bool
+    message: str
+
+
+class BulkDeleteResult(BaseModel):
+    """Result of a bulk deletion operation."""
+
+    dry_run: bool
+    books_deleted: int
+    chapter_summaries_deleted: int = 0
+    book_summaries_deleted: int = 0
+    bookmarks_deleted: int = 0
+    notes_deleted: int = 0
+    annotations_deleted: int = 0
+    book_categories_deleted: int = 0
+    errors: int = 0
+    message: str = ""
+
+
+class DuplicateDedupResult(BulkDeleteResult):
+    """Result of dedup operation."""
+
+    duplicate_groups_processed: int = 0
+    books_kept: int = 0
+    books_removed: int = 0
+
+
+class OrphanDeleteResult(BaseModel):
+    """Result of orphan cleanup."""
+
+    dry_run: bool
+    bookmarks_deleted: int = 0
+    notes_deleted: int = 0
+    annotations_deleted: int = 0
+    chapter_summaries_deleted: int = 0
+    book_summaries_deleted: int = 0
+    book_categories_deleted: int = 0
+
+
+class VacuumResult(BaseModel):
+    """Result of VACUUM operation."""
+
+    size_before_bytes: int
+    size_after_bytes: int
+    freed_bytes: int
+    message: str
+
+
+class MaintenanceSummary(BaseModel):
+    """Dashboard summary of all maintenance metrics."""
+
+    total_books: int
+    stale_books_count: int
+    duplicate_groups_count: int
+    extra_copies_count: int
+    orphaned_bookmarks: int
+    orphaned_notes: int
+    orphaned_annotations: int
+    foreign_keys_enabled: bool
+    db_size_bytes: int

@@ -3,16 +3,6 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from pydantic import BaseModel
-
-
-class AISummaryRequest(BaseModel):
-    """Request model for AI summarization."""
-
-    text: str
-    context: Optional[str] = None
-    max_length: int = 500
-
 
 class BaseAIProvider(ABC):
     """Abstract base class for all AI providers.

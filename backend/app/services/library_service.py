@@ -365,7 +365,7 @@ class LibraryService:
             "recent_books": row[2] or 0,
             "reading_books": row[3] or 0,
             "total_size_bytes": row[4] or 0,
-            "deleted_books": 0,
+            "deleted_books": 0,  # Use /api/maintenance/stale-books for stale file detection
             "hidden_books": row[5] or 0,
         }
 
