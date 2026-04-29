@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -23,8 +24,7 @@ from app.exceptions import (
     ResourceNotFoundError,
 )
 from app.logging_config import get_logger, setup_logging
-from app.middleware import LoggingMiddleware
-from app.rate_limit import RateLimitMiddleware
+from app.middleware import ProductionMiddleware
 
 # Import route modules
 from app.routes import ai_tts, auth, library, reader, settings, stats
@@ -33,25 +33,6 @@ from app.routes import ai_tts, auth, library, reader, settings, stats
 setup_logging()
 logger = get_logger(__name__)
 config = get_config()
-
-
-class CacheControlMiddleware(BaseHTTPMiddleware):
-    """Add Cache-Control headers to static assets."""
-
-    CACHE_RULES = {
-        "/static/": "public, max-age=86400",       # 1 day
-        "/covers/": "public, max-age=86400",        # 1 day
-        "/book-images/": "public, max-age=604800",  # 7 days
-    }
-
-    async def dispatch(self, request: StarletteRequest, call_next):
-        response: StarletteResponse = await call_next(request)
-        path = request.url.path
-        for prefix, cache_value in self.CACHE_RULES.items():
-            if path.startswith(prefix):
-                response.headers["Cache-Control"] = cache_value
-                break
-        return response
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -80,7 +61,6 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: StarletteRequest, call_next):
         # Skip auth in testing mode
-        import os
         if os.environ.get("APP_ENV") == "testing":
             return await call_next(request)
 
@@ -159,10 +139,8 @@ app = FastAPI(
 
 # Add middleware (order matters: outermost first)
 app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
-app.add_middleware(CacheControlMiddleware)             # Cache-Control for static assets
 app.add_middleware(AuthMiddleware)                     # Session-based auth
-app.add_middleware(RateLimitMiddleware)                 # Per-IP rate limiting
-app.add_middleware(LoggingMiddleware)
+app.add_middleware(ProductionMiddleware)               # Logging + caching + rate limiting
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")

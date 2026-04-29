@@ -141,10 +141,10 @@ body {
     height: 24px;
     background: transparent;
     border: none;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     color: var(--ic-gray-500);
     cursor: pointer;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition: var(--tr-color-bg);
     position: absolute;
     right: 8px;
     top: 50%;
@@ -200,10 +200,10 @@ body {
     padding: 0;
     background: transparent;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     color: var(--ic-gray-600);
     cursor: pointer;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition: var(--tr-color-bg);
     white-space: nowrap;
 }
 
@@ -357,7 +357,7 @@ body {
     display: flex;
     gap: 2px;
     background: var(--ic-gray-100);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     padding: 2px;
 }
 
@@ -365,11 +365,11 @@ body {
     font-size: 11px;
     padding: 3px 8px;
     border: none;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: transparent;
     color: var(--ic-gray-600);
     cursor: pointer;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition: var(--tr-color-bg);
 }
 
 .ic-length-btn.active {
@@ -431,11 +431,11 @@ body {
     font-size: 11px;
     padding: 4px 10px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background: var(--ic-white);
     color: var(--ic-gray-700);
     cursor: pointer;
-    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+    transition: var(--tr-color-bg), border-color 0.15s ease;
 }
 
 .ic-summary-action-btn:hover {
@@ -464,10 +464,10 @@ body {
     height: 24px;
     background: transparent;
     border: none;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     color: var(--ic-gray-600);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: var(--tr-bg-smooth);
 }
 
 .ic-toc-close:hover,
@@ -508,7 +508,7 @@ body {
 .ic-search-results::-webkit-scrollbar-thumb,
 .ic-summary-content::-webkit-scrollbar-thumb {
     background: var(--ic-gray-400);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
 }
 
 .ic-toc-list::-webkit-scrollbar-thumb:hover,
@@ -527,7 +527,7 @@ body {
     font-size: 12px;
     color: var(--ic-gray-700);
     cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: var(--tr-bg), color 0.15s ease;
     border-left: 4px solid transparent;
     line-height: 1.4;
 }
@@ -583,7 +583,7 @@ body {
     font-size: 12px;
     color: var(--ic-gray-800);
     cursor: pointer;
-    transition: background-color 0.15s ease;
+    transition: var(--tr-bg);
     font-weight: 500;
     border-left: 4px solid transparent;
 }
@@ -674,7 +674,7 @@ body {
 
 .ic-note-item {
     background: var(--ic-white);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     padding: 10px;
     margin-bottom: 10px;
     border-left: 4px solid var(--ic-highlight-yellow);
@@ -708,7 +708,7 @@ body {
     background: var(--ic-blue);
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 13px;
     font-weight: 500;
     display: flex;
@@ -735,8 +735,8 @@ body {
     padding: 10px;
     border-bottom: 1px solid var(--ic-gray-200);
     cursor: pointer;
-    border-radius: 4px;
-    transition: background 0.15s;
+    border-radius: var(--radius-md);
+    transition: var(--tr-bg-smooth);
 }
 
 .ic-bookmark-item:hover {
@@ -756,7 +756,7 @@ body {
     width: 100%;
     padding: 8px 32px 8px 12px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 13px;
     outline: none;
     transition: border-color 0.2s;
@@ -814,8 +814,8 @@ body {
     padding: 10px;
     border-bottom: 1px solid var(--ic-gray-200);
     cursor: pointer;
-    border-radius: 4px;
-    transition: background 0.15s;
+    border-radius: var(--radius-md);
+    transition: var(--tr-bg-smooth);
 }
 
 .ic-search-result-item:hover {
@@ -848,7 +848,7 @@ body {
     color: inherit;
     padding: 1px 0;
     border-radius: 2px;
-    transition: background-color 0.15s ease;
+    transition: var(--tr-bg);
 }
 
 .ic-search-current {
@@ -864,7 +864,7 @@ body {
     gap: 12px;
     padding: 12px;
     background: var(--ic-gray-50);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
 }
 
 .ic-search-status {
@@ -883,11 +883,11 @@ body {
     width: 28px;
     height: 28px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background: var(--ic-white);
     color: var(--ic-gray-600);
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease;
+    transition: var(--tr-bg-smooth) ease, border-color 0.15s ease;
 }
 
 .ic-search-nav-btn:hover {
@@ -1041,7 +1041,7 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     height: auto;
     display: block;
     margin: 1.5em auto;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -1168,7 +1168,7 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     height: auto;
     display: block;
     margin: 2.5em auto;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
@@ -1254,10 +1254,10 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     justify-content: center;
     background: transparent;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     cursor: pointer;
     color: var(--ic-gray-700);
-    transition: background 0.15s;
+    transition: var(--tr-bg-smooth);
 }
 
 .ic-tool-btn:hover {
@@ -1347,10 +1347,10 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     height: 24px;
     background: transparent;
     border: none;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     color: var(--ic-gray-600);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: var(--tr-bg-smooth);
 }
 
 .ic-bookinfo-close:hover {
@@ -1422,7 +1422,7 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     margin-bottom: 16px;
     padding: 12px;
     background: var(--ic-gray-50);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
 }
 
 .ic-bookinfo-stat {
@@ -1529,10 +1529,10 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     height: 24px;
     background: transparent;
     border: none;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     color: var(--ic-gray-600);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: var(--tr-bg-smooth);
 }
 
 .ic-settings-sidebar-close:hover {
@@ -1558,7 +1558,7 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     align-items: center;
     gap: 10px;
     padding: 8px 10px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     background: var(--ic-gray-50);
     border: 1px solid var(--ic-gray-200);
     font-size: 12px;
@@ -1593,7 +1593,7 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
 .ic-ai-provider-badge {
     font-size: 10px;
     padding: 2px 6px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: #e3f2fd;
     color: #1565c0;
     font-weight: 600;
@@ -1614,7 +1614,7 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     width: 100%;
     padding: 6px 8px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 12px;
     background: var(--ic-white);
     color: var(--ic-gray-800);
@@ -1631,7 +1631,7 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     flex: 1;
     padding: 6px 8px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 12px;
     background: var(--ic-white);
     color: var(--ic-gray-800);
@@ -1649,7 +1649,7 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     gap: 4px;
     padding: 6px 10px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background: var(--ic-white);
     color: var(--ic-gray-700);
     font-size: 11px;
@@ -1679,7 +1679,7 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
     width: 100%;
     padding: 7px 12px;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background: #1976D2;
     color: #fff;
     font-size: 12px;
@@ -1759,7 +1759,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     padding: 10px 12px;
     background: var(--ic-gray-100);
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     color: var(--ic-gray-700);
     font-size: 13px;
     font-weight: 500;
@@ -1869,7 +1869,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     padding: 10px 12px;
     background: var(--ic-gray-100);
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     color: var(--ic-gray-700);
     font-size: 13px;
     font-weight: 500;
@@ -1894,7 +1894,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     padding: 10px 12px;
     background: var(--ic-white);
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     color: var(--ic-gray-700);
     font-size: 13px;
     cursor: pointer;
@@ -2086,7 +2086,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     background: var(--ic-blue);
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 13px;
     font-weight: 500;
     cursor: pointer;
@@ -2225,7 +2225,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     color: var(--ic-gray-500);
     background: var(--ic-gray-100);
     padding: 2px 6px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
 }
 
 .ic-note-delete,
@@ -2235,11 +2235,11 @@ html[data-theme="night"] .ic-ai-ollama-section {
     color: var(--ic-gray-400);
     cursor: pointer;
     padding: 4px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition: var(--tr-color-bg);
 }
 
 .ic-note-delete:hover,
@@ -2342,7 +2342,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     background: rgba(0, 0, 0, 0.82);
     color: #fff;
     padding: 4px 10px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 11px;
     white-space: nowrap;
     pointer-events: none;
@@ -2417,11 +2417,11 @@ html[data-theme="night"] .ic-ai-ollama-section {
     width: 26px;
     height: 26px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: var(--ic-white);
     color: var(--ic-gray-600);
     cursor: pointer;
-    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+    transition: var(--tr-color-bg), border-color 0.15s ease;
 }
 
 .ic-nav-btn:hover:not(:disabled) {
@@ -2507,7 +2507,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     width: 32px;
     height: 32px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background: var(--ic-white);
     cursor: pointer;
     display: flex;
@@ -2561,7 +2561,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
 .ic-preset-btn {
     padding: 8px 12px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background: var(--ic-white);
     font-size: 12px;
     cursor: pointer;
@@ -2601,7 +2601,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     gap: 8px;
     padding: 12px 8px;
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background: var(--ic-white);
     cursor: pointer;
     transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
@@ -2862,7 +2862,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     );
     background-size: 200% 100%;
     animation: ic-shimmer 1.2s ease-in-out infinite;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
 }
 
 .ic-skeleton-line {
@@ -3034,10 +3034,10 @@ html[data-theme="night"] .ic-ai-ollama-section {
     height: 28px;
     background: transparent;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     color: var(--ic-gray-600);
     cursor: pointer;
-    transition: background 0.15s;
+    transition: var(--tr-bg-smooth);
 }
 
 .ic-help-close:hover {
@@ -3071,7 +3071,7 @@ html[data-theme="night"] .ic-ai-ollama-section {
     padding: 0 6px;
     background: var(--ic-gray-100);
     border: 1px solid var(--ic-gray-300);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-family: inherit;
     font-size: 12px;
     font-weight: 500;
@@ -3880,7 +3880,7 @@ html[data-theme="sepia-dark"] .ic-tab.ic-tab-active {
 .pdf-page-text .pdf-image img {
     max-width: 100%;
     height: auto;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -4016,7 +4016,7 @@ html[data-theme="sepia-dark"] .ic-tab.ic-tab-active {
 .ic-chapter-text code {
     background: var(--ic-gray-100);
     padding: 0.2em 0.4em;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-family: 'Courier New', monospace;
     font-size: 0.9em;
 }
@@ -4024,7 +4024,7 @@ html[data-theme="sepia-dark"] .ic-tab.ic-tab-active {
 .ic-chapter-text pre {
     background: var(--ic-gray-100);
     padding: 1em;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     overflow-x: auto;
     margin: 1em 0;
 }

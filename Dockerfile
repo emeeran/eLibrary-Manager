@@ -12,6 +12,11 @@ COPY pyproject.toml uv.lock ./
 # Install dependencies without dev packages
 RUN uv sync --frozen --no-dev --no-install-project
 
+# Install minifier
+RUN uv pip install csscompressor jsmin
+
+# Stage 2: Runtime
+
 # Stage 2: Runtime
 FROM python:3.12-slim
 
@@ -23,6 +28,20 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy application code
 COPY backend/app/ backend/app/
 COPY frontend/ frontend/
+
+# Minify CSS and JS for production
+RUN python -c "
+import csscompressor, jsmin
+from pathlib import Path
+for css in Path('frontend/static/css').glob('*.css'):
+    if not css.name.endswith('.min.css'):
+        mini = csscompressor.compress(css.read_text())
+        css.write_text(mini)
+for js in Path('frontend/static/js').glob('*.js'):
+    if not js.name.endswith('.min.js'):
+        mini = jsmin.jsmin(js.read_text())
+        js.write_text(mini)
+"
 
 # Create data directories and non-root user
 RUN mkdir -p /app/library /app/dawnstar_data /app/static_covers /app/static_book_images && \

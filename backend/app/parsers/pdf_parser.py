@@ -1,5 +1,6 @@
 """PDF format parser using PyMuPDF (fitz) for text and image extraction."""
 
+import asyncio
 import hashlib
 import html
 import os
@@ -8,7 +9,6 @@ from typing import Optional
 
 import fitz  # PyMuPDF
 from PIL import Image
-from pypdf import PdfReader
 
 from app.exceptions import EbookParsingError
 from app.logging_config import get_logger
@@ -54,8 +54,12 @@ class PDFParser:
         Raises:
             EbookParsingError: If parsing fails
         """
+        return await asyncio.to_thread(self._extract_metadata_sync, pdf_path)
+
+    def _extract_metadata_sync(self, pdf_path: str) -> BookCreate:
+        """Synchronous metadata extraction (runs in thread)."""
         try:
-            reader = PdfReader(pdf_path)
+            doc = fitz.open(pdf_path)
 
             # PDF metadata is often limited, use filename as title
             filename = Path(pdf_path).stem
@@ -67,32 +71,34 @@ class PDFParser:
             publish_date = None
             description = None
 
-            # Try to get metadata from PDF info
+            # Try to get metadata from PDF info (fitz uses lowercase keys)
             subjects = []
-            if reader.metadata:
-                if reader.metadata.get("/Title"):
-                    title = reader.metadata.get("/Title")
-                if reader.metadata.get("/Author"):
-                    author = reader.metadata.get("/Author")
-                if reader.metadata.get("/Creator"):
-                    publisher = reader.metadata.get("/Creator")
-                if reader.metadata.get("/CreationDate"):
-                    # PDF dates are in format D:YYYYMMDDHHmmss
-                    date_str = reader.metadata.get("/CreationDate", "")
-                    if date_str.startswith("D:"):
-                        publish_date = date_str[2:6]  # Extract year
-                subject_val = reader.metadata.get("/Subject")
-                if subject_val:
-                    description = subject_val
-                if reader.metadata.get("/Keywords"):
-                    keywords = reader.metadata.get("/Keywords", "")
-                    subjects = [k.strip() for k in keywords.split(",") if k.strip()]
-                if subject_val and subject_val not in subjects:
-                    subjects.append(subject_val)
+            meta = doc.metadata or {}
+            if meta.get("title"):
+                title = meta["title"]
+            if meta.get("author"):
+                author = meta["author"]
+            if meta.get("creator"):
+                publisher = meta["creator"]
+            if meta.get("creationDate"):
+                # PDF dates are in format D:YYYYMMDDHHmmss
+                date_str = meta.get("creationDate", "")
+                if date_str.startswith("D:"):
+                    publish_date = date_str[2:6]  # Extract year
+            subject_val = meta.get("subject")
+            if subject_val:
+                description = subject_val
+            if meta.get("keywords"):
+                keywords = meta.get("keywords", "")
+                subjects = [k.strip() for k in keywords.split(",") if k.strip()]
+            if subject_val and subject_val not in subjects:
+                subjects.append(subject_val)
 
             # Get file size and page count
             file_size = os.path.getsize(pdf_path)
-            total_pages = len(reader.pages)
+            total_pages = len(doc)
+
+            doc.close()
 
             logger.info(f"Extracted PDF metadata: {title} by {author} ({total_pages} pages)")
 
@@ -183,6 +189,10 @@ class PDFParser:
         Raises:
             EbookParsingError: If parsing fails
         """
+        return await asyncio.to_thread(self._get_chapters_sync, pdf_path)
+
+    def _get_chapters_sync(self, pdf_path: str) -> list[tuple[int, str, str]]:
+        """Synchronous chapter extraction (runs in thread)."""
         try:
             doc = fitz.open(pdf_path)
             pages: list[tuple[int, str, str]] = []
@@ -233,6 +243,12 @@ class PDFParser:
             EbookParsingError: If parsing fails.
             ResourceNotFoundError: If page index is out of range.
         """
+        return await asyncio.to_thread(self._get_single_chapter_sync, pdf_path, chapter_index)
+
+    def _get_single_chapter_sync(
+        self, pdf_path: str, chapter_index: int
+    ) -> tuple[str, str, int]:
+        """Synchronous single chapter extraction (runs in thread)."""
         try:
             doc = fitz.open(pdf_path)
             total = len(doc)
@@ -571,9 +587,15 @@ class PDFParser:
         Returns:
             Number of pages
         """
+        return await asyncio.to_thread(self._count_chapters_sync, pdf_path)
+
+    def _count_chapters_sync(self, pdf_path: str) -> int:
+        """Synchronous page count (runs in thread)."""
         try:
-            reader = PdfReader(pdf_path)
-            return len(reader.pages)
+            doc = fitz.open(pdf_path)
+            count = len(doc)
+            doc.close()
+            return count
         except Exception as e:
             raise EbookParsingError(
                 f"Failed to count pages: {str(e)}",
@@ -807,95 +829,19 @@ class PDFParser:
             EbookParsingError: If parsing fails
         """
         try:
-            reader = PdfReader(pdf_path)
-            toc_items = []
+            doc = fitz.open(pdf_path)
+            raw_toc = doc.get_toc()  # Returns [[level, title, page_number], ...]
+            doc.close()
 
-            # Cache named destinations (expensive to resolve repeatedly)
-            _named_dests_cache: dict | None = None
-            def _get_named_dests() -> dict:
-                nonlocal _named_dests_cache
-                if _named_dests_cache is None:
-                    _named_dests_cache = reader.named_destinations
-                return _named_dests_cache
-
-            # Try to get PDF outline (bookmarks)
-            if reader.outline:
-                def resolve_page_index(item) -> int | None:
-                    """Resolve an outline item to a 0-based page index."""
-                    if not isinstance(item, dict):
-                        return None
-
-                    # Method 1: Direct /Page reference (most common)
-                    page_ref = item.get('/Page')
-                    if page_ref is not None:
-                        try:
-                            return reader.get_page_number(page_ref)
-                        except Exception:
-                            pass
-
-                    # Method 2: /Dest string or array
-                    dest = item.get('/Dest')
-                    if dest is not None:
-                        try:
-                            if isinstance(dest, str):
-                                named_dests = _get_named_dests()
-                                if named_dests and dest in named_dests:
-                                    page_obj = named_dests[dest]
-                                    if hasattr(page_obj, 'page'):
-                                        return reader.pages.index(page_obj.page)
-                                    elif isinstance(page_obj, (list, tuple)):
-                                        return reader.get_page_number(page_obj[0])
-                            if isinstance(dest, (list, tuple)) and len(dest) > 0:
-                                return reader.get_page_number(dest[0])
-                        except Exception:
-                            pass
-
-                    # Method 3: /A dictionary with /D destination
-                    action = item.get('/A')
-                    if isinstance(action, dict):
-                        a_dest = action.get('/D')
-                        if a_dest is not None:
-                            try:
-                                if isinstance(a_dest, str):
-                                    named_dests = _get_named_dests()
-                                    if named_dests and a_dest in named_dests:
-                                        page_obj = named_dests[a_dest]
-                                        if hasattr(page_obj, 'page'):
-                                            return reader.pages.index(page_obj.page)
-                                        elif isinstance(page_obj, (list, tuple)):
-                                            return reader.get_page_number(page_obj[0])
-                                if isinstance(a_dest, (list, tuple)) and len(a_dest) > 0:
-                                    return reader.get_page_number(a_dest[0])
-                            except Exception:
-                                pass
-
-                    return None
-
-                def process_outline_item(item, level=1):
-                    """Recursively process outline items."""
-                    if isinstance(item, list):
-                        for sub_item in item:
-                            process_outline_item(sub_item, level)
-                    elif isinstance(item, dict) and '/Title' in item:
-                        page_idx = resolve_page_index(item)
-                        if page_idx is not None:
-                            toc_items.append({
-                                "index": page_idx,
-                                "title": item.get('/Title', 'Untitled'),
-                                "level": level
-                            })
-
-                        # Process children
-                        if '/First' in item:
-                            child = item['/First']
-                            while child:
-                                process_outline_item(child, level + 1)
-                                child = child.get('/Next') if isinstance(child, dict) else None
-
-                process_outline_item(reader.outline)
-
-            if toc_items:
-                return toc_items
+            if raw_toc:
+                # Convert fitz TOC to our format (page numbers are 1-indexed from fitz)
+                toc_items = [
+                    {"index": entry[2] - 1, "title": entry[1], "level": entry[0]}
+                    for entry in raw_toc
+                    if entry[2] > 0
+                ]
+                if toc_items:
+                    return toc_items
 
             # Fall back to page list
             chapters = await self.get_chapters(pdf_path)

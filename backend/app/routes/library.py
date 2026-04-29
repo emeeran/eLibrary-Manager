@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_config
 from app.database import get_db
+from app.repositories import BookRepository
 from app.scan_progress import scan_store
 from app.schemas import (
     BookListResponse,
@@ -37,6 +38,7 @@ _active_scans: set[str] = set()
 # In-memory search result cache with TTL
 _search_cache: dict[str, tuple[list, int]] = {}  # query -> (results, timestamp)
 _SEARCH_CACHE_TTL = 30  # seconds
+_SEARCH_CACHE_MAX = 50
 
 
 def _validate_path_within_library(file_path: str) -> str:
@@ -390,15 +392,14 @@ async def list_books(
         counts=counts
     )
 
-    # Store in cache
+    # Store in cache and evict stale entries
     _search_cache[cache_key] = (result, time.time())
-
-    # Evict expired entries periodically (keep cache bounded)
-    if len(_search_cache) > 200:
+    if len(_search_cache) > _SEARCH_CACHE_MAX:
         now = time.time()
-        expired = [k for k, (_, t) in _search_cache.items() if now - t >= _SEARCH_CACHE_TTL]
-        for k in expired:
-            del _search_cache[k]
+        _search_cache.update({
+            k: v for k, v in _search_cache.items()
+            if now - v[1] < _SEARCH_CACHE_TTL
+        })
 
     return result
 
@@ -438,8 +439,8 @@ async def update_book(
     Returns:
         Updated book
     """
-    service = LibraryService(db)
-    book = await service.update_book(book_id, update_data)
+    repo = BookRepository(db)
+    book = await repo.update(book_id, update_data)
     return book_to_response(book)
 
 
@@ -504,8 +505,8 @@ async def delete_book(
     Returns:
         Success message
     """
-    service = LibraryService(db)
-    await service.delete_book(book_id)
+    repo = BookRepository(db)
+    await repo.delete(book_id)
     return {"message": "Book deleted successfully"}
 
 

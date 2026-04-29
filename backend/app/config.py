@@ -34,12 +34,7 @@ class AppConfig(BaseSettings):
     google_model: str = "gemini-1.5-flash"
     google_rate_limit_rpm: int = 15
 
-    # AI Configuration - Groq (Secondary)
-    groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
-    groq_rate_limit_rpm: int = 30
-
-    # AI Configuration - Ollama Cloud (Tertiary)
+    # AI Configuration - Ollama Cloud (Secondary)
     ollama_cloud_url: str = "https://api.ollama.ai"
     ollama_cloud_model: str = "llama3.3"
 
@@ -104,7 +99,7 @@ class AppConfig(BaseSettings):
         import os
         return os.path.abspath(v)
 
-    @field_validator("google_api_key", "groq_api_key")
+    @field_validator("google_api_key")
     @classmethod
     def validate_api_keys(cls, v: str) -> str:
         """Warn if API keys are not set (but allow for local Ollama)."""

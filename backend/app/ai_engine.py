@@ -1,16 +1,15 @@
 """Multi-provider AI orchestration with automatic fallback."""
 
+import time
 from typing import Optional
 
 from app.ai_providers import (
     BaseAIProvider,
     GoogleProvider,
-    GroqProvider,
-    OllamaCloudProvider,
-    OllamaLocalProvider,
+    OllamaProvider,
 )
 from app.config import get_config
-from app.exceptions import AIServiceError
+from app.exceptions import AIServiceError, RateLimitError
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -37,15 +36,23 @@ class AIProviderOrchestrator:
         if self.config.google_api_key:
             self.providers.append(GoogleProvider())
 
-        # Secondary: Groq (Very fast, good quality)
-        if self.config.groq_api_key:
-            self.providers.append(GroqProvider())
-
-        # Tertiary: Ollama Cloud (Good quality, moderate speed)
-        self.providers.append(OllamaCloudProvider())
+        # Secondary: Ollama Cloud (Good quality, moderate speed)
+        self.providers.append(OllamaProvider(
+            name="ollama_cloud",
+            base_url=self.config.ollama_cloud_url,
+            model=self.config.ollama_cloud_model,
+            priority=3,
+            health_timeout=5.0,
+        ))
 
         # Fallback: Ollama Local (Offline capable, no cost)
-        self.providers.append(OllamaLocalProvider())
+        self.providers.append(OllamaProvider(
+            name="ollama_local",
+            base_url=self.config.ollama_local_url,
+            model=self.config.ollama_local_model,
+            priority=4,
+            health_timeout=2.0,
+        ))
 
         logger.info(f"Initialized {len(self.providers)} AI providers")
 
@@ -260,15 +267,12 @@ class RateLimiter:
         Raises:
             RateLimitError: If rate limit exceeded
         """
-        import time
-
         now = time.time()
 
         # Remove old calls outside the period
         self.calls = [call_time for call_time in self.calls if now - call_time < self.period_seconds]
 
         if len(self.calls) >= self.max_calls:
-            from app.exceptions import RateLimitError
             raise RateLimitError(
                 f"Rate limit exceeded for {provider_name}: {self.max_calls} calls per {self.period_seconds}s",
                 {"provider": provider_name, "calls": len(self.calls)}

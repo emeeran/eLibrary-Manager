@@ -342,27 +342,6 @@ class LibraryService:
             directory_filter=directory_filter,
         )
 
-    async def update_book(self, book_id: int, update_data: BookUpdate) -> Book:
-        """Update book metadata.
-
-        Args:
-            book_id: Book primary key
-            update_data: Update data
-
-        Returns:
-            Updated Book instance
-        """
-        return await self.book_repo.update(book_id, update_data)
-
-    async def delete_book(self, book_id: int) -> None:
-        """Delete a book.
-
-        Args:
-            book_id: Book primary key
-        """
-        await self.book_repo.delete(book_id)
-        logger.info(f"Book deleted: {book_id}")
-
     async def get_library_stats(self) -> dict:
         """Get library statistics using aggregate queries."""
         from sqlalchemy import func, select

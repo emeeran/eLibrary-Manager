@@ -68,10 +68,23 @@
     --card-height: 140px;
     --card-gap: 12px;
 
+    /* === Border Radius === */
+    --radius-xs: 2px;
+    --radius-sm: 3px;
+    --radius-md: 4px;
+    --radius-lg: 6px;
+    --radius-xl: 8px;
+    --radius-2xl: 12px;
+    --radius-full: 50%;
+
     /* === Transitions === */
-    --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-slow: 0.3s ease;
+    --tr-color-bg: color var(--transition-fast), background-color var(--transition-fast);
+    --tr-bg: background-color var(--transition-fast);
+    --tr-bg-smooth: background var(--transition-fast);
+    --tr-color-bg-border: color var(--transition-base), background-color var(--transition-base), border-color var(--transition-base);
 }
 
 /* ============================================
@@ -299,7 +312,7 @@ button {
     height: 24px;
     background-color: white;
     border: 1px solid var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -354,19 +367,23 @@ button {
 .sidebar-logo .logo-icon {
     width: 36px;
     height: 36px;
-    background: var(--accent-gradient);
+    background: transparent;
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 18px;
-    box-shadow: 0 2px 8px rgba(66, 133, 244, 0.2);
 }
 
 .sidebar-logo .logo-text {
-    font-size: 17px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 800;
     letter-spacing: -0.02em;
+}
+
+.sidebar-logo .logo-subtitle {
+    font-size: 11px;
+    opacity: 0.7;
 }
 
 .sidebar-logo .logo-badge {
@@ -375,7 +392,7 @@ button {
     font-size: 9px;
     font-weight: 700;
     padding: 3px 7px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     margin-left: auto;
     box-shadow: 0 2px 4px rgba(66, 133, 244, 0.2);
 }
@@ -489,9 +506,9 @@ button {
     padding: 8px 12px;
     font-size: 12px;
     color: var(--sidebar-text-muted);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     margin: 1px 0;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: var(--tr-bg), color 0.15s ease;
 }
 
 .nav-subitem:hover {
@@ -546,7 +563,7 @@ button {
     color: var(--sidebar-text-muted);
     cursor: pointer;
     padding: 2px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     opacity: 0;
     transition: opacity 0.15s;
 }
@@ -616,14 +633,14 @@ button {
 .sidebar-btn {
     width: 100%;
     padding: 10px 16px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     font-weight: 500;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    transition: var(--tr-bg), box-shadow 0.15s ease, transform 0.15s ease;
     margin-bottom: 8px;
 }
 
@@ -669,7 +686,7 @@ button {
     height: 32px;
     background-color: white;
     border: 1px solid var(--content-border);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -736,7 +753,7 @@ button {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     border: 1px solid var(--content-border);
     background: white;
     color: var(--text-secondary);
@@ -813,8 +830,8 @@ button {
     color: var(--text-tertiary);
     cursor: pointer;
     padding: 4px;
-    border-radius: 4px;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    border-radius: var(--radius-md);
+    transition: var(--tr-color-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -861,7 +878,7 @@ button {
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    transition: var(--tr-bg), color 0.15s ease, border-color 0.15s ease;
 }
 
 .search-filter-chip:hover {
@@ -885,7 +902,7 @@ button {
     height: 36px;
     padding: 0 12px;
     border: 1px solid var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     background-color: white;
     cursor: pointer;
@@ -903,7 +920,7 @@ button {
     display: flex;
     background-color: white;
     border: 1px solid var(--content-border);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     padding: 2px;
 }
 
@@ -913,9 +930,9 @@ button {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     color: var(--text-secondary);
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: var(--tr-bg), color 0.15s ease;
 }
 
 .view-toggle-btn:hover {
@@ -931,7 +948,7 @@ button {
     height: 32px;
     padding: 0 8px;
     border: 1px solid var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     background: white;
     color: var(--text-primary);
     font-size: 13px;
@@ -956,7 +973,7 @@ button {
     align-items: center;
     gap: 6px;
     border: 1px solid var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     background: white;
     color: var(--text-primary);
     font-size: 13px;
@@ -1183,7 +1200,7 @@ button {
 .category-pill {
     font-size: 8px;
     padding: 1px 5px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: rgba(139, 92, 246, 0.12);
     color: #8b5cf6;
     white-space: nowrap;
@@ -1208,7 +1225,7 @@ button {
     font-weight: 500;
     padding: 1px 3px;
     background-color: var(--button-bg);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
 }
 
 .book-card-pages {
@@ -1245,7 +1262,7 @@ button {
             #f0f0f0 75%);
     background-size: 200% 100%;
     animation: skeleton-loading 1.5s ease-in-out infinite;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
 }
 
 /* Book card skeleton */
@@ -1448,7 +1465,7 @@ button {
 
 .book-table tbody tr {
     border-bottom: 1px solid var(--content-border);
-    transition: background-color 0.15s ease;
+    transition: var(--tr-bg);
     cursor: pointer;
 }
 
@@ -1504,7 +1521,7 @@ button {
     width: 40px;
     height: 60px;
     position: relative;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     overflow: hidden;
     background: linear-gradient(135deg, #E8E8E8, #F0F0F0);
     display: flex;
@@ -1555,7 +1572,7 @@ button {
     text-transform: uppercase;
     padding: 4px 8px;
     background-color: var(--button-bg);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     display: inline-block;
 }
 
@@ -1570,7 +1587,7 @@ button {
     width: 80px;
     height: 6px;
     background-color: var(--progress-bg);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
     vertical-align: middle;
     margin-right: 8px;
@@ -1592,13 +1609,13 @@ button {
 .table-action-btn {
     width: 32px;
     height: 32px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background: transparent;
     border: none;
     color: var(--text-tertiary);
     font-size: 14px;
     cursor: pointer;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition: var(--tr-color-bg);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1660,7 +1677,7 @@ button {
 .book-card-action-btn {
     width: 22px;
     height: 22px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background-color: white;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
     border: none;
@@ -1749,7 +1766,7 @@ button {
 
 .empty-state-btn {
     padding: 12px 24px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
@@ -1991,12 +2008,12 @@ button {
 .modal-close {
     width: 32px;
     height: 32px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-tertiary);
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition: var(--tr-color-bg);
 }
 
 .modal-close:hover {
@@ -2020,10 +2037,10 @@ button {
 /* Modal Buttons */
 .btn {
     padding: 10px 16px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     font-weight: 500;
-    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    transition: var(--tr-bg), box-shadow 0.15s ease;
 }
 
 .btn-secondary {
@@ -2093,7 +2110,7 @@ button {
     width: 100%;
     padding: 10px 12px;
     border: 1px solid var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -2193,12 +2210,12 @@ button {
     padding: 10px 16px;
     background: var(--button-bg);
     border: 1px solid var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     font-weight: 500;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    transition: var(--tr-bg), color 0.15s ease, border-color 0.15s ease;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2256,7 +2273,7 @@ button {
     justify-content: center;
     padding: 20px;
     border: 2px dashed var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     background-color: var(--button-bg);
     transition: border-color 0.15s ease, background-color 0.15s ease;
 }
@@ -2300,12 +2317,12 @@ button {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     color: var(--text-primary);
     background-color: white;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: var(--tr-bg), color 0.15s ease;
 }
 
 .pagination-btn:hover:not(:disabled) {
@@ -2342,7 +2359,7 @@ button {
 
 ::-webkit-scrollbar-thumb {
     background: var(--content-border);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -2417,11 +2434,11 @@ button {
     gap: 6px;
     padding: 8px 12px;
     border: 1px solid var(--button-border);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 12px;
     color: var(--text-primary);
     background: transparent;
-    transition: background-color 0.15s ease;
+    transition: var(--tr-bg);
     white-space: nowrap;
 }
 
@@ -2451,14 +2468,14 @@ button {
 .reader-control-btn {
     width: 30px;
     height: 26px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background-color: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 14px;
     color: #333333;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    transition: var(--tr-bg), border-color 0.15s ease;
     border: 1px solid transparent;
     cursor: pointer;
 }
@@ -2474,12 +2491,12 @@ button {
     align-items: center;
     gap: 5px;
     padding: 5px 10px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 12px;
     font-weight: 500;
     color: #333333;
     background-color: transparent;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    transition: var(--tr-bg), border-color 0.15s ease;
     border: 1px solid transparent;
     cursor: pointer;
 }
@@ -2507,7 +2524,7 @@ button {
 .theme-selector {
     padding: 3px 6px;
     border: 1px solid #A8A8A8;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 11px;
     background-color: #FFFFFF;
     cursor: pointer;
@@ -2547,7 +2564,7 @@ button {
 .speed-selector {
     padding: 3px 6px;
     border: 1px solid #A8A8A8;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 11px;
     background-color: #FFFFFF;
     cursor: pointer;
@@ -2617,7 +2634,7 @@ button {
     max-width: 100%;
     height: auto;
     margin: 20px 0;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
 }
 
 .reader-content-inner figcaption {
@@ -2728,13 +2745,13 @@ button {
     align-items: center;
     gap: 5px;
     padding: 5px 12px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 11px;
     font-weight: 500;
     color: #333333;
     background-color: transparent;
     border: 1px solid #A8A8A8;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    transition: var(--tr-bg), border-color 0.15s ease;
     cursor: pointer;
 }
 
@@ -2811,7 +2828,7 @@ button {
 .summary-sidebar-close {
     width: 22px;
     height: 22px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2883,7 +2900,7 @@ button {
     background: linear-gradient(135deg, #4285F4, #3367D6);
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
@@ -3055,7 +3072,7 @@ button {
     max-width: 100%;
     height: auto;
     margin: 20px 0;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
 }
 
 .chapter-content figcaption {
@@ -3093,14 +3110,14 @@ button {
     font-family: 'Courier New', monospace;
     background-color: rgba(0, 0, 0, 0.05);
     padding: 0.2em 0.4em;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 0.9em;
 }
 
 .chapter-content pre {
     background-color: rgba(0, 0, 0, 0.05);
     padding: 1em;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     overflow-x: auto;
     margin: 1em 0;
 }
@@ -3159,7 +3176,7 @@ button {
     background: var(--reader-accent);
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
@@ -3200,11 +3217,11 @@ button {
     background: var(--button-bg);
     color: var(--text-primary);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.15s ease;
+    transition: var(--tr-bg);
 }
 
 .summary-regenerate-btn:hover {
@@ -3257,7 +3274,7 @@ button {
     width: 32px;
     height: 32px;
     background: linear-gradient(135deg, var(--accent-blue), var(--accent-blue-dark));
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3276,7 +3293,7 @@ button {
     font-size: 9px;
     font-weight: 700;
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     margin-left: 4px;
 }
 
@@ -3291,11 +3308,11 @@ button {
     align-items: center;
     padding: 10px 12px;
     margin: 2px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     color: var(--sidebar-text);
     font-size: 13px;
     cursor: pointer;
-    transition: background-color 0.15s ease;
+    transition: var(--tr-bg);
 }
 
 .settings-nav-item:hover {
@@ -3328,14 +3345,14 @@ button {
 .settings-footer-btn {
     width: 100%;
     padding: 10px 16px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     font-weight: 500;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    transition: background-color 0.15s ease, color 0.15s ease;
+    transition: var(--tr-bg), color 0.15s ease;
     background-color: var(--sidebar-active);
     color: var(--sidebar-text);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -3442,7 +3459,7 @@ button {
 .settings-input {
     padding: 8px 12px;
     border: 1px solid var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     min-width: 250px;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -3457,7 +3474,7 @@ button {
 .settings-input-number {
     padding: 8px 12px;
     border: 1px solid var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     width: 80px;
     text-align: center;
@@ -3466,7 +3483,7 @@ button {
 .settings-select {
     padding: 8px 32px 8px 12px;
     border: 1px solid var(--content-border);
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     background-color: white;
     cursor: pointer;
@@ -3485,10 +3502,10 @@ button {
 
 .settings-btn {
     padding: 8px 16px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     font-weight: 500;
-    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    transition: var(--tr-bg), box-shadow 0.15s ease;
     cursor: pointer;
     border: none;
 }
@@ -3562,7 +3579,7 @@ button {
 .settings-slider {
     width: 150px;
     height: 6px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background: var(--button-bg);
     outline: none;
     -webkit-appearance: none;
@@ -3610,7 +3627,7 @@ button {
     border: 2px solid transparent;
     border-radius: 8px;
     cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
+    transition: var(--tr-bg), border-color 0.15s ease;
 }
 
 .theme-option:hover {
@@ -3625,7 +3642,7 @@ button {
 .theme-preview {
     width: 80px;
     height: 60px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3702,7 +3719,7 @@ button {
     padding: 4px 8px;
     background-color: var(--button-bg);
     border: 1px solid var(--content-border);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 11px;
     font-weight: 500;
     color: var(--text-secondary);
@@ -3750,7 +3767,7 @@ button {
     font-size: 11px;
     font-weight: 700;
     padding: 4px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     margin-left: 8px;
 }
 
@@ -3854,7 +3871,7 @@ button {
     bottom: 24px;
     right: 24px;
     padding: 12px 20px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     font-size: 13px;
     font-weight: 500;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -3900,7 +3917,7 @@ button {
     width: 20px;
     height: 20px;
     flex-shrink: 0;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -4033,12 +4050,12 @@ button {
 
 .notification-action-btn {
     padding: 6px 12px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
     border: none;
-    transition: background-color 0.15s ease, opacity 0.15s ease;
+    transition: var(--tr-bg), opacity 0.15s ease;
 }
 
 .notification-action-btn-primary {
@@ -4163,7 +4180,7 @@ button {
 .sidebar-close {
     width: 22px;
     height: 22px;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -4208,9 +4225,9 @@ button {
 
 .toc-item {
     padding: 8px 12px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     cursor: pointer;
-    transition: background-color 0.15s ease;
+    transition: var(--tr-bg);
     font-size: 13px;
     color: #333333;
 }
@@ -4234,7 +4251,7 @@ button {
 
 .bookmark-item {
     background-color: white;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     padding: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
@@ -4256,13 +4273,13 @@ button {
 .bookmark-delete {
     width: 24px;
     height: 24px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
     color: #999999;
     cursor: pointer;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition: var(--tr-color-bg);
     border: none;
     background: transparent;
 }
@@ -4284,7 +4301,7 @@ button {
     margin: 0 0 10px 0;
     padding: 8px;
     background-color: #F8F8F8;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
 }
 
 .bookmark-jump-btn {
@@ -4293,11 +4310,11 @@ button {
     background-color: #4285F4;
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.15s ease;
+    transition: var(--tr-bg);
 }
 
 .bookmark-jump-btn:hover {
@@ -4313,7 +4330,7 @@ button {
 
 .note-item {
     background-color: white;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     padding: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     border-left: 4px solid #FBC02D;
@@ -4356,13 +4373,13 @@ button {
 .note-delete {
     width: 20px;
     height: 20px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     display: flex;
     align-items: center;
     justify-content: center;
     color: #999999;
     cursor: pointer;
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition: var(--tr-color-bg);
     border: none;
     background: transparent;
 }
@@ -4379,7 +4396,7 @@ button {
     margin: 0 0 8px 0;
     padding: 8px;
     background-color: #F8F8F8;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
 }
 
 .note-content {
@@ -4401,11 +4418,11 @@ button {
     background-color: #4285F4;
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    transition: background-color 0.15s ease;
+    transition: var(--tr-bg);
 }
 
 .note-jump-btn:hover {
@@ -4431,7 +4448,7 @@ button {
     display: none;
     padding: 10px 12px;
     background-color: #F8F8F8;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 12px;
     color: #666666;
     font-style: italic;
@@ -4468,7 +4485,7 @@ button {
 .voice-selector-select {
     padding: 4px 8px;
     border: 1px solid #A8A8A8;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     font-size: 11px;
     background-color: #FFFFFF;
     cursor: pointer;
@@ -4513,7 +4530,7 @@ button {
 .tts-service-selector {
     padding: 3px 6px;
     border: 1px solid #A8A8A8;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     background-color: #F5F5F5;
     font-size: 11px;
     color: #333;
@@ -4645,7 +4662,7 @@ button {
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-lg);
     background-color: #F8F8F8;
 }
 
@@ -4663,7 +4680,7 @@ button {
     padding: 4px 8px;
     background-color: white;
     border: 1px solid var(--content-border);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     font-size: 11px;
     font-weight: 500;
     color: var(--text-secondary);
@@ -4850,7 +4867,7 @@ button {
 
 ::-webkit-scrollbar-thumb {
     background: rgba(0, 0, 0, 0.15);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     transition: background var(--transition-fast);
 }
 
@@ -4925,7 +4942,7 @@ button {
    TTS WORD HIGHLIGHTING
    ======================================== */
 .tts-word {
-    transition: background-color 0.15s ease, opacity 0.3s ease;
+    transition: var(--tr-bg), opacity 0.3s ease;
     border-radius: 2px;
 }
 
@@ -4941,7 +4958,7 @@ button {
 /* Sentence-level highlighting */
 .tts-sentence {
     transition: background-color 0.2s ease;
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
     padding: 2px 0;
     display: inline;
 }
@@ -5051,7 +5068,7 @@ html[data-theme="sepia-dark"] .tts-sentence-highlight {
     padding: 6px 8px;
     font-size: 12px;
     color: var(--text-primary, #1A1A1A);
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     transition: background 0.15s;
 }
 
@@ -5092,7 +5109,7 @@ html[data-theme="sepia-dark"] .tts-sentence-highlight {
 .stats-format-badge {
     font-size: 11px;
     padding: 3px 8px;
-    border-radius: 4px;
+    border-radius: var(--radius-md);
     background: var(--button-bg, #F3F4F6);
     color: var(--text-secondary, #5A5A5A);
     font-weight: 500;
