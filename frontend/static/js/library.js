@@ -382,14 +382,13 @@ function openBook(bookId) {
  */
 function filterByCategory(category, event) {
     // Update active state
-    document.querySelectorAll('.nav-item, .directory-item').forEach(item => item.classList.remove('active'));
+    document.querySelectorAll('.nav-item, .directory-header, .category-item, .nav-subitem').forEach(item => item.classList.remove('active'));
     if (event && event.currentTarget) {
         event.currentTarget.classList.add('active');
     }
 
     // Clear filters and apply new
     currentFilters = {};
-    delete currentFilters.format_filter;
 
     switch (category) {
         case 'all':
@@ -425,14 +424,14 @@ function filterByCategory(category, event) {
  */
 function filterByFormat(format, event) {
     // Update active state
-    document.querySelectorAll('.nav-subitem').forEach(item => item.classList.remove('active'));
+    document.querySelectorAll('.nav-item, .directory-header, .category-item, .nav-subitem').forEach(item => item.classList.remove('active'));
     if (event && event.currentTarget) {
         event.currentTarget.classList.add('active');
     }
 
-    if (format === 'all') {
-        delete currentFilters.format_filter;
-    } else {
+    // Reset filters and apply format
+    currentFilters = {};
+    if (format !== 'all') {
         currentFilters.format_filter = format;
     }
 
@@ -1701,9 +1700,11 @@ function renderCategorySidebar() {
  */
 function filterByCategoryId(categoryId, event) {
     if (event) {
-        document.querySelectorAll('.nav-item, .category-item, .directory-item').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('.nav-item, .directory-header, .category-item, .nav-subitem').forEach(n => n.classList.remove('active'));
         if (event.currentTarget) event.currentTarget.classList.add('active');
     }
+    // Reset filters and apply category
+    currentFilters = {};
     currentFilters.category_id = categoryId;
     currentPage = 1;
     loadBooks();
@@ -1852,8 +1853,13 @@ function toggleDirectorySection() {
     }
 }
 
+// Directory tree state
+let _dirChildren = new Map();  // path -> children array
+let _dirExpanded = new Set();  // set of expanded paths
+let _dirIdCounter = 0;
+
 /**
- * Load directories from API
+ * Load root directories from API
  */
 async function loadDirectories() {
     try {
@@ -1867,23 +1873,107 @@ async function loadDirectories() {
 }
 
 /**
- * Render directory items in sidebar
+ * Render root-level directory tree in sidebar
  */
 function renderDirectorySidebar() {
     const list = document.getElementById('directory-list');
     if (!list) return;
 
     if (_directories.length === 0) {
-        list.innerHTML = '';
+        list.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:12px;">No directories found</div>';
         return;
     }
 
-    list.innerHTML = _directories.map(dir => `
-        <div class="nav-subitem directory-item" onclick="filterByDirectory('${escapeHtml(dir.directory)}', event)" data-directory="${escapeHtml(dir.directory)}" title="${escapeHtml(dir.directory)}">
-            <span class="directory-name">${escapeHtml(dir.name)}</span>
-            <span class="nav-item-count">${dir.book_count}</span>
+    list.innerHTML = _directories.map(dir => _renderDirNode(dir)).join('');
+}
+
+/**
+ * Render a single directory node (header + children container)
+ */
+function _renderDirNode(dir) {
+    const id = `dir-children-${++_dirIdCounter}`;
+    const hasSubdirs = dir.has_subdirs;
+    const isExpanded = _dirExpanded.has(dir.directory);
+    const children = _dirChildren.get(dir.directory);
+    const arrowClass = hasSubdirs ? '' : 'no-children';
+    const expandedClass = isExpanded ? 'expanded' : '';
+
+    let childrenHtml = '';
+    if (isExpanded && children && children.length > 0) {
+        childrenHtml = `<div class="dir-children" id="${id}">`
+            + children.map(c => _renderDirNode(c)).join('')
+            + `</div>`;
+    } else if (hasSubdirs) {
+        childrenHtml = `<div class="dir-children hidden" id="${id}"></div>`;
+    }
+
+    return `<div class="directory-node" data-path="${escapeHtml(dir.directory)}">
+        <div class="directory-header" onclick="filterByDirectory('${escapeAttr(dir.directory)}', event)"
+             title="${escapeHtml(dir.directory)}">
+            <span class="dir-arrow ${arrowClass} ${expandedClass}"
+                  onclick="event.stopPropagation(); toggleDirExpand('${escapeAttr(dir.directory)}', this)">&#9654;</span>
+            <span class="dir-name">${escapeHtml(dir.name)}</span>
+            <span class="dir-count">${dir.total_count}</span>
         </div>
-    `).join('');
+        ${childrenHtml}
+    </div>`;
+}
+
+/**
+ * Escape string for HTML attribute (single quotes)
+ */
+function escapeAttr(str) {
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+/**
+ * Toggle expand/collapse of a directory node
+ */
+async function toggleDirExpand(path, arrowEl) {
+    if (_dirExpanded.has(path)) {
+        // Collapse
+        _dirExpanded.delete(path);
+        if (arrowEl) arrowEl.classList.remove('expanded');
+        const node = arrowEl ? arrowEl.closest('.directory-node') : null;
+        const childrenDiv = node ? node.querySelector(':scope > .dir-children') : null;
+        if (childrenDiv) childrenDiv.classList.add('hidden');
+        return;
+    }
+
+    // Expand
+    _dirExpanded.add(path);
+    if (arrowEl) arrowEl.classList.add('expanded');
+
+    const node = arrowEl ? arrowEl.closest('.directory-node') : null;
+    let childrenDiv = node ? node.querySelector(':scope > .dir-children') : null;
+
+    // Lazy load children if not yet fetched
+    if (!_dirChildren.has(path)) {
+        try {
+            const res = await fetch(`/api/library/directories?parent=${encodeURIComponent(path)}`);
+            if (res.ok) {
+                const children = await res.json();
+                _dirChildren.set(path, children);
+
+                if (!childrenDiv && children.length > 0) {
+                    // Create children container
+                    childrenDiv = document.createElement('div');
+                    childrenDiv.className = 'dir-children';
+                    const header = node.querySelector(':scope > .directory-header');
+                    header.after(childrenDiv);
+                }
+                if (childrenDiv) {
+                    childrenDiv.innerHTML = children.map(c => _renderDirNode(c)).join('');
+                    childrenDiv.classList.remove('hidden');
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load directory children:', e);
+        }
+    } else {
+        // Already loaded, just show
+        if (childrenDiv) childrenDiv.classList.remove('hidden');
+    }
 }
 
 /**
@@ -1891,9 +1981,11 @@ function renderDirectorySidebar() {
  */
 function filterByDirectory(directory, event) {
     if (event) {
-        document.querySelectorAll('.nav-item, .category-item, .directory-item').forEach(n => n.classList.remove('active'));
+        document.querySelectorAll('.nav-item, .directory-header, .category-item, .nav-subitem').forEach(n => n.classList.remove('active'));
         if (event.currentTarget) event.currentTarget.classList.add('active');
     }
+    // Reset filters and apply directory
+    currentFilters = {};
     currentFilters.directory_filter = directory;
     currentPage = 1;
     loadBooks();

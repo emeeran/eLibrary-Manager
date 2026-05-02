@@ -529,19 +529,54 @@ button {
     cursor: pointer;
 }
 
-/* Directory sidebar items */
-.directory-item {
+/* Directory tree styles */
+.directory-node { user-select: none; }
+
+.directory-header {
     display: flex;
     align-items: center;
     gap: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.15s;
 }
+.directory-header:hover { background: rgba(0,0,0,0.05); }
+.directory-header.active { background: rgba(37,99,235,0.1); color: #2563eb; }
 
-.directory-name {
+.dir-arrow {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #666;
+}
+.dir-arrow.expanded { transform: rotate(90deg); }
+.dir-arrow.no-children { visibility: hidden; }
+
+.dir-name {
     flex: 1;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 13px;
 }
+
+.dir-count {
+    font-size: 11px;
+    color: #888;
+    background: #f0f0f0;
+    border-radius: 8px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+}
+
+.dir-children { margin-left: 16px; }
 
 .category-dot {
     width: 8px;

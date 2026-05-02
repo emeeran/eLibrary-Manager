@@ -315,6 +315,8 @@ async def list_books(
     page_size: int = 20,  # max 100 enforced below
     favorite_only: bool = False,
     recent_only: bool = False,
+    reading_only: bool = False,
+    deleted_only: bool = False,
     search: str | None = None,
     format_filter: str | None = None,
     source_filter: str | None = None,
@@ -349,19 +351,75 @@ async def list_books(
     page = max(1, page)
     page_size = max(1, min(page_size, 100))
 
+    service = LibraryService(db)
+
+    # Handle deleted_only: find books with missing files (bypasses cache)
+    if deleted_only:
+        from os.path import exists as path_exists
+
+        from sqlalchemy import select
+
+        from app.models import Book as BookModel
+
+        result = await db.execute(
+            select(BookModel.path, BookModel.id).where(BookModel.is_hidden == False)
+        )
+        all_paths = {row[1]: row[0] for row in result.all()}
+        stale_ids = [bid for bid, p in all_paths.items() if not path_exists(p)]
+
+        if not stale_ids:
+            stats = await service.get_library_stats()
+            counts = {
+                "all": stats.get("total_books", 0),
+                "recent": stats.get("recent_books", 0),
+                "favorites": stats.get("favorite_books", 0),
+                "reading": stats.get("reading_books", 0),
+                "deleted": 0,
+                "hidden": stats.get("hidden_books", 0),
+            }
+            return BookListResponse(
+                books=[],
+                total=0,
+                page=page,
+                page_size=page_size,
+                counts=counts,
+            )
+
+        result = await db.execute(
+            select(BookModel).where(BookModel.id.in_(stale_ids))
+        )
+        books = result.scalars().all()
+
+        stats = await service.get_library_stats()
+        counts = {
+            "all": stats.get("total_books", 0),
+            "recent": stats.get("recent_books", 0),
+            "favorites": stats.get("favorite_books", 0),
+            "reading": stats.get("reading_books", 0),
+            "deleted": len(stale_ids),
+            "hidden": stats.get("hidden_books", 0),
+        }
+        return BookListResponse(
+            books=[book_to_response(b) for b in books],
+            total=len(stale_ids),
+            page=page,
+            page_size=page_size,
+            counts=counts,
+        )
+
     # Check search cache
-    cache_key = f"{search}|{format_filter}|{sort_by}|{sort_order}|{page}"
+    cache_key = f"{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}"
     if cache_key in _search_cache:
         cached_result, cached_time = _search_cache[cache_key]
         if time.time() - cached_time < _SEARCH_CACHE_TTL:
             return cached_result
 
-    service = LibraryService(db)
     books, total = await service.list_books(
         page=page,
         page_size=page_size,
         favorite_only=favorite_only,
         recent_only=recent_only,
+        reading_only=reading_only,
         search=search,
         format_filter=format_filter,
         sort_by=sort_by,
@@ -790,15 +848,19 @@ async def remove_category_from_book(
 
 
 @router.get("/library/directories")
-async def list_directories(db: AsyncSession = Depends(get_db)) -> list[dict]:
-    """List unique source directories with book counts.
+async def list_directories(
+    parent: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """List directories with book counts, supporting tree browsing.
 
-    Returns the top 20 directories (by book count) derived from
-    book file paths. Each entry includes the full directory path,
-    display name, and book count.
+    When `parent` is None, returns root-level directories.
+    When `parent` is a path, returns its immediate children.
+    Each entry includes path, name, book_count (direct),
+    total_count (recursive), and has_subdirs flag.
     """
+    import os
     from collections import Counter
-    from os.path import dirname
 
     from sqlalchemy import select
 
@@ -809,17 +871,64 @@ async def list_directories(db: AsyncSession = Depends(get_db)) -> list[dict]:
     )
     paths = [row[0] for row in result.all()]
 
-    dir_counts = Counter(dirname(p) for p in paths)
+    if not paths:
+        return []
 
-    directories = [
-        {
+    # Count books per immediate directory
+    dir_counts: Counter = Counter(os.path.dirname(p) for p in paths)
+
+    def _get_children(parent_path: str) -> list[str]:
+        """Get immediate children of a directory that contain books."""
+        prefix = parent_path.rstrip("/") + "/"
+        children: set[str] = set()
+        for d in dir_counts:
+            if d.startswith(prefix):
+                rest = d[len(prefix):]
+                child_name = rest.split("/")[0]
+                children.add(prefix + child_name)
+        return sorted(children)
+
+    # Determine root level using common prefix
+    if parent is None:
+        all_dir_list = sorted(dir_counts.keys())
+        prefix = os.path.commonprefix(all_dir_list)
+        # Truncate to last complete path segment
+        if not prefix.endswith("/"):
+            prefix = prefix.rsplit("/", 1)[0]
+
+        if prefix:
+            dirs_to_return = _get_children(prefix)
+        else:
+            # Multiple unrelated roots — find shallowest directories
+            min_depth = min(d.count("/") for d in dir_counts)
+            dirs_to_return = sorted(
+                d for d in dir_counts if d.count("/") == min_depth
+            )
+    else:
+        dirs_to_return = _get_children(parent)
+
+    # Build response
+    response = []
+    for d in dirs_to_return:
+        name = d.rsplit("/", 1)[-1] if "/" in d else d
+        direct_books = dir_counts.get(d, 0)
+        d_prefix = d + "/"
+        total_books = direct_books + sum(
+            c for dd, c in dir_counts.items() if dd.startswith(d_prefix)
+        )
+        has_children = any(
+            dd.startswith(d_prefix) and dd != d for dd in dir_counts
+        )
+
+        response.append({
             "directory": d,
-            "name": d.rsplit("/", 1)[-1] if "/" in d else d,
-            "book_count": count,
-        }
-        for d, count in dir_counts.most_common(20)
-    ]
-    return directories
+            "name": name,
+            "book_count": direct_books,
+            "total_count": total_books,
+            "has_subdirs": has_children,
+        })
+
+    return response
 
 
 @router.get("/library/formats")

@@ -103,6 +103,7 @@ class BookRepository:
         self,
         favorite_only: bool = False,
         recent_only: bool = False,
+        reading_only: bool = False,
         search: Optional[str] = None,
         format_filter: Optional[str] = None,
         source_filter: Optional[str] = None,
@@ -122,6 +123,8 @@ class BookRepository:
             conditions.append(Book.is_favorite == True)
         if recent_only:
             conditions.append(Book.is_recent == True)
+        if reading_only:
+            conditions.append(Book.progress > 0)
         if search:
             search_pattern = f"%{search}%"
             conditions.append(
@@ -137,7 +140,7 @@ class BookRepository:
         if directory_filter:
             # Escape LIKE wildcards to prevent pattern injection
             safe_filter = directory_filter.replace("%", "\\%").replace("_", "\\_")
-            conditions.append(Book.path.like(safe_filter + "/%"))
+            conditions.append(Book.path.like(safe_filter + "/%", escape="\\"))
         if category_id is not None:
             from app.models import BookCategory
             query = query.join(
@@ -160,6 +163,7 @@ class BookRepository:
         limit: int = 100,
         favorite_only: bool = False,
         recent_only: bool = False,
+        reading_only: bool = False,
         search: Optional[str] = None,
         format_filter: Optional[str] = None,
         sort_by: str = "added_date",
@@ -181,6 +185,7 @@ class BookRepository:
         query = self._build_list_query(
             favorite_only=favorite_only,
             recent_only=recent_only,
+            reading_only=reading_only,
             search=search,
             format_filter=format_filter,
             source_filter=source_filter,
@@ -194,6 +199,7 @@ class BookRepository:
         total = await self.count_filtered(
             favorite_only=favorite_only,
             recent_only=recent_only,
+            reading_only=reading_only,
             search=search,
             format_filter=format_filter,
             source_filter=source_filter,
@@ -227,6 +233,7 @@ class BookRepository:
         self,
         favorite_only: bool = False,
         recent_only: bool = False,
+        reading_only: bool = False,
         search: Optional[str] = None,
         format_filter: Optional[str] = None,
         source_filter: Optional[str] = None,
@@ -239,6 +246,7 @@ class BookRepository:
         query = self._build_list_query(
             favorite_only=favorite_only,
             recent_only=recent_only,
+            reading_only=reading_only,
             search=search,
             format_filter=format_filter,
             source_filter=source_filter,
