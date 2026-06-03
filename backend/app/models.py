@@ -59,7 +59,7 @@ class Book(Base):
         "ChapterSummary",
         back_populates="book",
         cascade="all, delete-orphan",
-        lazy="selectin",
+        lazy="raise",
     )
     category_links: Mapped[list["BookCategory"]] = relationship(
         "BookCategory",
@@ -74,6 +74,7 @@ class Book(Base):
         Index('ix_books_recent_hidden', 'is_recent', 'is_hidden'),
         Index('ix_books_hidden_added', 'is_hidden', 'added_date'),
         Index('ix_books_hidden_title', 'is_hidden', 'title'),
+        Index('ix_books_storage_type', 'storage_type'),
     )
 
     def __repr__(self) -> str:

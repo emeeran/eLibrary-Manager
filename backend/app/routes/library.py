@@ -110,16 +110,30 @@ async def _run_background_scan(
             service = LibraryService(db)
             try:
                 results = await coro_fn(service)
+                # Handle both flat stats and nested {"local": ..., "nas": ...} format
+                if "local" in results:
+                    local = results["local"]
+                    nas = results.get("nas", {})
+                    combined = {
+                        "imported": local.get("imported", 0) + nas.get("imported", 0),
+                        "skipped": local.get("skipped", 0) + nas.get("skipped", 0),
+                        "errors": local.get("errors", 0) + nas.get("errors", 0),
+                        "total": local.get("total", 0) + nas.get("total", 0),
+                    }
+                else:
+                    combined = results
                 scan_store.update(
                     scan_id,
                     status="completed",
-                    imported=results.get("imported", 0),
-                    skipped=results.get("skipped", 0),
-                    errors=results.get("errors", 0),
-                    total_found=results.get("total", 0),
-                    processed=results.get("total", 0),
+                    imported=combined.get("imported", 0),
+                    skipped=combined.get("skipped", 0),
+                    errors=combined.get("errors", 0),
+                    total_found=combined.get("total", 0),
+                    processed=combined.get("total", 0),
                     message=complete_message,
                 )
+                from app.services.library_service import invalidate_stats_cache
+                invalidate_stats_cache()
             except Exception as e:
                 scan_store.update(scan_id, status="failed", message=str(e))
     finally:

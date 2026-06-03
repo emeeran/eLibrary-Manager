@@ -40,13 +40,13 @@ class StorageBackend(ABC):
         return await asyncio.to_thread(_walk)
 
     async def file_exists(self, path: str) -> bool:
-        """Check if a file exists."""
-        return os.path.exists(path)
+        """Check if a file exists (non-blocking)."""
+        return await asyncio.to_thread(os.path.exists, path)
 
     async def get_file_size(self, path: str) -> int:
-        """Get file size in bytes."""
+        """Get file size in bytes (non-blocking)."""
         try:
-            return os.path.getsize(path)
+            return await asyncio.to_thread(os.path.getsize, path)
         except OSError:
             return 0
 

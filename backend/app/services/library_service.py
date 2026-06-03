@@ -5,6 +5,7 @@ for library operations.
 """
 
 from datetime import UTC, datetime
+import time
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +16,16 @@ from app.scanner import LibraryScanner
 from app.storage.factory import get_nas_config_from_db, get_storage_backend
 
 logger = get_logger(__name__)
+
+# Module-level TTL cache for library stats (avoids re-querying on every list request)
+_stats_cache: tuple[dict, float] | None = None
+_STATS_TTL = 10.0  # seconds
+
+
+def invalidate_stats_cache() -> None:
+    """Clear the stats TTL cache. Call after mutations that change book counts."""
+    global _stats_cache
+    _stats_cache = None
 
 
 class LibraryService:
@@ -456,7 +467,18 @@ class LibraryService:
         )
 
     async def get_library_stats(self) -> dict:
-        """Get library statistics using aggregate queries."""
+        """Get library statistics using aggregate queries.
+
+        Results are cached for 10 seconds to avoid hammering the database
+        on every list request.
+        """
+        global _stats_cache
+
+        if _stats_cache is not None:
+            cached_stats, cached_time = _stats_cache
+            if time.time() - cached_time < _STATS_TTL:
+                return cached_stats
+
         from sqlalchemy import func, select
 
         from app.models import Book
@@ -473,7 +495,7 @@ class LibraryService:
         )
         row = result.one()
 
-        return {
+        stats = {
             "total_books": row[0] or 0,
             "favorite_books": row[1] or 0,
             "recent_books": row[2] or 0,
@@ -482,6 +504,8 @@ class LibraryService:
             "deleted_books": 0,  # Use /api/maintenance/stale-books for stale file detection
             "hidden_books": row[5] or 0,
         }
+        _stats_cache = (stats, time.time())
+        return stats
 
     async def refresh_covers(self, force: bool = False) -> dict:
         """Re-extract covers for books missing them or all books if forced.
