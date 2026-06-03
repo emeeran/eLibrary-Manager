@@ -1,9 +1,7 @@
 """NAS storage backend via SMB/NFS mount."""
 
-import asyncio
 import os
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from app.logging_config import get_logger
 from app.storage import StorageBackend
@@ -28,7 +26,7 @@ class NASStorageBackend(StorageBackend):
         """
         self.mount_path = mount_path
         self.host = host
-        self._last_check: Optional[datetime] = None
+        self._last_check: datetime | None = None
         self._healthy: bool = False
 
     async def health_check(self) -> dict:
@@ -43,52 +41,23 @@ class NASStorageBackend(StorageBackend):
 
             if not os.path.ismount(self.mount_path) and not os.path.isdir(self.mount_path):
                 self._healthy = False
-                self._last_check = datetime.now(timezone.utc)
+                self._last_check = datetime.now(UTC)
                 return {
                     "healthy": False,
                     "details": f"Path does not exist or is not mounted: {self.mount_path}",
                 }
 
-            # Attempt to list the directory to verify it's responsive
             os.stat(self.mount_path)
-            # Quick check that we can read the directory
             os.listdir(self.mount_path)
 
             self._healthy = True
-            self._last_check = datetime.now(timezone.utc)
+            self._last_check = datetime.now(UTC)
             return {"healthy": True, "details": f"NAS online at {self.host}"}
         except OSError as e:
             self._healthy = False
-            self._last_check = datetime.now(timezone.utc)
+            self._last_check = datetime.now(UTC)
             logger.warning(f"NAS health check failed: {e}")
             return {"healthy": False, "details": f"NAS unreachable: {e}"}
-
-    async def walk_directory(self, root: str) -> list[tuple[str, list[str]]]:
-        """Walk NAS directory tree via mount point (non-blocking)."""
-        def _walk() -> list[tuple[str, list[str]]]:
-            result: list[tuple[str, list[str]]] = []
-            try:
-                for dirpath, _, filenames in os.walk(root):
-                    result.append((dirpath, filenames))
-            except OSError as e:
-                logger.error(f"Failed to walk NAS directory {root}: {e}")
-            return result
-        return await asyncio.to_thread(_walk)
-
-    async def file_exists(self, path: str) -> bool:
-        """Check if file exists on NAS mount."""
-        return os.path.exists(path)
-
-    async def get_file_size(self, path: str) -> int:
-        """Get file size from NAS mount."""
-        try:
-            return os.path.getsize(path)
-        except OSError:
-            return 0
-
-    def resolve_path(self, path: str) -> str:
-        """Return path as-is (already local via mount)."""
-        return path
 
     @property
     def is_healthy(self) -> bool:

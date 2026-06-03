@@ -1,8 +1,6 @@
 """Background health monitor for NAS mount connectivity."""
 
 import asyncio
-from datetime import datetime
-from typing import Optional
 
 from app.logging_config import get_logger
 from app.storage.nas import NASStorageBackend
@@ -30,7 +28,7 @@ class NASHealthMonitor:
         """
         self.backend = backend
         self.check_interval = check_interval
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
 
     async def start(self) -> None:
         """Start the background health check loop."""

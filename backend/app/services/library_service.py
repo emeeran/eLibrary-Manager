@@ -4,17 +4,14 @@ Coordinates between repositories, scanner, and business logic
 for library operations.
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_config
 from app.logging_config import get_logger
 from app.models import Book
 from app.repositories import BookRepository
 from app.scanner import LibraryScanner
-from app.schemas import BookUpdate
 from app.storage.factory import get_nas_config_from_db, get_storage_backend
 
 logger = get_logger(__name__)
@@ -38,8 +35,8 @@ class LibraryService:
 
     async def scan_and_import(
         self,
-        directory: Optional[str] = None,
-        scan_id: Optional[str] = None,
+        directory: str | None = None,
+        scan_id: str | None = None,
     ) -> dict:
         """Scan library directory and import new books.
 
@@ -91,8 +88,8 @@ class LibraryService:
 
     async def fast_index(
         self,
-        directory: Optional[str] = None,
-        scan_id: Optional[str] = None,
+        directory: str | None = None,
+        scan_id: str | None = None,
     ) -> dict:
         """Fast-index library directory — filename-based metadata, no file opening.
 
@@ -132,6 +129,7 @@ class LibraryService:
 
         # Load all existing paths in one query for O(1) lookup
         from sqlalchemy import select
+
         from app.models import Book as BookModel
         result = await self.session.execute(select(BookModel.path))
         existing_paths = {row[0] for row in result.all()}
@@ -230,8 +228,8 @@ class LibraryService:
     async def _scan_source(
         self,
         scanner: LibraryScanner,
-        directory: Optional[str] = None,
-        scan_id: Optional[str] = None,
+        directory: str | None = None,
+        scan_id: str | None = None,
     ) -> dict:
         """Scan a single source directory and import books.
 
@@ -297,8 +295,8 @@ class LibraryService:
     async def _fast_index_source(
         self,
         scanner: LibraryScanner,
-        directory: Optional[str] = None,
-        scan_id: Optional[str] = None,
+        directory: str | None = None,
+        scan_id: str | None = None,
     ) -> dict:
         """Fast-index a single source directory.
 
@@ -315,6 +313,7 @@ class LibraryService:
         books_data = await scanner.fast_index_directory(directory)
 
         from sqlalchemy import select
+
         from app.models import Book as BookModel
         result = await self.session.execute(select(BookModel.path))
         existing_paths = {row[0] for row in result.all()}
@@ -415,7 +414,7 @@ class LibraryService:
             ResourceNotFoundError: If book not found
         """
         book = await self.book_repo.get_by_id_or_404(book_id)
-        book.last_read_date = datetime.now(timezone.utc)
+        book.last_read_date = datetime.now(UTC)
         await self.session.flush()
         return book
 
@@ -426,15 +425,15 @@ class LibraryService:
         favorite_only: bool = False,
         recent_only: bool = False,
         reading_only: bool = False,
-        search: Optional[str] = None,
-        format_filter: Optional[str] = None,
+        search: str | None = None,
+        format_filter: str | None = None,
         sort_by: str = "added_date",
         sort_order: str = "desc",
-        source_filter: Optional[str] = None,
-        category_id: Optional[int] = None,
+        source_filter: str | None = None,
+        category_id: int | None = None,
         hidden_only: bool = False,
         show_hidden: bool = False,
-        directory_filter: Optional[str] = None,
+        directory_filter: str | None = None,
     ) -> tuple[list[Book], int]:
         """List books with pagination, filters, and sorting."""
         skip = (page - 1) * page_size
@@ -459,6 +458,7 @@ class LibraryService:
     async def get_library_stats(self) -> dict:
         """Get library statistics using aggregate queries."""
         from sqlalchemy import func, select
+
         from app.models import Book
 
         result = await self.session.execute(

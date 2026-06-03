@@ -5,7 +5,6 @@ import os
 import re
 import struct
 from pathlib import Path
-from typing import Optional
 
 try:
     from pymobi.mobi import BookMobi
@@ -170,7 +169,7 @@ class MOBIParser:
         except Exception:
             return False
 
-    async def extract_cover(self, mobi_path: str) -> Optional[str]:
+    async def extract_cover(self, mobi_path: str) -> str | None:
         """Extract cover from MOBI.
 
         Args:
@@ -224,7 +223,7 @@ class MOBIParser:
 
         # Get the decompression function
         try:
-            from pymobi.compression import Palmdoc, Uncompression, Huffcdic
+            from pymobi.compression import Huffcdic, Palmdoc, Uncompression
             compression_type = mobi.palmdoc['compressionType']
             if compression_type == 2:
                 unpack = Palmdoc.decompress

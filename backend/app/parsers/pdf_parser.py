@@ -5,7 +5,6 @@ import hashlib
 import html
 import os
 from pathlib import Path
-from typing import Optional
 
 import fitz  # PyMuPDF
 from PIL import Image
@@ -125,7 +124,7 @@ class PDFParser:
                 {"path": pdf_path, "error": str(e)}
             ) from e
 
-    async def extract_cover(self, pdf_path: str) -> Optional[str]:
+    async def extract_cover(self, pdf_path: str) -> str | None:
         """Extract cover from PDF by rendering the first page.
 
         Uses PyMuPDF to render the first page as an image for

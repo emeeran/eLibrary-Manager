@@ -1,7 +1,5 @@
 """Multi-provider AI orchestration with automatic fallback."""
 
-import time
-from typing import Optional
 
 from app.ai_providers import (
     BaseAIProvider,
@@ -9,7 +7,7 @@ from app.ai_providers import (
     OllamaProvider,
 )
 from app.config import get_config
-from app.exceptions import AIServiceError, RateLimitError
+from app.exceptions import AIServiceError
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -27,7 +25,7 @@ class AIProviderOrchestrator:
         """Initialize orchestrator with all providers."""
         self.config = get_config()
         self.providers: list[BaseAIProvider] = []
-        self.current_provider: Optional[str] = None
+        self.current_provider: str | None = None
         self._initialize_providers()
 
     def _initialize_providers(self) -> None:
@@ -59,7 +57,7 @@ class AIProviderOrchestrator:
     async def summarize(
         self,
         text: str,
-        context: Optional[str] = None
+        context: str | None = None
     ) -> str:
         """Generate summary with automatic fallback.
 
@@ -210,7 +208,7 @@ class AIProviderOrchestrator:
 
 
 # Global orchestrator instance
-_orchestrator: Optional[AIProviderOrchestrator] = None
+_orchestrator: AIProviderOrchestrator | None = None
 
 
 async def get_ai_orchestrator() -> AIProviderOrchestrator:

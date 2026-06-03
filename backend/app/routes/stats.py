@@ -3,7 +3,7 @@
 Provides aggregated reading statistics for the dashboard.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -25,7 +25,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     Returns:
         dict: Reading stats including totals, progress, authors, formats, streaks.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     week_ago = now - timedelta(days=7)
     month_ago = now - timedelta(days=30)
 

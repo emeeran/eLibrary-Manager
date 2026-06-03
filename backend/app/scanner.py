@@ -2,7 +2,6 @@
 
 import os
 from pathlib import Path
-from typing import Optional
 
 from app.config import get_config
 from app.exceptions import LibraryScannerError
@@ -141,8 +140,8 @@ class LibraryScanner:
         Returns:
             List of BookCreate objects with lightweight metadata.
         """
-        import re
         import asyncio
+        import re
 
         target_dir = directory or self.config.library_path
         logger.info(f"Starting fast index: {target_dir}")
@@ -260,7 +259,7 @@ class LibraryScanner:
         # Extract metadata using format-specific parser
         return await parser.extract_metadata(ebook_path)
 
-    async def extract_cover(self, ebook_path: str) -> Optional[str]:
+    async def extract_cover(self, ebook_path: str) -> str | None:
         """Extract cover image using the appropriate parser.
 
         Args:

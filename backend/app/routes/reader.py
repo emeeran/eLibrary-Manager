@@ -167,8 +167,8 @@ async def get_page_image(
     if nas_error:
         return nas_error
 
-    from app.parsers import PDFParser
     from app.config import get_config
+    from app.parsers import PDFParser
     config = get_config()
     parser = PDFParser(
         covers_path=config.covers_path,

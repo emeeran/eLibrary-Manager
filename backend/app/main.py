@@ -105,8 +105,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Run Alembic migrations (sync, in thread to avoid blocking event loop)
     import asyncio
 
-    from alembic import command
     from alembic.config import Config as AlembicConfig
+
+    from alembic import command
 
     alembic_cfg = AlembicConfig("alembic.ini")
     db_url = config.database_url
@@ -119,7 +120,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         script = ScriptDirectory.from_config(alembic_cfg)
         head = script.get_current_head()
         # Check if DB has existing tables but no alembic_version
-        from sqlalchemy import create_engine, inspect as sa_inspect
+        from sqlalchemy import create_engine
+        from sqlalchemy import inspect as sa_inspect
         engine = create_engine(db_url)
         inspector = sa_inspect(engine)
         tables = inspector.get_table_names()

@@ -1,7 +1,8 @@
 """Storage backend abstraction for local and NAS file access."""
 
+import asyncio
+import os
 from abc import ABC, abstractmethod
-from typing import AsyncIterator
 
 
 class StorageBackend(ABC):
@@ -19,9 +20,8 @@ class StorageBackend(ABC):
             Dict with "healthy" (bool) and "details" (str) keys.
         """
 
-    @abstractmethod
     async def walk_directory(self, root: str) -> list[tuple[str, list[str]]]:
-        """Recursively walk a directory tree.
+        """Recursively walk a directory tree (non-blocking).
 
         Args:
             root: Root directory path to walk.
@@ -29,36 +29,27 @@ class StorageBackend(ABC):
         Returns:
             List of (dirpath, filenames) tuples.
         """
+        def _walk() -> list[tuple[str, list[str]]]:
+            result: list[tuple[str, list[str]]] = []
+            try:
+                for dirpath, _, filenames in os.walk(root):
+                    result.append((dirpath, filenames))
+            except OSError:
+                pass
+            return result
+        return await asyncio.to_thread(_walk)
 
-    @abstractmethod
     async def file_exists(self, path: str) -> bool:
-        """Check if a file exists.
+        """Check if a file exists."""
+        return os.path.exists(path)
 
-        Args:
-            path: File path to check.
-
-        Returns:
-            True if the file exists.
-        """
-
-    @abstractmethod
     async def get_file_size(self, path: str) -> int:
-        """Get file size in bytes.
+        """Get file size in bytes."""
+        try:
+            return os.path.getsize(path)
+        except OSError:
+            return 0
 
-        Args:
-            path: File path.
-
-        Returns:
-            File size in bytes.
-        """
-
-    @abstractmethod
     def resolve_path(self, path: str) -> str:
-        """Resolve to a locally-accessible path for parsers.
-
-        Args:
-            path: Original file path.
-
-        Returns:
-            Path that can be opened by local file APIs.
-        """
+        """Return path as-is (locally accessible via mount)."""
+        return path

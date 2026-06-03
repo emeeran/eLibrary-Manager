@@ -5,7 +5,6 @@ Uses LRU eviction when the cache exceeds a configurable size limit.
 """
 
 import hashlib
-import os
 import shutil
 from pathlib import Path
 from typing import Optional
@@ -50,7 +49,7 @@ class NASFileCache:
         """Return the metadata file path for tracking original paths."""
         return self.cache_dir / f"{self._path_hash(nas_path)}.meta"
 
-    async def get(self, nas_path: str) -> Optional[str]:
+    async def get(self, nas_path: str) -> str | None:
         """Check if a file is cached and return the cached path.
 
         Args:
@@ -201,7 +200,7 @@ class NASFileCache:
         return result
 
 
-def get_nas_cache() -> Optional[NASFileCache]:
+def get_nas_cache() -> NASFileCache | None:
     """Get or create the NAS file cache singleton.
 
     Returns:

@@ -1,6 +1,5 @@
 """Google Gemini API provider for AI summarization."""
 
-from typing import Optional
 
 from google import genai
 from google.genai import types
@@ -43,7 +42,7 @@ class GoogleProvider(BaseAIProvider):
         # Use model from config
         self.model = self.config.google_model
 
-    async def summarize(self, text: str, context: Optional[str] = None) -> str:
+    async def summarize(self, text: str, context: str | None = None) -> str:
         """Generate a summary using Google Gemini.
 
         Args:

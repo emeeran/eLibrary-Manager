@@ -1,6 +1,5 @@
 """Factory for creating storage backend instances."""
 
-from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,7 +9,7 @@ from app.storage.local import LocalStorageBackend
 from app.storage.nas import NASStorageBackend
 
 
-async def get_nas_config_from_db(session: AsyncSession) -> dict[str, Optional[str]]:
+async def get_nas_config_from_db(session: AsyncSession) -> dict[str, str | None]:
     """Read NAS settings from DB, falling back to env config.
 
     Args:
@@ -24,7 +23,7 @@ async def get_nas_config_from_db(session: AsyncSession) -> dict[str, Optional[st
     repo = SettingsRepository(session)
     stored = await repo.get_all()
 
-    def _str(key: str) -> Optional[str]:
+    def _str(key: str) -> str | None:
         return stored.get(key)
 
     def _bool(key: str) -> bool:
@@ -42,8 +41,8 @@ async def get_nas_config_from_db(session: AsyncSession) -> dict[str, Optional[st
 
 def get_storage_backend(
     storage_type: str = "local",
-    mount_path: Optional[str] = None,
-    host: Optional[str] = None,
+    mount_path: str | None = None,
+    host: str | None = None,
 ) -> StorageBackend:
     """Create a storage backend instance.
 

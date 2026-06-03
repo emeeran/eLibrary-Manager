@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import os
 from pathlib import Path
-from typing import Optional
 
 import ebooklib
 from bs4 import BeautifulSoup
@@ -123,7 +122,7 @@ class EPUBParser:
                 {"path": epub_path, "error": str(e)}
             ) from e
 
-    async def extract_cover(self, epub_path: str) -> Optional[str]:
+    async def extract_cover(self, epub_path: str) -> str | None:
         """Extract and save cover image from EPUB.
 
         Args:
@@ -221,6 +220,7 @@ class EPUBParser:
         """
         try:
             import warnings
+
             from bs4 import XMLParsedAsHTMLWarning
             warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
@@ -262,6 +262,7 @@ class EPUBParser:
         """
         try:
             import warnings
+
             from bs4 import XMLParsedAsHTMLWarning
             warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 

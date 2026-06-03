@@ -1,7 +1,6 @@
 """Pydantic schemas for API request/response validation."""
 
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +9,7 @@ class BookBase(BaseModel):
     """Base schema for Book data."""
 
     title: str = Field(..., min_length=1, max_length=500, description="Book title")
-    author: Optional[str] = Field(None, max_length=300, description="Book author")
+    author: str | None = Field(None, max_length=300, description="Book author")
     format: str = Field(default="EPUB", pattern="^(EPUB|PDF|MOBI)$")
 
 
@@ -19,12 +18,12 @@ class BookCreate(BookBase):
 
     path: str = Field(..., min_length=1, max_length=1000)
     file_size: int = Field(..., ge=0)
-    cover_path: Optional[str] = Field(None, max_length=1000)
-    publisher: Optional[str] = Field(None, max_length=300)
-    publish_date: Optional[str] = Field(None, max_length=50)
-    description: Optional[str] = Field(None)
-    language: Optional[str] = Field(None, max_length=20)
-    isbn: Optional[str] = Field(None, max_length=30)
+    cover_path: str | None = Field(None, max_length=1000)
+    publisher: str | None = Field(None, max_length=300)
+    publish_date: str | None = Field(None, max_length=50)
+    description: str | None = Field(None)
+    language: str | None = Field(None, max_length=20)
+    isbn: str | None = Field(None, max_length=30)
     total_pages: int = Field(default=0, ge=0)
     storage_type: str = Field(default="local", pattern="^(local|nas)$")
     subjects: list[str] = Field(default_factory=list, max_length=20, description="Subjects/tags from metadata")
@@ -33,13 +32,13 @@ class BookCreate(BookBase):
 class BookUpdate(BaseModel):
     """Schema for updating book metadata."""
 
-    title: Optional[str] = Field(None, min_length=1, max_length=500)
-    author: Optional[str] = Field(None, max_length=300)
-    is_favorite: Optional[bool] = None
-    is_hidden: Optional[bool] = None
-    progress: Optional[float] = Field(None, ge=0, le=100)
-    current_chapter: Optional[int] = Field(None, ge=0)
-    rating: Optional[int] = Field(None, ge=0, le=5)
+    title: str | None = Field(None, min_length=1, max_length=500)
+    author: str | None = Field(None, max_length=300)
+    is_favorite: bool | None = None
+    is_hidden: bool | None = None
+    progress: float | None = Field(None, ge=0, le=100)
+    current_chapter: int | None = Field(None, ge=0)
+    rating: int | None = Field(None, ge=0, le=5)
 
 
 class BookResponse(BookBase):
@@ -47,7 +46,7 @@ class BookResponse(BookBase):
 
     id: int
     path: str
-    cover_path: Optional[str]
+    cover_path: str | None
     total_chapters: int
     current_chapter: int
     progress: float
@@ -56,12 +55,12 @@ class BookResponse(BookBase):
     is_recent: bool
     file_size: int
     added_date: datetime
-    last_read_date: Optional[datetime]
-    publisher: Optional[str] = None
-    publish_date: Optional[str] = None
-    description: Optional[str] = None
-    language: Optional[str] = None
-    isbn: Optional[str] = None
+    last_read_date: datetime | None
+    publisher: str | None = None
+    publish_date: str | None = None
+    description: str | None = None
+    language: str | None = None
+    isbn: str | None = None
     total_pages: int = 0
     storage_type: str = "local"
     rating: int = 0
@@ -96,7 +95,7 @@ class BookListResponse(BaseModel):
     total: int
     page: int
     page_size: int
-    counts: Optional[dict[str, int]] = None  # Sidebar counts (all, recent, favorites, etc.)
+    counts: dict[str, int] | None = None  # Sidebar counts (all, recent, favorites, etc.)
 
 
 class ProgressUpdate(BaseModel):
@@ -120,8 +119,8 @@ class DirectoryImportRequest(BaseModel):
 class BookmarkBase(BaseModel):
     """Base schema for Bookmark data."""
 
-    title: Optional[str] = Field(None, max_length=500, description="Bookmark title")
-    notes: Optional[str] = Field(None, description="Bookmark notes")
+    title: str | None = Field(None, max_length=500, description="Bookmark title")
+    notes: str | None = Field(None, description="Bookmark notes")
 
 
 class BookmarkCreate(BookmarkBase):
@@ -158,7 +157,7 @@ class NoteBase(BaseModel):
 
     content: str = Field(..., min_length=1, description="Note content")
     color: str = Field("yellow", pattern="^(yellow|green|blue|pink|orange)$")
-    quoted_text: Optional[str] = Field(None, description="Text being noted")
+    quoted_text: str | None = Field(None, description="Text being noted")
 
 
 class NoteCreate(NoteBase):
@@ -196,7 +195,7 @@ class AnnotationBase(BaseModel):
 
     text: str = Field(..., min_length=1, description="Annotated text")
     color: str = Field("yellow", pattern="^(yellow|green|blue|pink|orange)$")
-    note: Optional[str] = Field(None, description="Optional note attached to annotation")
+    note: str | None = Field(None, description="Optional note attached to annotation")
 
 
 class AnnotationCreate(AnnotationBase):
@@ -259,34 +258,34 @@ TOCItem.model_rebuild()
 class SettingsCreate(BaseModel):
     """Schema for creating/updating settings."""
 
-    library_path: Optional[str] = Field(None, max_length=1000)
-    auto_scan: Optional[bool] = None
-    watch_changes: Optional[bool] = None
-    page_layout: Optional[str] = Field(None, pattern="^(single|double|continuous)$")
-    text_align: Optional[str] = Field(None, pattern="^(justify|left|center)$")
-    font_size: Optional[int] = Field(None, ge=8, le=200)
-    font_family: Optional[str] = Field(None, max_length=50)
-    line_height: Optional[str] = Field(None, max_length=10)
-    theme: Optional[str] = Field(None, max_length=30)
-    tts_speed: Optional[str] = Field(None, max_length=10)
-    tts_pitch: Optional[float] = Field(None, ge=0.5, le=2.0)
-    ai_provider: Optional[str] = Field(None, pattern="^(auto|google|groq|ollama)$")
-    ai_api_key: Optional[str] = Field(None, max_length=500)
-    ollama_url: Optional[str] = Field(None, max_length=500)
-    auto_flip: Optional[bool] = None
-    flip_interval: Optional[int] = Field(None, ge=5, le=300)
-    summary_length: Optional[str] = Field(None, pattern="^(short|medium|long)$")
-    auto_summary: Optional[bool] = None
+    library_path: str | None = Field(None, max_length=1000)
+    auto_scan: bool | None = None
+    watch_changes: bool | None = None
+    page_layout: str | None = Field(None, pattern="^(single|double|continuous)$")
+    text_align: str | None = Field(None, pattern="^(justify|left|center)$")
+    font_size: int | None = Field(None, ge=8, le=200)
+    font_family: str | None = Field(None, max_length=50)
+    line_height: str | None = Field(None, max_length=10)
+    theme: str | None = Field(None, max_length=30)
+    tts_speed: str | None = Field(None, max_length=10)
+    tts_pitch: float | None = Field(None, ge=0.5, le=2.0)
+    ai_provider: str | None = Field(None, pattern="^(auto|google|groq|ollama)$")
+    ai_api_key: str | None = Field(None, max_length=500)
+    ollama_url: str | None = Field(None, max_length=500)
+    auto_flip: bool | None = None
+    flip_interval: int | None = Field(None, ge=5, le=300)
+    summary_length: str | None = Field(None, pattern="^(short|medium|long)$")
+    auto_summary: bool | None = None
 
     # NAS Settings
-    nas_enabled: Optional[bool] = None
-    nas_host: Optional[str] = Field(None, max_length=100)
-    nas_share: Optional[str] = Field(None, max_length=200)
-    nas_mount_path: Optional[str] = Field(None, max_length=500)
-    nas_protocol: Optional[str] = Field(None, pattern="^(smb|nfs)$")
-    nas_username: Optional[str] = Field(None, max_length=100)
-    nas_password: Optional[str] = Field(None, max_length=200)
-    nas_auto_mount: Optional[bool] = None
+    nas_enabled: bool | None = None
+    nas_host: str | None = Field(None, max_length=100)
+    nas_share: str | None = Field(None, max_length=200)
+    nas_mount_path: str | None = Field(None, max_length=500)
+    nas_protocol: str | None = Field(None, pattern="^(smb|nfs)$")
+    nas_username: str | None = Field(None, max_length=100)
+    nas_password: str | None = Field(None, max_length=200)
+    nas_auto_mount: bool | None = None
 
 
 class SettingsResponse(BaseModel):
@@ -304,7 +303,7 @@ class SettingsResponse(BaseModel):
     tts_speed: str
     tts_pitch: float
     ai_provider: str
-    ollama_url: Optional[str] = None
+    ollama_url: str | None = None
     auto_flip: bool
     flip_interval: int
     summary_length: str
@@ -324,7 +323,7 @@ class AIConnectionTest(BaseModel):
     """Schema for AI connection test request."""
 
     provider: str = Field(..., pattern="^(auto|google|groq|ollama)$")
-    api_key: Optional[str] = None
+    api_key: str | None = None
 
 
 # ============================================
@@ -335,9 +334,9 @@ class NASHealthResponse(BaseModel):
     """Schema for NAS health check response."""
 
     healthy: bool
-    last_check: Optional[datetime] = None
+    last_check: datetime | None = None
     mount_path: str
-    details: Optional[str] = None
+    details: str | None = None
 
 
 # ============================================
@@ -377,7 +376,7 @@ class StaleBookItem(BaseModel):
 
     id: int
     title: str
-    author: Optional[str] = None
+    author: str | None = None
     path: str
     format: str
     file_size: int
@@ -406,7 +405,7 @@ class DuplicateGroup(BaseModel):
     """A group of books sharing the same title+author."""
 
     title: str
-    author: Optional[str] = None
+    author: str | None = None
     copies: list[DuplicateBookItem]
     recommended_keep_id: int
     recommended_keep_reason: str

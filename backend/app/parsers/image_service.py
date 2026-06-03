@@ -1,7 +1,6 @@
 """Shared image extraction, storage, and URL service for PDF and EPUB."""
 
 import hashlib
-import os
 import re
 from io import BytesIO
 from pathlib import Path

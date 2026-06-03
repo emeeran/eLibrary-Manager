@@ -6,7 +6,6 @@ import hashlib
 import os
 
 from app.chapter_cache import get_chapter_cache
-from app.exceptions import ResourceNotFoundError
 from app.logging_config import get_logger
 from app.scanner import LibraryScanner
 
@@ -62,13 +61,13 @@ class ReaderEngine:
             EbookParsingError: If parsing fails
         """
         file_mtime = self._get_file_mtime(ebook_path)
-        
+
         # Try cache first
         cached = await self._cache.get(ebook_path, chapter_index, file_mtime)
         if cached:
             logger.debug(f"Cache HIT for {ebook_path} ch{chapter_index}")
             return cached.content, cached.title, cached.total_chapters
-        
+
         logger.debug(f"Cache MISS for {ebook_path} ch{chapter_index}")
 
         # Extract only the requested chapter (avoids full-book parse)

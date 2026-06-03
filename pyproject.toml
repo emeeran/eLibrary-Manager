@@ -11,7 +11,6 @@ dependencies = [
     "aiosqlite>=0.19.0",
     "ebooklib>=0.18",
     "beautifulsoup4>=4.12.2",
-    "lxml>=4.9.3",
     "jinja2>=3.1.2",
     "google-genai>=0.3.0",
     "openai>=1.0.0",
@@ -45,6 +44,8 @@ target-version = ['py312']
 
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
 ignore = ["E501"]
 

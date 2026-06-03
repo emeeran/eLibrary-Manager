@@ -6,7 +6,7 @@ TTS Fallback Strategy:
 3. gTTS (server-side) - Final fallback
 """
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse

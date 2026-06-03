@@ -4,7 +4,6 @@ Uses gTTS library to generate speech from text.
 """
 
 import asyncio
-from typing import Optional
 
 from app.logging_config import get_logger
 
@@ -14,7 +13,7 @@ logger = get_logger(__name__)
 class GTTSError(Exception):
     """gTTS service error."""
 
-    def __init__(self, message: str, details: Optional[str] = None):
+    def __init__(self, message: str, details: str | None = None):
         self.message = message
         self.details = details
         super().__init__(message)
@@ -128,8 +127,6 @@ class GTTSService:
 
         try:
             from gtts import gTTS
-            from gtts.tts import gTTSError
-
             # Validate input
             if not text or not text.strip():
                 raise ValueError("Text cannot be empty")
@@ -211,9 +208,9 @@ class GTTSService:
     async def text_to_speech(
         cls,
         text: str,
-        voice: Optional[str] = None,
-        rate: Optional[str] = None,
-        pitch: Optional[str] = None
+        voice: str | None = None,
+        rate: str | None = None,
+        pitch: str | None = None
     ) -> bytes:
         """Convert text to speech with gTTS.
 

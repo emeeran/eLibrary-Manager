@@ -1,8 +1,7 @@
 """Repository pattern for database operations."""
 
-from typing import Optional
 
-from sqlalchemy import and_, asc, desc, func, or_, select, text
+from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.exceptions import ResourceNotFoundError, ValidationError
@@ -51,7 +50,7 @@ class BookRepository:
         await self.session.refresh(book)
         return book
 
-    async def get_by_id(self, book_id: int) -> Optional[Book]:
+    async def get_by_id(self, book_id: int) -> Book | None:
         """Retrieve book by ID.
 
         Args:
@@ -85,7 +84,7 @@ class BookRepository:
             )
         return book
 
-    async def get_by_path(self, path: str) -> Optional[Book]:
+    async def get_by_path(self, path: str) -> Book | None:
         """Retrieve book by file path.
 
         Args:
@@ -104,13 +103,13 @@ class BookRepository:
         favorite_only: bool = False,
         recent_only: bool = False,
         reading_only: bool = False,
-        search: Optional[str] = None,
-        format_filter: Optional[str] = None,
-        source_filter: Optional[str] = None,
-        category_id: Optional[int] = None,
+        search: str | None = None,
+        format_filter: str | None = None,
+        source_filter: str | None = None,
+        category_id: int | None = None,
         hidden_only: bool = False,
         show_hidden: bool = False,
-        directory_filter: Optional[str] = None,
+        directory_filter: str | None = None,
     ) -> tuple:
         """Build base query conditions for book listing.
 
@@ -164,15 +163,15 @@ class BookRepository:
         favorite_only: bool = False,
         recent_only: bool = False,
         reading_only: bool = False,
-        search: Optional[str] = None,
-        format_filter: Optional[str] = None,
+        search: str | None = None,
+        format_filter: str | None = None,
         sort_by: str = "added_date",
         sort_order: str = "desc",
-        source_filter: Optional[str] = None,
-        category_id: Optional[int] = None,
+        source_filter: str | None = None,
+        category_id: int | None = None,
         hidden_only: bool = False,
         show_hidden: bool = False,
-        directory_filter: Optional[str] = None,
+        directory_filter: str | None = None,
     ) -> tuple[list[Book], int]:
         """List books with optional filters and sorting, returning total count.
 
@@ -234,13 +233,13 @@ class BookRepository:
         favorite_only: bool = False,
         recent_only: bool = False,
         reading_only: bool = False,
-        search: Optional[str] = None,
-        format_filter: Optional[str] = None,
-        source_filter: Optional[str] = None,
-        category_id: Optional[int] = None,
+        search: str | None = None,
+        format_filter: str | None = None,
+        source_filter: str | None = None,
+        category_id: int | None = None,
         hidden_only: bool = False,
         show_hidden: bool = False,
-        directory_filter: Optional[str] = None,
+        directory_filter: str | None = None,
     ) -> int:
         """Count books matching filters."""
         query = self._build_list_query(
@@ -408,7 +407,7 @@ class ChapterSummaryRepository:
         self,
         book_id: int,
         chapter_index: int
-    ) -> Optional[ChapterSummary]:
+    ) -> ChapterSummary | None:
         """Retrieve cached summary for a chapter.
 
         Args:
@@ -432,7 +431,7 @@ class ChapterSummaryRepository:
         self,
         book_id: int,
         chapter_index: int,
-        chapter_title: Optional[str],
+        chapter_title: str | None,
         summary_text: str,
         provider: str = "google"
     ) -> ChapterSummary:
@@ -488,7 +487,7 @@ class BookSummaryRepository:
         """
         self.session = session
 
-    async def get_by_book(self, book_id: int) -> Optional[BookSummary]:
+    async def get_by_book(self, book_id: int) -> BookSummary | None:
         """Get book summary for a book.
 
         Args:

@@ -4,7 +4,6 @@ Combines rule-based metadata matching with AI-powered suggestions.
 """
 
 from difflib import SequenceMatcher
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

@@ -237,7 +237,6 @@
 
                 this.isPlaying = true;
                 isServerLoading = false;
-                console.log('[TTS] Playing segment 0, duration:', audioElement.duration);
                 await audioElement.play();
                 audioElement._objectUrl = objectUrl;
 
@@ -876,24 +875,6 @@
             }
             parent.replaceChild(fragment, textNode);
         }
-
-        console.log('[TTS] segmentSentencesAndWords: wrapped', _sentenceSpans.length, 'sentences,', _wordSpans.length, 'words');
-    }
-
-    /**
-     * Wrap every word in the chapter DOM with a <span class="tts-word">.
-     * Deprecated: use segmentSentencesAndWords() instead.
-     */
-    function segmentWords() {
-        segmentSentencesAndWords();
-    }
-
-    /**
-     * Wrap sentences in the chapter DOM with <span class="tts-sentence">.
-     * Deprecated: use segmentSentencesAndWords() instead.
-     */
-    function segmentSentences() {
-        segmentSentencesAndWords();
     }
 
     /**
@@ -939,7 +920,6 @@
             }
         }
         _isHighlighting = _wordSpans.length > 0;
-        console.log('[TTS] segmentMap:', JSON.stringify(_segmentWordMap));
     }
 
     /**
@@ -1025,8 +1005,6 @@
             return;
         }
 
-        console.log('[TTS] Tracking segment', segIndex, 'words', range.startWord, '-', range.endWord);
-
         const totalSegWords = range.endWord - range.startWord;
         _dimSegmentWords(segIndex);
         _highlightSentence(segIndex);
@@ -1054,11 +1032,6 @@
 
             const wordOffset = Math.min(Math.floor(progress * totalSegWords), totalSegWords - 1);
             const wordIndex = range.startWord + wordOffset;
-
-            if (!loggedOnce) {
-                console.log('[TTS] first tick: rate=', rate, 'wps=', wordsPerSec, 'progress=', progress, 'word=', wordIndex);
-                loggedOnce = true;
-            }
 
             if (wordIndex !== _currentWordIndex && wordIndex < _wordSpans.length) {
                 if (_currentWordIndex >= 0 && _currentWordIndex < _wordSpans.length) {

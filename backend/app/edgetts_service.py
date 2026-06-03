@@ -3,7 +3,7 @@
 Uses Microsoft Edge's free TTS API via the edge-tts package.
 """
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import edge_tts
 

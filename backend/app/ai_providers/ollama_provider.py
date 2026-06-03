@@ -1,11 +1,9 @@
 """Unified Ollama API provider for AI summarization (Cloud and Local)."""
 
-from typing import Optional
 
 from openai import AsyncOpenAI
 
 from app.ai_providers.base import BaseAIProvider
-from app.config import get_config
 from app.exceptions import AIServiceError
 from app.logging_config import get_logger
 
@@ -43,7 +41,7 @@ class OllamaProvider(BaseAIProvider):
         self._health_timeout = health_timeout
         self._available = True
 
-    async def summarize(self, text: str, context: Optional[str] = None) -> str:
+    async def summarize(self, text: str, context: str | None = None) -> str:
         """Generate a summary using Ollama.
 
         Args:

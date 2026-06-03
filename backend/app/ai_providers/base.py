@@ -1,7 +1,6 @@
 """Abstract base class for all AI providers."""
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 
 class BaseAIProvider(ABC):
@@ -21,7 +20,7 @@ class BaseAIProvider(ABC):
         self._client = None
 
     @abstractmethod
-    async def summarize(self, text: str, context: Optional[str] = None) -> str:
+    async def summarize(self, text: str, context: str | None = None) -> str:
         """Generate a summary for the given text.
 
         Args:
@@ -45,7 +44,7 @@ class BaseAIProvider(ABC):
         """
         pass
 
-    def _build_prompt(self, text: str, context: Optional[str] = None) -> str:
+    def _build_prompt(self, text: str, context: str | None = None) -> str:
         """Build the prompt for AI summarization.
 
         Args:

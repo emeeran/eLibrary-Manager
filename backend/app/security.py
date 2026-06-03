@@ -3,7 +3,6 @@
 import base64
 import hashlib
 import hmac
-from pathlib import Path
 
 from cryptography.fernet import Fernet
 

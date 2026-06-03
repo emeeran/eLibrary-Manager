@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 from collections import OrderedDict
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.logging_config import get_logger
 
@@ -32,7 +32,7 @@ class ChapterCache:
     Provides O(1) lookup for cached chapters and automatic eviction
     when the cache size limit is reached.
     """
-    
+
     def __init__(self, max_size: int = 200) -> None:
         """Initialize cache with size limit.
         
@@ -44,7 +44,7 @@ class ChapterCache:
         self._lock = asyncio.Lock()
         self._hits = 0
         self._misses = 0
-    
+
     # Bump when content extraction logic changes to invalidate all caches
     CONTENT_VERSION = 2
 
@@ -69,27 +69,27 @@ class ChapterCache:
             Cached chapter data or None if not cached/stale
         """
         key = self._make_key(book_path, chapter_index)
-        
+
         async with self._lock:
             if key not in self._cache:
                 self._misses += 1
                 return None
-            
+
             cached = self._cache[key]
-            
+
             # Invalidate if file was modified
             if file_mtime is not None and cached.file_mtime != file_mtime:
                 del self._cache[key]
                 self._misses += 1
                 logger.debug(f"Cache invalidated for {book_path} ch{chapter_index}")
                 return None
-            
+
             # Move to end (most recently used)
             self._cache.move_to_end(key)
             self._hits += 1
-            
+
             return cached
-    
+
     async def put(
         self,
         book_path: str,
@@ -110,22 +110,22 @@ class ChapterCache:
             file_mtime: File modification time
         """
         key = self._make_key(book_path, chapter_index)
-        
+
         async with self._lock:
             # Remove oldest if at capacity
             while len(self._cache) >= self._max_size:
                 oldest_key = next(iter(self._cache))
                 del self._cache[oldest_key]
                 logger.debug(f"Evicted {oldest_key} from cache")
-            
+
             self._cache[key] = CachedChapter(
                 content=content,
                 title=title,
                 total_chapters=total_chapters,
-                cached_at=datetime.now(timezone.utc),
+                cached_at=datetime.now(UTC),
                 file_mtime=file_mtime
             )
-    
+
     async def invalidate_book(self, book_path: str) -> int:
         """Remove all cached chapters for a book.
         
@@ -136,29 +136,29 @@ class ChapterCache:
             Number of entries removed
         """
         prefix = f"{book_path}:"
-        
+
         async with self._lock:
             keys_to_remove = [k for k in self._cache if k.startswith(prefix)]
             for key in keys_to_remove:
                 del self._cache[key]
-            
+
             if keys_to_remove:
                 logger.debug(f"Invalidated {len(keys_to_remove)} chapters for {book_path}")
-            
+
             return len(keys_to_remove)
-    
+
     async def clear(self) -> None:
         """Clear all cached chapters."""
         async with self._lock:
             self._cache.clear()
             logger.info("Chapter cache cleared")
-    
+
     @property
     def stats(self) -> dict:
         """Get cache statistics."""
         total = self._hits + self._misses
         hit_rate = (self._hits / total * 100) if total > 0 else 0.0
-        
+
         return {
             "size": len(self._cache),
             "max_size": self._max_size,

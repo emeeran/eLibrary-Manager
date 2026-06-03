@@ -1,7 +1,6 @@
 """SQLAlchemy models for eBook Manager."""
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -20,9 +19,9 @@ class Book(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
-    author: Mapped[Optional[str]] = mapped_column(String(300), nullable=True, index=True)
+    author: Mapped[str | None] = mapped_column(String(300), nullable=True, index=True)
     path: Mapped[str] = mapped_column(String(1000), nullable=False, unique=True)
-    cover_path: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    cover_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     format: Mapped[str] = mapped_column(String(20), nullable=False, default="EPUB")
 
     # Reading Progress
@@ -39,18 +38,18 @@ class Book(Base):
     file_size: Mapped[int] = mapped_column(Integer, default=0)
     added_date: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
         index=True,
     )
-    last_read_date: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
+    last_read_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
 
     # Enhanced Metadata
-    publisher: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)
-    publish_date: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    language: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
-    isbn: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
+    publisher: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    publish_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    language: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    isbn: Mapped[str | None] = mapped_column(String(30), nullable=True)
     total_pages: Mapped[int] = mapped_column(Integer, default=0)
     storage_type: Mapped[str] = mapped_column(String(10), default="local")
     rating: Mapped[int] = mapped_column(Integer, default=0)  # 0=unrated, 1-5 stars
@@ -106,7 +105,7 @@ class ChapterSummary(Base):
         index=True
     )
     chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
-    chapter_title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    chapter_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     summary_text: Mapped[str] = mapped_column(Text, nullable=False)
     provider: Mapped[str] = mapped_column(
         String(50),
@@ -116,7 +115,7 @@ class ChapterSummary(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False
     )
 
@@ -159,7 +158,7 @@ class BookSummary(Base):
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="google")
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False
     )
 
@@ -193,11 +192,11 @@ class Bookmark(Base):
     )
     chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
     position_in_chapter: Mapped[int] = mapped_column(Integer, default=0)
-    title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False
     )
 
@@ -239,19 +238,19 @@ class Note(Base):
     )
     chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
     position_in_chapter: Mapped[int] = mapped_column(Integer, default=0)
-    quoted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    quoted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     color: Mapped[str] = mapped_column(String(20), nullable=False, default="yellow")
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False,
-        onupdate=lambda: datetime.now(timezone.utc)
+        onupdate=lambda: datetime.now(UTC)
     )
 
     # Relationships
@@ -296,10 +295,10 @@ class Annotation(Base):
     end_position: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     color: Mapped[str] = mapped_column(String(20), nullable=False, default="yellow")
-    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         nullable=False
     )
 

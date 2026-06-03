@@ -266,7 +266,7 @@ async def browse_filesystem(
         if resolved_str == blocked or resolved_str.startswith(blocked + "/"):
             raise HTTPException(
                 status_code=403,
-                detail=f"Access denied: system directory",
+                detail="Access denied: system directory",
             )
 
     if not resolved.exists() or not resolved.is_dir():
@@ -882,7 +882,8 @@ async def get_cache_status() -> dict:
 async def list_categories(db: AsyncSession = Depends(get_db)) -> list[CategoryResponse]:
     """List all categories with book counts."""
     from sqlalchemy import func, select
-    from app.models import Category, BookCategory
+
+    from app.models import BookCategory, Category
 
     # Single query with LEFT JOIN — no N+1, top 10 by book count
     result = await db.execute(
@@ -910,10 +911,10 @@ async def create_category(
     db: AsyncSession = Depends(get_db)
 ) -> CategoryResponse:
     """Create a new category."""
-    from app.models import Category
-
     # Check for duplicate name
     from sqlalchemy import select
+
+    from app.models import Category
     existing = await db.execute(select(Category).where(Category.name == data.name))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Category already exists")
@@ -932,6 +933,7 @@ async def delete_category(
 ) -> dict:
     """Delete a category."""
     from sqlalchemy import select
+
     from app.models import Category
 
     result = await db.execute(select(Category).where(Category.id == category_id))
@@ -973,8 +975,9 @@ async def remove_category_from_book(
     db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Remove a category from a book."""
-    from app.models import BookCategory
     from sqlalchemy import select
+
+    from app.models import BookCategory
 
     result = await db.execute(
         select(BookCategory).where(
@@ -1240,9 +1243,10 @@ async def auto_categorize_all(db: AsyncSession = Depends(get_db)) -> dict:
 @router.get("/library/auto-categorize-stream")
 async def auto_categorize_stream(db: AsyncSession = Depends(get_db)):
     """SSE stream for real-time categorization progress."""
-    from app.services.categorization_service import CategorizationService
-    from app.models import Book
     from sqlalchemy import select
+
+    from app.models import Book
+    from app.services.categorization_service import CategorizationService
 
     async def generate():
         cat_service = CategorizationService(db)

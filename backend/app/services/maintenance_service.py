@@ -2,9 +2,10 @@
 
 import asyncio
 import os
-from typing import Optional
+from collections.abc import Callable
 
-from sqlalchemy import delete as sql_delete, func, select, text
+from sqlalchemy import delete as sql_delete
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import db_manager
@@ -21,9 +22,9 @@ from app.models import (
 from app.repositories import BookRepository
 from app.schemas import (
     BulkDeleteResult,
+    DuplicateBookItem,
     DuplicateDedupResult,
     DuplicateGroup,
-    DuplicateBookItem,
     FKStatusResponse,
     MaintenanceSummary,
     OrphanDeleteResult,
@@ -83,7 +84,7 @@ class MaintenanceService:
     async def purge_stale_books(
         self,
         dry_run: bool = True,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Callable | None = None,
     ) -> BulkDeleteResult:
         """Delete all books with missing files, cascading to children."""
         all_paths = await self.book_repo.get_all_paths()
@@ -188,7 +189,7 @@ class MaintenanceService:
     async def dedup_books(
         self,
         dry_run: bool = True,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Callable | None = None,
     ) -> DuplicateDedupResult:
         """Remove duplicate books, keeping the best copy in each group."""
         raw_groups = await self.book_repo.find_duplicate_groups()
@@ -293,7 +294,7 @@ class MaintenanceService:
             stmt = (
                 sql_delete(model)
                 .where(getattr(model, col).not_in(book_ids_subq))
-                .returning(getattr(model, "id"))
+                .returning(model.id)
             )
             result = await self.session.execute(stmt)
             return len(result.all())
