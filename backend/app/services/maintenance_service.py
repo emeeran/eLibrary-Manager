@@ -51,10 +51,7 @@ class MaintenanceService:
         self, page: int = 1, page_size: int = 50
     ) -> tuple[list[StaleBookItem], int]:
         """Detect books whose files are missing from disk."""
-        all_paths = await self.book_repo.get_all_paths()
-        stale_ids = [
-            bid for path, bid in all_paths.items() if not os.path.exists(path)
-        ]
+        stale_ids = await self.book_repo.get_stale_book_ids()
         total = len(stale_ids)
 
         # Paginate IDs
@@ -87,10 +84,7 @@ class MaintenanceService:
         progress_callback: Callable | None = None,
     ) -> BulkDeleteResult:
         """Delete all books with missing files, cascading to children."""
-        all_paths = await self.book_repo.get_all_paths()
-        stale_ids = [
-            bid for path, bid in all_paths.items() if not os.path.exists(path)
-        ]
+        stale_ids = await self.book_repo.get_stale_book_ids()
 
         if dry_run:
             return BulkDeleteResult(
@@ -163,17 +157,22 @@ class MaintenanceService:
         groups: list[DuplicateGroup] = []
         for g in page_groups:
             books = await self.book_repo.get_books_by_ids(g["ids"])
+            # Check file existence in a thread to avoid blocking
+            book_paths = {b.id: b.path for b in books}
+            exists_map = await asyncio.to_thread(
+                lambda bp=book_paths: {bid: os.path.exists(p) for bid, p in bp.items()}
+            )
             copies = [
                 DuplicateBookItem(
                     id=b.id,
                     path=b.path,
                     format=b.format,
                     file_size=b.file_size,
-                    file_exists=os.path.exists(b.path),
+                    file_exists=exists_map[b.id],
                 )
                 for b in books
             ]
-            best_id, reason = self._select_best_copy(books)
+            best_id, reason = self._select_best_copy(books, exists_map)
             groups.append(
                 DuplicateGroup(
                     title=g["title"],
@@ -199,7 +198,12 @@ class MaintenanceService:
 
         for g in raw_groups:
             books = await self.book_repo.get_books_by_ids(g["ids"])
-            best_id, _ = self._select_best_copy(books)
+            # Check file existence in a thread to avoid blocking
+            book_paths = {b.id: b.path for b in books}
+            exists_map = await asyncio.to_thread(
+                lambda bp=book_paths: {bid: os.path.exists(p) for bid, p in bp.items()}
+            )
+            best_id, _ = self._select_best_copy(books, exists_map)
             books_kept += 1
             for b in books:
                 if b.id != best_id:
@@ -360,9 +364,9 @@ class MaintenanceService:
         """Quick counts for the maintenance dashboard."""
         total_books = await self.book_repo.count()
 
-        # Stale count (filesystem check)
-        all_paths = await self.book_repo.get_all_paths()
-        stale_count = sum(1 for p in all_paths if not os.path.exists(p))
+        # Stale count (filesystem check via optimized repo method)
+        stale_ids = await self.book_repo.get_stale_book_ids()
+        stale_count = len(stale_ids)
 
         # Duplicate count (DB only)
         raw_groups = await self.book_repo.find_duplicate_groups()
@@ -392,7 +396,9 @@ class MaintenanceService:
 
     # ---- Internal helpers ----
 
-    def _select_best_copy(self, books: list[Book]) -> tuple[int, str]:
+    def _select_best_copy(
+        self, books: list[Book], exists_map: dict[int, bool] | None = None
+    ) -> tuple[int, str]:
         """Select the best book to keep from a duplicate group.
 
         Scoring:
@@ -401,6 +407,11 @@ class MaintenanceService:
             Format EPUB:        +100
             File size in KB:    +file_size / 1024
             Tiebreaker:         lowest id
+
+        Args:
+            books: List of Book instances in the duplicate group.
+            exists_map: Optional precomputed {book_id: exists_bool} to avoid
+                sync filesystem calls. Falls back to os.path.exists if not provided.
 
         Returns:
             Tuple of (best_book_id, reason_string)
@@ -413,7 +424,12 @@ class MaintenanceService:
             score = 0
             reasons = []
 
-            if os.path.exists(b.path):
+            if exists_map is not None:
+                file_exists = exists_map.get(b.id, False)
+            else:
+                file_exists = os.path.exists(b.path)
+
+            if file_exists:
                 score += 10000
                 reasons.append("file exists")
             else:

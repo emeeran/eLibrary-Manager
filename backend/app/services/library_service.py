@@ -507,6 +507,25 @@ class LibraryService:
         _stats_cache = (stats, time.time())
         return stats
 
+    async def get_sidebar_counts(self, deleted_override: int | None = None) -> dict[str, int]:
+        """Get sidebar counts from cached stats.
+
+        Args:
+            deleted_override: If provided, overrides the deleted count.
+
+        Returns:
+            Dict with all, recent, favorites, reading, deleted, hidden counts.
+        """
+        stats = await self.get_library_stats()
+        return {
+            "all": stats.get("total_books", 0),
+            "recent": stats.get("recent_books", 0),
+            "favorites": stats.get("favorite_books", 0),
+            "reading": stats.get("reading_books", 0),
+            "deleted": deleted_override if deleted_override is not None else stats.get("deleted_books", 0),
+            "hidden": stats.get("hidden_books", 0),
+        }
+
     async def refresh_covers(self, force: bool = False) -> dict:
         """Re-extract covers for books missing them or all books if forced.
 
@@ -524,6 +543,24 @@ class LibraryService:
         total = 0
         offset = 0
         batch_size = 100
+        semaphore = asyncio.Semaphore(5)
+
+        async def _extract_cover(book):
+            nonlocal updated, skipped
+            if book.cover_path and not force:
+                skipped += 1
+                return
+            try:
+                async with semaphore:
+                    cover_path = await self.scanner.extract_cover(book.path)
+                if cover_path:
+                    book.cover_path = cover_path
+                    updated += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                errors.append({"book_id": book.id, "error": str(e)})
+                logger.warning(f"Failed to extract cover for {book.title}: {e}")
 
         while True:
             batch = await self.book_repo.list_all(limit=batch_size, offset=offset)
@@ -531,23 +568,7 @@ class LibraryService:
                 break
 
             total += len(batch)
-            for book in batch:
-                if book.cover_path and not force:
-                    skipped += 1
-                    continue
-
-                try:
-                    cover_path = await self.scanner.extract_cover(book.path)
-                    if cover_path:
-                        book.cover_path = cover_path
-                        updated += 1
-                        logger.info(f"Updated cover for: {book.title}")
-                    else:
-                        skipped += 1
-                except Exception as e:
-                    errors.append({"book_id": book.id, "error": str(e)})
-                    logger.warning(f"Failed to extract cover for {book.title}: {e}")
-
+            await asyncio.gather(*[_extract_cover(book) for book in batch])
             await self.session.flush()
             offset += batch_size
 

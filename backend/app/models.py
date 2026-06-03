@@ -394,3 +394,35 @@ class BookCategory(Base):
 
     def __repr__(self) -> str:
         return f"<BookCategory(book_id={self.book_id}, category_id={self.category_id})>"
+
+
+class ReadingGoal(Base):
+    """User's daily or weekly reading goal.
+
+    Attributes:
+        id: Primary key
+        goal_type: "daily" or "weekly"
+        target_minutes: Target reading minutes per period
+        created_at: When goal was created
+        updated_at: When goal was last updated
+    """
+
+    __tablename__ = "reading_goals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    goal_type: Mapped[str] = mapped_column(String(10), nullable=False, default="daily")
+    target_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ReadingGoal(id={self.id}, type='{self.goal_type}', target={self.target_minutes}m)>"

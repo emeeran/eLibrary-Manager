@@ -25,7 +25,7 @@ from app.logging_config import get_logger, setup_logging
 from app.middleware import ProductionMiddleware
 
 # Import route modules
-from app.routes import ai_tts, auth, library, maintenance, reader, settings, stats
+from app.routes import ai_tts, auth, categories, hidden, library, maintenance, reader, settings, stats
 
 # Setup logging
 setup_logging()
@@ -221,6 +221,8 @@ app.include_router(settings.router)
 app.include_router(ai_tts.router)
 app.include_router(stats.router)
 app.include_router(maintenance.router)
+app.include_router(categories.router)
+app.include_router(hidden.router)
 
 
 @app.get("/api/health")

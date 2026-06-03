@@ -1,5 +1,6 @@
 """Abstract base class for all AI providers."""
 
+import time
 from abc import ABC, abstractmethod
 
 
@@ -15,9 +16,14 @@ class BaseAIProvider(ABC):
     model: str
     priority: int
 
+    # Health check cache — avoid hammering providers on every summarize call
+    _HEALTH_TTL: float = 30.0  # seconds
+
     def __init__(self) -> None:
         """Initialize the AI provider."""
         self._client = None
+        self._health_cached: bool | None = None
+        self._health_ts: float = 0.0
 
     @abstractmethod
     async def summarize(self, text: str, context: str | None = None) -> str:
@@ -36,13 +42,33 @@ class BaseAIProvider(ABC):
         pass
 
     @abstractmethod
-    async def health_check(self) -> bool:
-        """Check if the AI provider is available and healthy.
+    async def _perform_health_check(self) -> bool:
+        """Perform the actual health check against the provider.
+
+        Subclasses implement this — the public ``health_check`` method
+        handles caching.
 
         Returns:
             True if provider is available, False otherwise
         """
         pass
+
+    async def health_check(self) -> bool:
+        """Check if the AI provider is available and healthy.
+
+        Results are cached for ``_HEALTH_TTL`` seconds to avoid
+        making a network request on every summarization attempt.
+
+        Returns:
+            True if provider is available, False otherwise
+        """
+        now = time.time()
+        if self._health_cached is not None and (now - self._health_ts) < self._HEALTH_TTL:
+            return self._health_cached
+        result = await self._perform_health_check()
+        self._health_cached = result
+        self._health_ts = now
+        return result
 
     def _build_prompt(self, text: str, context: str | None = None) -> str:
         """Build the prompt for AI summarization.

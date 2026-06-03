@@ -202,9 +202,8 @@ async def get_batch_chapters(
     Returns:
         Dictionary with list of chapters.
     """
-    from app.reader_engine import ReaderEngine
+    from app.reader_engine import ReaderEngine, get_reader_engine
 
-    service_obj = ReaderService(db)
     # Get book path
     from app.repositories import BookRepository
     repo = BookRepository(db)
@@ -212,19 +211,18 @@ async def get_batch_chapters(
     if not book:
         raise ResourceNotFoundError("Book not found", {"book_id": book_id})
 
-    engine = ReaderEngine()
+    engine = get_reader_engine()
     chapters_data = []
     for idx in range(start, min(end, 100)):  # Cap at 100 chapters per request
         try:
             content, title, total = await engine.get_chapter_content(
                 book.path, idx
             )
-            from app.reader_engine import ReaderEngine as RE
             chapters_data.append({
                 "index": idx,
                 "title": title,
                 "content": _sanitize_html(content),
-                "estimated_pages": RE.estimate_chapter_pages(content)
+                "estimated_pages": ReaderEngine.estimate_chapter_pages(content)
             })
         except Exception:
             break
@@ -559,3 +557,69 @@ async def delete_annotation(
     service = ReaderService(db)
     await service.delete_annotation(annotation_id)
     return {"message": "Annotation deleted successfully"}
+
+
+# ============================================
+# EXPORT ENDPOINT
+# ============================================
+
+@router.get("/books/{book_id}/export")
+async def export_book_data(
+    book_id: int,
+    db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Export bookmarks, notes, and annotations as Markdown.
+
+    Args:
+        book_id: Book primary key
+        db: Database session
+
+    Returns:
+        Dictionary with book title and Markdown content
+    """
+    service = ReaderService(db)
+    book = await service.book_repo.get_by_id_or_404(book_id)
+
+    bookmarks = await service.list_bookmarks(book_id)
+    notes = await service.list_notes(book_id)
+    annotations = await service.list_annotations(book_id)
+
+    lines = [
+        f"# {book.title}",
+        f"**Author:** {book.author or 'Unknown'}",
+        "",
+    ]
+
+    if bookmarks:
+        lines.append("## Bookmarks")
+        for bm in bookmarks:
+            title = bm.title or f"Ch. {bm.chapter_index + 1}"
+            lines.append(f"- **{title}** (Chapter {bm.chapter_index + 1})")
+            if bm.notes:
+                lines.append(f"  > {bm.notes}")
+        lines.append("")
+
+    if notes:
+        lines.append("## Notes")
+        for n in notes:
+            lines.append(f"- **Chapter {n.chapter_index + 1}** [{n.color}]")
+            if n.quoted_text:
+                lines.append(f"  > {n.quoted_text}")
+            lines.append(f"  {n.content}")
+        lines.append("")
+
+    if annotations:
+        lines.append("## Annotations")
+        for a in annotations:
+            lines.append(
+                f"- **Chapter {a.chapter_index + 1}** [{a.color}] "
+                f"\"{a.text[:100]}{'...' if len(a.text) > 100 else ''}\""
+            )
+            if a.note:
+                lines.append(f"  Note: {a.note}")
+        lines.append("")
+
+    if not bookmarks and not notes and not annotations:
+        lines.append("*No bookmarks, notes, or annotations yet.*")
+
+    return {"book_title": book.title, "markdown": "\n".join(lines)}

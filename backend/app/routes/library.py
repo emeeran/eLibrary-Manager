@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import shutil
-import time
 import uuid
 from pathlib import Path
 
@@ -21,9 +20,6 @@ from app.schemas import (
     BookListResponse,
     BookResponse,
     BookUpdate,
-    CategoryAssignRequest,
-    CategoryCreate,
-    CategoryResponse,
     DirectoryImportRequest,
     ProgressUpdate,
     book_to_response,
@@ -36,10 +32,10 @@ config = get_config()
 # Guard against concurrent scans
 _active_scans: set[str] = set()
 
-# In-memory search result cache with TTL
-_search_cache: dict[str, tuple[list, int]] = {}  # query -> (results, timestamp)
-_SEARCH_CACHE_TTL = 30  # seconds
-_SEARCH_CACHE_MAX = 50
+# Search result cache — TTLCache handles expiration and size limits automatically
+from cachetools import TTLCache
+
+_search_cache: TTLCache = TTLCache(maxsize=50, ttl=30)
 
 
 def _validate_path_within_library(file_path: str) -> str:
@@ -511,56 +507,36 @@ async def list_books(
 
     # Handle deleted_only: find books with missing files (bypasses cache)
     if deleted_only:
-        from os.path import exists as path_exists
+        from app.models import Book
 
-        from sqlalchemy import select
-
-        from app.models import Book as BookModel
-
-        result = await db.execute(
-            select(BookModel.path, BookModel.id).where(BookModel.is_hidden == False)
-        )
-        all_paths = {row[1]: row[0] for row in result.all()}
-        stale_ids = [bid for bid, p in all_paths.items() if not path_exists(p)]
+        stale_ids = await BookRepository(db).get_stale_book_ids()
 
         if not stale_ids:
-            stats = await service.get_library_stats()
-            counts = {
-                "all": stats.get("total_books", 0),
-                "recent": stats.get("recent_books", 0),
-                "favorites": stats.get("favorite_books", 0),
-                "reading": stats.get("reading_books", 0),
-                "deleted": 0,
-                "hidden": stats.get("hidden_books", 0),
-            }
             return BookListResponse(
                 books=[],
                 total=0,
                 page=page,
                 page_size=page_size,
-                counts=counts,
+                counts=None,
             )
 
+        from sqlalchemy import select
+
         result = await db.execute(
-            select(BookModel).where(BookModel.id.in_(stale_ids))
+            select(Book).where(Book.id.in_(stale_ids))
         )
         books = result.scalars().all()
 
-        stats = await service.get_library_stats()
-        counts = {
-            "all": stats.get("total_books", 0),
-            "recent": stats.get("recent_books", 0),
-            "favorites": stats.get("favorite_books", 0),
-            "reading": stats.get("reading_books", 0),
-            "deleted": len(stale_ids),
-            "hidden": stats.get("hidden_books", 0),
-        }
+        # Batch-fetch categories for stale books
+        stale_book_ids = [b.id for b in books]
+        categories_map = await service.book_repo.get_categories_for_books(stale_book_ids)
+
         return BookListResponse(
-            books=[book_to_response(b) for b in books],
+            books=[book_to_response(b, categories=categories_map.get(b.id, [])) for b in books],
             total=len(stale_ids),
             page=page,
             page_size=page_size,
-            counts=counts,
+            counts=None,
         )
 
     # Check search cache — include session token hash for user isolation
@@ -569,9 +545,7 @@ async def list_books(
     user_hash = hashlib.sha256(session_token.encode()).hexdigest()[:8] if session_token else "anon"
     cache_key = f"{user_hash}|{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}"
     if cache_key in _search_cache:
-        cached_result, cached_time = _search_cache[cache_key]
-        if time.time() - cached_time < _SEARCH_CACHE_TTL:
-            return cached_result
+        return _search_cache[cache_key]
 
     books, total = await service.list_books(
         page=page,
@@ -590,34 +564,19 @@ async def list_books(
         directory_filter=directory_filter,
     )
 
-    # Get sidebar counts for real-time updates
-    stats = await service.get_library_stats()
-    counts = {
-        "all": stats.get("total_books", 0),
-        "recent": stats.get("recent_books", 0),
-        "favorites": stats.get("favorite_books", 0),
-        "reading": stats.get("reading_books", 0),
-        "deleted": stats.get("deleted_books", 0),
-        "hidden": stats.get("hidden_books", 0),
-    }
+    # Batch-fetch categories for all books in a single query
+    book_ids = [book.id for book in books]
+    categories_map = await service.book_repo.get_categories_for_books(book_ids)
 
     result = BookListResponse(
-        books=[book_to_response(book) for book in books],
+        books=[book_to_response(book, categories=categories_map.get(book.id, [])) for book in books],
         total=total,
         page=page,
         page_size=page_size,
-        counts=counts
+        counts=None  # Fetched independently via /api/stats/sidebar
     )
 
-    # Store in cache and evict stale entries
-    _search_cache[cache_key] = (result, time.time())
-    if len(_search_cache) > _SEARCH_CACHE_MAX:
-        now = time.time()
-        _search_cache.update({
-            k: v for k, v in _search_cache.items()
-            if now - v[1] < _SEARCH_CACHE_TTL
-        })
-
+    _search_cache[cache_key] = result
     return result
 
 
@@ -889,126 +848,6 @@ async def get_cache_status() -> dict:
 
 
 # ============================================
-# CATEGORY ENDPOINTS
-# ============================================
-
-@router.get("/categories", response_model=list[CategoryResponse])
-async def list_categories(db: AsyncSession = Depends(get_db)) -> list[CategoryResponse]:
-    """List all categories with book counts."""
-    from sqlalchemy import func, select
-
-    from app.models import BookCategory, Category
-
-    # Single query with LEFT JOIN — no N+1, top 10 by book count
-    result = await db.execute(
-        select(
-            Category.id,
-            Category.name,
-            Category.color,
-            func.count(BookCategory.book_id).label("book_count"),
-        )
-        .outerjoin(BookCategory, Category.id == BookCategory.category_id)
-        .group_by(Category.id, Category.name, Category.color)
-        .order_by(func.count(BookCategory.book_id).desc(), Category.name)
-        .limit(10)
-    )
-
-    return [
-        CategoryResponse(id=row.id, name=row.name, color=row.color, book_count=row.book_count)
-        for row in result.all()
-    ]
-
-
-@router.post("/categories", response_model=CategoryResponse, status_code=201)
-async def create_category(
-    data: CategoryCreate,
-    db: AsyncSession = Depends(get_db)
-) -> CategoryResponse:
-    """Create a new category."""
-    # Check for duplicate name
-    from sqlalchemy import select
-
-    from app.models import Category
-    existing = await db.execute(select(Category).where(Category.name == data.name))
-    if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Category already exists")
-
-    cat = Category(name=data.name, color=data.color)
-    db.add(cat)
-    await db.flush()
-    await db.refresh(cat)
-    return CategoryResponse(id=cat.id, name=cat.name, color=cat.color, book_count=0)
-
-
-@router.delete("/categories/{category_id}")
-async def delete_category(
-    category_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Delete a category."""
-    from sqlalchemy import select
-
-    from app.models import Category
-
-    result = await db.execute(select(Category).where(Category.id == category_id))
-    cat = result.scalar_one_or_none()
-    if not cat:
-        raise HTTPException(status_code=404, detail="Category not found")
-
-    await db.delete(cat)
-    await db.flush()
-    return {"message": "Category deleted"}
-
-
-@router.post("/books/{book_id}/categories")
-async def assign_categories(
-    book_id: int,
-    data: CategoryAssignRequest,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Assign categories to a book (replaces existing assignments)."""
-    from app.models import BookCategory
-
-    # Remove existing assignments
-    await db.execute(
-        BookCategory.__table__.delete().where(BookCategory.book_id == book_id)
-    )
-
-    # Add new assignments
-    for cat_id in data.category_ids:
-        db.add(BookCategory(book_id=book_id, category_id=cat_id))
-
-    await db.flush()
-    return {"message": "Categories updated", "category_ids": data.category_ids}
-
-
-@router.delete("/books/{book_id}/categories/{category_id}")
-async def remove_category_from_book(
-    book_id: int,
-    category_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Remove a category from a book."""
-    from sqlalchemy import select
-
-    from app.models import BookCategory
-
-    result = await db.execute(
-        select(BookCategory).where(
-            BookCategory.book_id == book_id,
-            BookCategory.category_id == category_id,
-        )
-    )
-    link = result.scalar_one_or_none()
-    if not link:
-        raise HTTPException(status_code=404, detail="Assignment not found")
-
-    await db.delete(link)
-    await db.flush()
-    return {"message": "Category removed from book"}
-
-
-# ============================================
 # DIRECTORY BROWSING ENDPOINTS
 # ============================================
 
@@ -1112,208 +951,3 @@ async def list_formats(db: AsyncSession = Depends(get_db)) -> list[dict]:
     )
     return [{"format": row[0], "book_count": row[1]} for row in result.all()]
 
-
-# ============================================
-# HIDDEN BOOKS ENDPOINTS
-# ============================================
-
-@router.post("/books/{book_id}/hide")
-async def toggle_book_hidden(
-    book_id: int,
-    request: dict = None,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Toggle book hidden status. Requires password verification."""
-    from app.repositories import BookRepository, SettingsRepository
-    from app.security import verify_password as check_password
-
-    settings = SettingsRepository(db)
-    stored = await settings.get("hidden_password")
-
-    if not stored:
-        raise HTTPException(status_code=400, detail="No password set. Set a password first.")
-
-    password = (request or {}).get("password", "")
-    if not password:
-        raise HTTPException(status_code=400, detail="Password required")
-
-    if not check_password(password, stored):
-        raise HTTPException(status_code=401, detail="Incorrect password")
-
-    repo = BookRepository(db)
-    book = await repo.get_by_id_or_404(book_id)
-
-    book.is_hidden = not book.is_hidden
-    await db.flush()
-    return {"is_hidden": book.is_hidden, "message": "Book hidden" if book.is_hidden else "Book unhidden"}
-
-
-@router.get("/hidden/status")
-async def get_hidden_status(db: AsyncSession = Depends(get_db)) -> dict:
-    """Check if hidden books password is set."""
-    from app.repositories import SettingsRepository
-
-    settings = SettingsRepository(db)
-    stored = await settings.get("hidden_password")
-    return {"password_set": stored is not None and bool(stored)}
-
-
-@router.post("/hidden/set-password")
-async def set_hidden_password(
-    request: dict,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Set or update the hidden books password."""
-    from app.repositories import SettingsRepository
-    from app.security import encrypt_password
-
-    password = request.get("password")
-    if not password or len(password) < 4:
-        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
-
-    encrypted = encrypt_password(password)
-    settings = SettingsRepository(db)
-    await settings.set("hidden_password", encrypted)
-    await db.flush()
-    return {"message": "Password set successfully"}
-
-
-@router.post("/hidden/verify-password")
-async def verify_hidden_password(
-    request: dict,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Verify the hidden books password."""
-    from app.repositories import SettingsRepository
-    from app.security import verify_password as check_password
-
-    password = request.get("password")
-    if not password:
-        raise HTTPException(status_code=400, detail="Password required")
-
-    settings = SettingsRepository(db)
-    stored = await settings.get("hidden_password")
-    if not stored:
-        raise HTTPException(status_code=400, detail="No password set")
-
-    if not check_password(password, stored):
-        raise HTTPException(status_code=401, detail="Incorrect password")
-
-    return {"verified": True}
-
-
-@router.post("/hidden/reset-password")
-async def reset_hidden_password(
-    request: dict,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Reset hidden books password. Requires current password."""
-    from app.repositories import SettingsRepository
-    from app.security import verify_password as check_password
-
-    password = request.get("password")
-    if not password:
-        raise HTTPException(status_code=400, detail="Current password required")
-
-    settings = SettingsRepository(db)
-    stored = await settings.get("hidden_password")
-    if not stored:
-        raise HTTPException(status_code=400, detail="No password set")
-
-    if not check_password(password, stored):
-        raise HTTPException(status_code=401, detail="Incorrect password")
-
-    await settings.delete("hidden_password")
-    await db.flush()
-    return {"message": "Password reset successfully"}
-
-
-@router.post("/books/{book_id}/auto-categorize")
-async def auto_categorize_book(
-    book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Auto-categorize a single book using hybrid rule-based + AI approach."""
-    from app.repositories import BookRepository
-    from app.services.categorization_service import CategorizationService
-
-    repo = BookRepository(db)
-    book = await repo.get_by_id_or_404(book_id)
-
-    cat_service = CategorizationService(db)
-    return await cat_service.auto_categorize(book)
-
-
-@router.post("/library/auto-categorize-all")
-async def auto_categorize_all(db: AsyncSession = Depends(get_db)) -> dict:
-    """Auto-categorize all books in the library."""
-    from app.services.categorization_service import CategorizationService
-
-    cat_service = CategorizationService(db)
-    result = await cat_service.auto_categorize_all()
-    return result
-
-
-@router.get("/library/auto-categorize-stream")
-async def auto_categorize_stream(db: AsyncSession = Depends(get_db)):
-    """SSE stream for real-time categorization progress."""
-    from sqlalchemy import select
-
-    from app.models import Book
-    from app.services.categorization_service import CategorizationService
-
-    async def generate():
-        cat_service = CategorizationService(db)
-        db_result = await db.execute(select(Book))
-        books = list(db_result.scalars().all())
-        total = len(books)
-        categorized = 0
-        categories_added = 0
-
-        yield f"data: {json.dumps({'type': 'start', 'total': total})}\n\n"
-
-        for i, book in enumerate(books):
-            try:
-                result = await cat_service.ai_categorize(book)
-                added = result.get("categories_added", 0)
-                cats = result.get("categories", [])
-                categorized += 1 if added > 0 else 0
-                categories_added += added
-
-                yield f"data: {json.dumps({
-                    'type': 'progress',
-                    'current': i + 1,
-                    'total': total,
-                    'book': book.title,
-                    'categories': cats,
-                    'categories_added': added,
-                    'running_categorized': categorized,
-                    'running_total_added': categories_added,
-                })}\n\n"
-            except Exception as e:
-                yield f"data: {json.dumps({
-                    'type': 'error',
-                    'current': i + 1,
-                    'total': total,
-                    'book': book.title,
-                    'error': str(e),
-                })}\n\n"
-
-            await asyncio.sleep(0)
-
-        yield f"data: {json.dumps({
-            'type': 'done',
-            'total': total,
-            'categorized': categorized,
-            'categories_added': categories_added,
-        })}\n\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )

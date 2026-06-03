@@ -69,23 +69,39 @@ class BookResponse(BookBase):
     model_config = {"from_attributes": True}
 
     @staticmethod
-    def from_book(book) -> "BookResponse":
-        """Convert a Book ORM object to BookResponse, including categories."""
+    def from_book(book, categories: list[str] | None = None) -> "BookResponse":
+        """Convert a Book ORM object to BookResponse, including categories.
+
+        Args:
+            book: Book ORM instance.
+            categories: Optional pre-fetched category names. If provided,
+                skips accessing book.category_links (avoids lazy-load overhead).
+        """
         from app.models import Book as BookModel
 
         resp = BookResponse.model_validate(book)
-        if isinstance(book, BookModel) and hasattr(book, "category_links"):
-            resp.categories = [
-                link.category.name for link in book.category_links
-                if link.category is not None
-            ]
+        if categories is not None:
+            resp.categories = categories
+        elif isinstance(book, BookModel) and hasattr(book, "category_links"):
+            try:
+                resp.categories = [
+                    link.category.name for link in book.category_links
+                    if link.category is not None
+                ]
+            except Exception:
+                resp.categories = []
         return resp
 
 
 # Backward-compatible alias
-def book_to_response(book):
-    """Convert a Book ORM object to BookResponse, including categories."""
-    return BookResponse.from_book(book)
+def book_to_response(book, categories: list[str] | None = None):
+    """Convert a Book ORM object to BookResponse, including categories.
+
+    Args:
+        book: Book ORM instance.
+        categories: Optional pre-fetched category names for batch efficiency.
+    """
+    return BookResponse.from_book(book, categories=categories)
 
 
 class BookListResponse(BaseModel):

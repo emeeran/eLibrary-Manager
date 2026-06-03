@@ -89,7 +89,7 @@ class GoogleProvider(BaseAIProvider):
                 {"provider": "google", "error_type": type(e).__name__}
             ) from e
 
-    async def health_check(self) -> bool:
+    async def _perform_health_check(self) -> bool:
         """Check if Google Gemini API is accessible.
 
         Returns:

@@ -1,6 +1,7 @@
 """Unified Ollama API provider for AI summarization (Cloud and Local)."""
 
 
+import httpx
 from openai import AsyncOpenAI
 
 from app.ai_providers.base import BaseAIProvider
@@ -14,6 +15,7 @@ class OllamaProvider(BaseAIProvider):
     """Ollama provider supporting both cloud and local instances.
 
     Uses the OpenAI-compatible API that Ollama exposes.
+    Maintains a shared httpx.AsyncClient for connection pooling.
     """
 
     def __init__(
@@ -40,6 +42,13 @@ class OllamaProvider(BaseAIProvider):
         self._base_url = base_url
         self._health_timeout = health_timeout
         self._available = True
+        self._http_client: httpx.AsyncClient | None = None
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        """Get or create a shared httpx client for connection pooling."""
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(timeout=self._health_timeout)
+        return self._http_client
 
     async def summarize(self, text: str, context: str | None = None) -> str:
         """Generate a summary using Ollama.
@@ -88,22 +97,22 @@ class OllamaProvider(BaseAIProvider):
                 {"provider": self.name, "error_type": type(e).__name__}
             ) from e
 
-    async def health_check(self) -> bool:
+    async def _perform_health_check(self) -> bool:
         """Check if Ollama instance is accessible.
 
         Returns:
             True if provider is available, False otherwise
         """
         try:
-            import httpx
-            async with httpx.AsyncClient(timeout=self._health_timeout) as client:
-                response = await client.get(f"{self._base_url}/api/tags")
-                self._available = response.status_code == 200
+            client = self._get_http_client()
+            response = await client.get(f"{self._base_url}/api/tags")
+            self._available = response.status_code == 200
         except Exception as e:
             logger.debug(f"{self.name} health check failed: {e}")
             self._available = False
         return self._available
 
     async def close(self) -> None:
-        """Close the Ollama client."""
-        pass
+        """Close the shared httpx client."""
+        if self._http_client and not self._http_client.is_closed:
+            await self._http_client.aclose()

@@ -246,8 +246,10 @@ class EPUBParser:
     ) -> tuple[str, str, int]:
         """Extract a single chapter without parsing all EPUB content.
 
-        Iterates spine items to find the target chapter index. Only the
-        target item's content is parsed with BeautifulSoup.
+        Iterates spine items with lightweight text-length filtering (no
+        BeautifulSoup for non-target chapters). Only the target chapter
+        is fully parsed, significantly reducing CPU and memory for books
+        with many chapters.
 
         Args:
             epub_path: Path to EPUB file.
@@ -261,14 +263,28 @@ class EPUBParser:
             ResourceNotFoundError: If chapter index is out of range.
         """
         try:
+            import re
             import warnings
 
             from bs4 import XMLParsedAsHTMLWarning
             warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
             book = await asyncio.to_thread(epub.read_epub, epub_path)
-            spine_items = self._filter_spine_items(book)
-            total = len(spine_items)
+
+            # Lightweight pass: count filtered spine items without BeautifulSoup
+            filtered_items: list[tuple] = []
+            for idref, _linear in book.spine:
+                item = book.get_item_with_id(idref)
+                if item is None or item.get_type() != ebooklib.ITEM_DOCUMENT:
+                    continue
+                raw = item.get_content()
+                has_img = b'<img' in raw or b'<image' in raw
+                text_only = re.sub(rb'<[^>]+>', b'', raw)
+                if len(text_only.strip()) < 100 and not has_img:
+                    continue
+                filtered_items.append(item)
+
+            total = len(filtered_items)
 
             if chapter_index < 0 or chapter_index >= total:
                 from app.exceptions import ResourceNotFoundError
@@ -277,8 +293,10 @@ class EPUBParser:
                     {"path": epub_path, "index": chapter_index}
                 )
 
-            item, soup = spine_items[chapter_index]
-            html_content, title = self._render_spine_item(item, soup, book, epub_path)
+            # Parse only the target chapter with BeautifulSoup
+            target_item = filtered_items[chapter_index]
+            soup = BeautifulSoup(target_item.get_content(), 'html.parser')
+            html_content, title = self._render_spine_item(target_item, soup, book, epub_path)
 
             return html_content, title, total
 

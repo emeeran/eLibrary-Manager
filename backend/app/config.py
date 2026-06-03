@@ -91,8 +91,9 @@ class AppConfig(BaseSettings):
     # Performance
     max_cover_size: int = 300000  # 300KB
     lazy_load_batch_size: int = 20
-    db_pool_size: int = 10
-    db_max_overflow: int = 20
+    # Performance — SQLite only supports one writer, so small pool suffices
+    db_pool_size: int = 5
+    db_max_overflow: int = 0
 
     @field_validator(
         "library_path", "covers_path", "book_images_path",

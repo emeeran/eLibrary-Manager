@@ -18,6 +18,19 @@ logger = get_logger(__name__)
 router = APIRouter(prefix="/api/stats", tags=["stats"])
 
 
+@router.get("/sidebar")
+async def get_sidebar_counts(db: AsyncSession = Depends(get_db)) -> dict:
+    """Get sidebar navigation counts.
+
+    Returns cached counts for all, recent, favorites, reading, deleted, hidden.
+    Decoupled from the book list endpoint for better performance.
+    """
+    from app.services import LibraryService
+
+    service = LibraryService(db)
+    return await service.get_sidebar_counts()
+
+
 @router.get("/reading")
 async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     """Get aggregated reading statistics.
@@ -180,3 +193,200 @@ async def _calculate_reading_streak(
         check_date = check_date - timedelta(days=1)
 
     return streak
+
+
+@router.get("/recommendations")
+async def get_recommendations(db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """Suggest books based on shared categories and authors with books you've read.
+
+    Returns up to 10 unread books ranked by overlap count.
+    """
+    # Find book IDs the user has already started reading
+    read_result = await db.execute(
+        select(Book.id).where(Book.progress > 0, Book.is_hidden == False)
+    )
+    read_ids = [row[0] for row in read_result.all()]
+
+    if not read_ids:
+        return []
+
+    from app.models import BookCategory
+
+    # Find authors the user reads
+    author_result = await db.execute(
+        select(Book.author).where(
+            Book.id.in_(read_ids),
+            Book.author.isnot(None),
+            Book.author != "",
+        )
+    )
+    read_authors = {row[0] for row in author_result.all()}
+
+    # Find categories the user reads
+    cat_result = await db.execute(
+        select(BookCategory.category_id).where(BookCategory.book_id.in_(read_ids))
+    )
+    read_cat_ids = {row[0] for row in cat_result.all()}
+
+    # Find unread books sharing those authors or categories
+    unread_query = (
+        select(Book)
+        .where(
+            Book.is_hidden == False,
+            Book.progress == 0,
+            ~Book.id.in_(read_ids),
+        )
+    )
+
+    # Add OR conditions for author/category matches
+    author_conditions = [Book.author == a for a in read_authors] if read_authors else []
+    category_condition = (
+        Book.id.in_(
+            select(BookCategory.book_id).where(BookCategory.category_id.in_(read_cat_ids))
+        )
+        if read_cat_ids
+        else None
+    )
+
+    if author_conditions or category_condition:
+        from sqlalchemy import or_
+        or_parts = list(author_conditions)
+        if category_condition is not None:
+            or_parts.append(category_condition)
+        unread_query = unread_query.where(or_(*or_parts))
+
+    result = await db.execute(unread_query.limit(20))
+    candidates = list(result.scalars().all())
+
+    # Score by overlap: +2 for same author, +1 for each shared category
+    scored: list[tuple[int, dict]] = []
+    for book in candidates:
+        score = 0
+        if book.author in read_authors:
+            score += 2
+
+        if read_cat_ids:
+            book_cats = await db.execute(
+                select(BookCategory.category_id).where(BookCategory.book_id == book.id)
+            )
+            book_cat_ids = {row[0] for row in book_cats.all()}
+            score += len(book_cat_ids & read_cat_ids)
+
+        if score > 0:
+            scored.append((score, {
+                "id": book.id,
+                "title": book.title,
+                "author": book.author,
+                "format": book.format,
+                "cover_path": book.cover_path,
+                "score": score,
+            }))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [item for _, item in scored[:10]]
+
+
+# ============================================
+# READING GOALS
+# ============================================
+
+from pydantic import BaseModel
+
+
+class ReadingGoalRequest(BaseModel):
+    goal_type: str = "daily"  # "daily" or "weekly"
+    target_minutes: int = 30
+
+
+@router.get("/goals")
+async def get_reading_goal(db: AsyncSession = Depends(get_db)) -> dict:
+    """Get the current reading goal."""
+    from app.models import ReadingGoal
+
+    result = await db.execute(
+        select(ReadingGoal).order_by(ReadingGoal.updated_at.desc()).limit(1)
+    )
+    goal = result.scalar_one_or_none()
+    if not goal:
+        return {"goal_type": "daily", "target_minutes": 30}
+    return {
+        "id": goal.id,
+        "goal_type": goal.goal_type,
+        "target_minutes": goal.target_minutes,
+        "created_at": goal.created_at.isoformat() if goal.created_at else None,
+        "updated_at": goal.updated_at.isoformat() if goal.updated_at else None,
+    }
+
+
+@router.put("/goals")
+async def set_reading_goal(
+    request: ReadingGoalRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Set or update the reading goal."""
+    from app.models import ReadingGoal
+
+    if request.goal_type not in ("daily", "weekly"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="goal_type must be 'daily' or 'weekly'")
+
+    result = await db.execute(
+        select(ReadingGoal).order_by(ReadingGoal.updated_at.desc()).limit(1)
+    )
+    goal = result.scalar_one_or_none()
+
+    if goal:
+        goal.goal_type = request.goal_type
+        goal.target_minutes = request.target_minutes
+    else:
+        goal = ReadingGoal(
+            goal_type=request.goal_type,
+            target_minutes=request.target_minutes,
+        )
+        db.add(goal)
+
+    await db.flush()
+    return {"goal_type": goal.goal_type, "target_minutes": goal.target_minutes}
+
+
+@router.get("/goals/progress")
+async def get_reading_goal_progress(db: AsyncSession = Depends(get_db)) -> dict:
+    """Get progress toward the current reading goal.
+
+    Reading time is estimated at 30 minutes per distinct reading day.
+    """
+    from app.models import ReadingGoal
+
+    now = datetime.now(UTC)
+
+    # Get goal
+    result = await db.execute(
+        select(ReadingGoal).order_by(ReadingGoal.updated_at.desc()).limit(1)
+    )
+    goal = result.scalar_one_or_none()
+    goal_type = goal.goal_type if goal else "daily"
+    target_minutes = goal.target_minutes if goal else 30
+
+    # Calculate period start
+    if goal_type == "weekly":
+        period_start = now - timedelta(days=7)
+    else:
+        period_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Count distinct reading dates in the period
+    reading_result = await db.execute(
+        select(func.count(func.distinct(func.date(Book.last_read_date)))).where(
+            Book.is_hidden == False,
+            Book.last_read_date.isnot(None),
+            Book.last_read_date >= period_start,
+        )
+    )
+    reading_days = reading_result.scalar() or 0
+    estimated_minutes = reading_days * 30
+
+    return {
+        "goal_type": goal_type,
+        "target_minutes": target_minutes,
+        "estimated_minutes": estimated_minutes,
+        "progress_percent": min(100, round(estimated_minutes / target_minutes * 100, 1)) if target_minutes > 0 else 0,
+    }

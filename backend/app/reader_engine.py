@@ -162,3 +162,15 @@ class ReaderEngine:
             EbookParsingError: If parsing fails
         """
         return await self.scanner.get_table_of_contents(ebook_path)
+
+
+# Module-level singleton — avoids re-creating scanner + parsers on every request
+_reader_engine: ReaderEngine | None = None
+
+
+def get_reader_engine() -> ReaderEngine:
+    """Get the global ReaderEngine singleton."""
+    global _reader_engine
+    if _reader_engine is None:
+        _reader_engine = ReaderEngine()
+    return _reader_engine

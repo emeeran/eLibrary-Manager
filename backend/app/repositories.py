@@ -1,12 +1,18 @@
 """Repository pattern for database operations."""
 
 
+import os
+import time
+
 from sqlalchemy import and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import noload
 
 from app.exceptions import ResourceNotFoundError, ValidationError
-from app.models import Book, BookSummary, ChapterSummary, Setting
+from app.models import Book, BookCategory, BookSummary, Category, ChapterSummary, Setting
 from app.schemas import BookCreate, BookUpdate, ProgressUpdate
+
+_COUNT_CACHE_TTL = 10.0  # seconds
 
 
 class BookRepository:
@@ -23,6 +29,7 @@ class BookRepository:
             session: SQLAlchemy async session
         """
         self.session = session
+        self._count_cache: dict[str, tuple[int, float]] = {}
 
     async def create(self, book_data: BookCreate) -> Book:
         """Create a new book record.
@@ -116,7 +123,9 @@ class BookRepository:
         Returns:
             Tuple of (base_select_query, conditions_list)
         """
-        query = select(Book)
+        # Skip eager-loading of category_links for list queries —
+        # categories are batch-fetched separately via get_categories_for_books.
+        query = select(Book).options(noload(Book.category_links))
         conditions = []
         if favorite_only:
             conditions.append(Book.is_favorite == True)
@@ -241,7 +250,15 @@ class BookRepository:
         show_hidden: bool = False,
         directory_filter: str | None = None,
     ) -> int:
-        """Count books matching filters."""
+        """Count books matching filters, with short-lived cache for pagination."""
+        cache_key = f"{favorite_only}|{recent_only}|{reading_only}|{search}|{format_filter}|{source_filter}|{category_id}|{hidden_only}|{show_hidden}|{directory_filter}"
+
+        now = time.time()
+        if cache_key in self._count_cache:
+            cached_count, cached_time = self._count_cache[cache_key]
+            if now - cached_time < _COUNT_CACHE_TTL:
+                return cached_count
+
         query = self._build_list_query(
             favorite_only=favorite_only,
             recent_only=recent_only,
@@ -256,7 +273,16 @@ class BookRepository:
         )
         count_query = select(func.count()).select_from(query.subquery())
         result = await self.session.execute(count_query)
-        return result.scalar() or 0
+        count = result.scalar() or 0
+
+        self._count_cache[cache_key] = (count, now)
+        # Evict stale entries
+        if len(self._count_cache) > 50:
+            stale = [k for k, (_, t) in self._count_cache.items() if now - t >= _COUNT_CACHE_TTL]
+            for k in stale:
+                del self._count_cache[k]
+
+        return count
 
     async def update(self, book_id: int, update_data: BookUpdate) -> Book:
         """Update book metadata.
@@ -355,6 +381,26 @@ class BookRepository:
         result = await self.session.execute(select(Book.id, Book.path))
         return {row.path: row.id for row in result.all()}
 
+    async def get_stale_book_ids(self) -> list[int]:
+        """Find IDs of books whose files no longer exist on disk.
+
+        Runs the filesystem checks in a thread to avoid blocking the
+        event loop. More efficient than get_all_paths + manual filtering
+        for the common stale-detection use case.
+
+        Returns:
+            List of book IDs with missing files.
+        """
+        import asyncio
+
+        result = await self.session.execute(select(Book.id, Book.path))
+        rows = result.all()
+
+        def _check(rows: list) -> list[int]:
+            return [row.id for row in rows if not os.path.exists(row.path)]
+
+        return await asyncio.to_thread(_check, rows)
+
     async def find_duplicate_groups(self) -> list[dict]:
         """Find groups of books with the same lower(title)+lower(author).
 
@@ -381,6 +427,27 @@ class BookRepository:
                 "count": row.cnt,
             })
         return groups
+
+    async def get_categories_for_books(self, book_ids: list[int]) -> dict[int, list[str]]:
+        """Batch-fetch category names for multiple books in a single query.
+
+        Args:
+            book_ids: List of book IDs.
+
+        Returns:
+            Dict mapping book_id -> list of category names.
+        """
+        if not book_ids:
+            return {}
+        result = await self.session.execute(
+            select(BookCategory.book_id, Category.name)
+            .join(Category, BookCategory.category_id == Category.id)
+            .where(BookCategory.book_id.in_(book_ids))
+        )
+        categories_map: dict[int, list[str]] = {bid: [] for bid in book_ids}
+        for book_id, cat_name in result.all():
+            categories_map.setdefault(book_id, []).append(cat_name)
+        return categories_map
 
     async def get_books_by_ids(self, ids: list[int]) -> list[Book]:
         """Load multiple books by ID for batch inspection."""

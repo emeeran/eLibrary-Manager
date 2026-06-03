@@ -58,10 +58,10 @@ class ReaderService:
         Raises:
             ResourceNotFoundError: If book or chapter not found
         """
-        from app.reader_engine import ReaderEngine
+        from app.reader_engine import get_reader_engine
 
         book = await self.book_repo.get_by_id_or_404(book_id)
-        reader = ReaderEngine()
+        reader = get_reader_engine()
 
         # Enrich fast-indexed books on first open
         if not book.total_chapters or book.total_chapters <= 0:
@@ -161,18 +161,19 @@ class ReaderService:
                 )
                 return cached
 
-        from app.reader_engine import ReaderEngine
+        from app.reader_engine import get_reader_engine
 
-        reader = ReaderEngine()
-        chapters = await reader.get_all_chapters(book.path)
-
-        if chapter_index >= len(chapters):
+        reader = get_reader_engine()
+        # Extract only the requested chapter — avoids parsing the entire book
+        try:
+            chapter_text, chapter_title, total_chapters = (
+                await reader.get_chapter_content(book.path, chapter_index)
+            )
+        except ResourceNotFoundError:
             raise ResourceNotFoundError(
                 f"Chapter {chapter_index} not found",
                 {"book_id": book_id, "chapter_index": chapter_index}
-            )
-
-        _, chapter_title, chapter_text = chapters[chapter_index]
+            ) from None
 
         orchestrator = await get_ai_orchestrator()
         summary_text = await orchestrator.summarize(
@@ -220,17 +221,23 @@ class ReaderService:
                 logger.debug(f"Using cached book summary for {book_id}")
                 return existing
 
-        from app.reader_engine import ReaderEngine
+        from app.reader_engine import get_reader_engine
 
-        reader = ReaderEngine()
-        chapters = await reader.get_all_chapters(book.path)
+        reader = get_reader_engine()
+        total_chapters = await reader.get_total_chapters(book.path)
 
         chapter_summaries = []
-        for i, (_, title, text) in enumerate(chapters):
+        for i in range(total_chapters):
             cached = await self.summary_repo.get_cached_summary(book_id, i)
             if cached:
                 chapter_summaries.append(cached.summary_text)
             else:
+                # Fetch only the single chapter needed — avoids full-book parse
+                try:
+                    text, title, _ = await reader.get_chapter_content(book.path, i)
+                except ResourceNotFoundError:
+                    continue
+
                 orchestrator = await get_ai_orchestrator()
                 summary_text = await orchestrator.summarize(
                     text,
@@ -336,10 +343,10 @@ class ReaderService:
         Raises:
             ResourceNotFoundError: If book not found
         """
-        from app.reader_engine import ReaderEngine
+        from app.reader_engine import get_reader_engine
 
         book = await self.book_repo.get_by_id_or_404(book_id)
-        reader = ReaderEngine()
+        reader = get_reader_engine()
 
         toc = await reader.get_table_of_contents(book.path)
         return toc

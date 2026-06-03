@@ -40,7 +40,8 @@ async function loadBooks(append = false) {
 
         totalBooks = data.total;
         renderBooks(data.books, append);
-        updateCounts(data.counts);
+        // Fetch sidebar counts independently for better performance
+        loadSidebarCounts();
         hideLoading();
     } catch (error) {
         console.error('Failed to load books:', error);
@@ -356,6 +357,23 @@ function renderTableView(books, append = false) {
             </tbody>
         </table>
     `;
+}
+
+/**
+ * Fetch sidebar counts from dedicated endpoint (decoupled from book list).
+ * Throttled to avoid hammering the API — refreshes at most every 5 seconds.
+ */
+let _sidebarCountsTs = 0;
+async function loadSidebarCounts() {
+    const now = Date.now();
+    if (now - _sidebarCountsTs < 5000) return;
+    _sidebarCountsTs = now;
+    try {
+        const resp = await fetch('/api/stats/sidebar');
+        if (resp.ok) {
+            updateCounts(await resp.json());
+        }
+    } catch { /* non-critical */ }
 }
 
 /**
