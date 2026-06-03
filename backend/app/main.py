@@ -139,8 +139,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await asyncio.to_thread(_run_alembic)
     logger.info("Database migrations applied")
 
-    # Start NAS health monitor if enabled
-    if config.nas_enabled and config.nas_mount_path:
+    # Start NAS health monitor if enabled (from DB settings, fallback to env)
+    from app.repositories import SettingsRepository
+    async with db_manager.session_factory() as db_session:
+        settings_repo = SettingsRepository(db_session)
+        all_settings = await settings_repo.get_all()
+
+    nas_enabled_env = config.nas_enabled and config.nas_mount_path
+    nas_enabled_db = all_settings.get("nas_enabled", "").lower() in ("true", "1", "yes")
+    nas_mount_db = all_settings.get("nas_mount_path", "")
+    nas_host_db = all_settings.get("nas_host", "")
+
+    if nas_enabled_db and nas_mount_db:
+        from app.nas_health import NASHealthMonitor
+        from app.storage.nas import NASStorageBackend
+
+        nas_backend = NASStorageBackend(
+            mount_path=nas_mount_db,
+            host=nas_host_db,
+        )
+        nas_monitor = NASHealthMonitor(backend=nas_backend, check_interval=60)
+        await nas_monitor.start()
+        app.state.nas_monitor = nas_monitor
+        app.state.nas_backend = nas_backend
+        logger.info(f"NAS health monitor initialized from DB: {nas_host_db}:{nas_mount_db}")
+    elif nas_enabled_env:
         from app.nas_health import NASHealthMonitor
         from app.storage.nas import NASStorageBackend
 
@@ -152,7 +175,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await nas_monitor.start()
         app.state.nas_monitor = nas_monitor
         app.state.nas_backend = nas_backend
-        logger.info("NAS health monitor initialized")
+        logger.info(f"NAS health monitor initialized from env: {config.nas_host}:{config.nas_mount_path}")
     else:
         app.state.nas_monitor = None
         app.state.nas_backend = None

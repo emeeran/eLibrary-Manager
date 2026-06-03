@@ -53,6 +53,10 @@ async function loadSettings() {
             applySettingsToUI(serverSettings);
             return;
         }
+        if (response.status === 401) {
+            window.location.href = '/login';
+            return;
+        }
     } catch (error) {
         console.error('Failed to load settings from server:', error);
     }
@@ -183,9 +187,17 @@ async function saveSettings(event) {
 
         if (response.ok) {
             showNotification('Settings saved successfully!', 'success');
+        } else if (response.status === 401) {
+            // Session expired — redirect to login
+            showNotification('Session expired. Redirecting to login...', 'warning');
+            setTimeout(() => { window.location.href = '/login'; }, 1500);
+            return;
         } else {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to save settings');
+            const errBody = await response.json().catch(() => ({}));
+            const msg = errBody.detail
+                ? (Array.isArray(errBody.detail) ? errBody.detail.map(e => e.msg).join(', ') : String(errBody.detail))
+                : (errBody.error || 'Failed to save settings');
+            throw new Error(msg);
         }
     } catch (error) {
         console.error('Failed to save settings:', error);
@@ -600,11 +612,16 @@ async function testNASConnection(event) {
         };
 
         // Save settings first
-        await fetch('/api/settings', {
+        const saveResp = await fetch('/api/settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(nasSettings)
         });
+        if (saveResp.status === 401) {
+            showNotification('Session expired. Redirecting to login...', 'warning');
+            setTimeout(() => { window.location.href = '/login'; }, 1500);
+            return;
+        }
 
         // Then test connection
         const response = await fetch('/api/settings/test-nas', {

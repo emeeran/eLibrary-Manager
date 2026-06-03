@@ -157,9 +157,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     session = db_manager.session_factory()
     try:
         yield session
-        # Only commit if there are pending changes (avoid write-locking on reads)
-        if session.new or session.dirty or session.deleted:
-            await session.commit()
+        await session.commit()
     except (DawnstarError, HTTPException):
         await session.rollback()
         raise

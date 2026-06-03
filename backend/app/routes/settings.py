@@ -13,6 +13,42 @@ from app.repositories import SettingsRepository
 from app.schemas import AIConnectionTest, NASHealthResponse, SettingsCreate, SettingsResponse
 
 
+def _reinit_nas_backend(app: object, nas_enabled: bool, mount_path: str, host: str) -> None:
+    """Reinitialize NAS backend and health monitor at runtime.
+
+    Called when NAS settings are saved so changes take effect without restart.
+    """
+    from app.storage.nas import NASStorageBackend
+
+    # Stop existing monitor
+    old_monitor = getattr(app.state, "nas_monitor", None)
+    if old_monitor:
+        import asyncio
+        try:
+            asyncio.get_event_loop().create_task(old_monitor.stop())
+        except RuntimeError:
+            pass
+
+    if nas_enabled and mount_path:
+        backend = NASStorageBackend(mount_path=mount_path, host=host)
+        app.state.nas_backend = backend
+
+        from app.nas_health import NASHealthMonitor
+        monitor = NASHealthMonitor(backend=backend, check_interval=60)
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            loop.create_task(monitor.start())
+        except RuntimeError:
+            pass
+        app.state.nas_monitor = monitor
+        logger.info(f"NAS backend reinitialized: {host}:{mount_path}")
+    else:
+        app.state.nas_backend = None
+        app.state.nas_monitor = None
+        logger.info("NAS backend disabled")
+
+
 def _apply_ai_credentials(provider: str, api_key: str | None = None) -> None:
     """Set AI provider env var and reset orchestrator so changes take effect."""
     if api_key:
@@ -126,6 +162,7 @@ async def get_settings(db: AsyncSession = Depends(get_db)) -> SettingsResponse:
 
 @router.post("/settings")
 async def save_settings(
+    request: Request,
     settings: SettingsCreate,
     db: AsyncSession = Depends(get_db)
 ) -> SettingsResponse:
@@ -148,6 +185,13 @@ async def save_settings(
         data["nas_password_encrypted"] = encrypt_value(nas_password)
 
     await repo.set_many(data)
+
+    # Reinitialize NAS backend if NAS settings changed
+    if settings.nas_enabled is not None:
+        nas_enabled = settings.nas_enabled
+        nas_mount = settings.nas_mount_path or ""
+        nas_host = settings.nas_host or ""
+        _reinit_nas_backend(request.app, nas_enabled, nas_mount, nas_host)
 
     stored = await repo.get_all()
     return _build_response(stored)
@@ -205,19 +249,15 @@ async def get_nas_health(request: Request) -> NASHealthResponse:
 @router.post("/settings/test-nas")
 async def test_nas_connection(request: Request) -> dict:
     """Test NAS mount connectivity on demand."""
-    config = get_config()
-    if not config.nas_mount_path:
+    # Use the runtime NAS backend (initialized from DB settings on save)
+    nas_backend = getattr(request.app.state, "nas_backend", None)
+    if not nas_backend:
         raise HTTPException(
             status_code=400,
-            detail={"error": "NAS not configured", "message": "Set NAS mount path first"},
+            detail={"error": "NAS not configured", "message": "Enable NAS and set mount path first"},
         )
 
-    from app.storage.nas import NASStorageBackend
-    backend = NASStorageBackend(
-        mount_path=config.nas_mount_path,
-        host=config.nas_host,
-    )
-    result = await backend.health_check()
+    result = await nas_backend.health_check()
 
     if result["healthy"]:
         return {"status": "success", "message": result["details"]}

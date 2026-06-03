@@ -15,7 +15,7 @@ from app.models import Book
 from app.repositories import BookRepository
 from app.scanner import LibraryScanner
 from app.schemas import BookUpdate
-from app.storage.factory import get_storage_backend
+from app.storage.factory import get_nas_config_from_db, get_storage_backend
 
 logger = get_logger(__name__)
 
@@ -61,11 +61,15 @@ class LibraryService:
             scan_id=scan_id,
         )
 
-        # Scan NAS if enabled
-        config = get_config()
+        # Scan NAS if enabled (read settings from DB, not env)
+        nas_cfg = await get_nas_config_from_db(self.session)
         nas_stats: dict | None = None
-        if config.nas_enabled and config.nas_mount_path:
-            nas_storage = get_storage_backend("nas")
+        if nas_cfg["nas_enabled"] and nas_cfg["nas_mount_path"]:
+            nas_storage = get_storage_backend(
+                "nas",
+                mount_path=nas_cfg["nas_mount_path"],
+                host=nas_cfg["nas_host"],
+            )
             health = await nas_storage.health_check()
             if health["healthy"]:
                 nas_scanner = LibraryScanner(
@@ -74,7 +78,7 @@ class LibraryService:
                 )
                 nas_stats = await self._scan_source(
                     scanner=nas_scanner,
-                    directory=config.nas_mount_path,
+                    directory=nas_cfg["nas_mount_path"],
                 )
             else:
                 logger.warning(f"NAS not available: {health['details']}")
@@ -184,16 +188,44 @@ class LibraryService:
         if batch_count > 0:
             await self.session.commit()
 
-        logger.info(
-            f"Fast index complete: {imported} added, {skipped} skipped, {errors} errors"
-        )
-
-        return {
+        local_stats = {
             "imported": imported,
             "skipped": skipped,
             "errors": errors,
             "total": len(books_data),
         }
+        logger.info(
+            f"Fast index local complete: {imported} added, {skipped} skipped, {errors} errors"
+        )
+
+        # Scan NAS if enabled (read settings from DB)
+        nas_stats: dict | None = None
+        nas_cfg = await get_nas_config_from_db(self.session)
+        if nas_cfg["nas_enabled"] and nas_cfg["nas_mount_path"]:
+            nas_storage = get_storage_backend(
+                "nas",
+                mount_path=nas_cfg["nas_mount_path"],
+                host=nas_cfg["nas_host"],
+            )
+            health = await nas_storage.health_check()
+            if health["healthy"]:
+                nas_scanner = LibraryScanner(
+                    storage=nas_storage,
+                    storage_type="nas",
+                )
+                nas_stats = await self._fast_index_source(
+                    scanner=nas_scanner,
+                    directory=nas_cfg["nas_mount_path"],
+                    scan_id=scan_id,
+                )
+            else:
+                logger.warning(f"NAS not available for fast index: {health['details']}")
+                nas_stats = {"imported": 0, "skipped": 0, "errors": 0, "total": 0, "unavailable": True}
+
+        result: dict = {"local": local_stats}
+        if nas_stats is not None:
+            result["nas"] = nas_stats
+        return result
 
     async def _scan_source(
         self,
@@ -260,6 +292,80 @@ class LibraryService:
             "skipped": skipped,
             "errors": errors,
             "total": len(books_data)
+        }
+
+    async def _fast_index_source(
+        self,
+        scanner: LibraryScanner,
+        directory: Optional[str] = None,
+        scan_id: Optional[str] = None,
+    ) -> dict:
+        """Fast-index a single source directory.
+
+        Args:
+            scanner: Configured scanner instance (local or NAS).
+            directory: Directory to scan.
+            scan_id: Optional scan ID for progress tracking.
+
+        Returns:
+            Dictionary with import statistics.
+        """
+        import asyncio
+
+        books_data = await scanner.fast_index_directory(directory)
+
+        from sqlalchemy import select
+        from app.models import Book as BookModel
+        result = await self.session.execute(select(BookModel.path))
+        existing_paths = {row[0] for row in result.all()}
+
+        imported = 0
+        skipped = 0
+        errors = 0
+        batch_count = 0
+
+        for book_data in books_data:
+            try:
+                if book_data.path in existing_paths:
+                    skipped += 1
+                    continue
+
+                cover_path = await scanner.extract_cover(book_data.path)
+                if cover_path:
+                    book_data.cover_path = cover_path
+
+                try:
+                    await self.book_repo.create(book_data)
+                except Exception as create_err:
+                    errors += 1
+                    logger.error(f"Failed to index {book_data.path}: {create_err}")
+                    continue
+
+                existing_paths.add(book_data.path)
+                imported += 1
+                batch_count += 1
+
+                if batch_count >= 100:
+                    await self.session.commit()
+                    batch_count = 0
+                    await asyncio.sleep(0)
+
+            except Exception as e:
+                errors += 1
+                logger.error(f"Failed to index {book_data.path}: {e}")
+
+        if batch_count > 0:
+            await self.session.commit()
+
+        logger.info(
+            f"Fast index source complete: {imported} added, {skipped} skipped, {errors} errors"
+        )
+
+        return {
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors,
+            "total": len(books_data),
         }
 
     async def import_book(self, file_path: str) -> Book:
