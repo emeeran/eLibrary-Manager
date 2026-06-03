@@ -1,6 +1,7 @@
 """Library management routes."""
 
 import asyncio
+import hashlib
 import json
 import os
 import shutil
@@ -8,7 +9,7 @@ import time
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +49,8 @@ def _validate_path_within_library(file_path: str) -> str:
     """
     resolved = Path(file_path).resolve()
     library_root = Path(config.library_path).resolve()
+    # Resolve symlinks to prevent escape via symlink chains
+    resolved = resolved.resolve()
     try:
         resolved.relative_to(library_root)
     except ValueError:
@@ -58,16 +61,52 @@ def _validate_path_within_library(file_path: str) -> str:
     return str(resolved)
 
 
+# Blocked system directories for filesystem browsing
+_BLOCKED_PATHS = {
+    "/etc", "/root", "/boot", "/dev", "/proc", "/sys", "/run",
+    "/sbin", "/bin", "/lib", "/lib64", "/usr", "/var",
+    "/lost+found", "/snap", "/swapfile",
+}
+
+
+def _validate_path_safe(file_path: str) -> str:
+    """Validate that an arbitrary local path is safe to access.
+
+    Blocks sensitive system directories. Used for indexing directories
+    outside the configured library_path.
+    """
+    resolved = Path(file_path).resolve()
+    resolved_str = str(resolved)
+
+    for blocked in _BLOCKED_PATHS:
+        if resolved_str == blocked or resolved_str.startswith(blocked + "/"):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access denied: system directory ({blocked})",
+            )
+
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail=f"Path not found: {file_path}")
+
+    if not resolved.is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Not a directory: {file_path}",
+        )
+
+    return resolved_str
+
+
 async def _run_background_scan(
     scan_id: str,
     coro_fn,
     complete_message: str = "Scan complete",
 ) -> None:
     """Shared background task runner for scan operations."""
-    from app.database import db_manager
+    from app.database import db_manager as _db_manager
 
     try:
-        async with db_manager.get_session() as db:
+        async with _db_manager.get_session() as db:
             service = LibraryService(db)
             try:
                 results = await coro_fn(service)
@@ -178,6 +217,103 @@ async def import_directory(
     return {"scan_id": scan_id, "status": "started"}
 
 
+@router.post("/library/index-local-dir")
+async def index_local_directory(
+    request: DirectoryImportRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Index books from any local directory on the filesystem.
+
+    Unlike /import-dir, this endpoint is not restricted to the
+    configured library_path. It allows indexing ebooks from any
+    accessible directory (e.g. ~/ebooks, /mnt/storage/books).
+
+    Security: blocks sensitive system directories.
+    """
+    safe_path = _validate_path_safe(request.path)
+
+    if _active_scans:
+        raise HTTPException(status_code=409, detail="A scan is already in progress.")
+
+    scan_id = uuid.uuid4().hex[:8]
+    scan_store.create(scan_id)
+    _active_scans.add(scan_id)
+
+    async def _index_coro(service):
+        return await service.fast_index(safe_path, scan_id=scan_id)
+
+    asyncio.create_task(_run_background_scan(scan_id, _index_coro, "Local directory index complete"))
+    return {"scan_id": scan_id, "status": "started", "path": safe_path}
+
+
+@router.get("/library/browse-fs")
+async def browse_filesystem(
+    path: str = "/",
+) -> list[dict]:
+    """Browse the local filesystem for directory selection.
+
+    Returns subdirectories of the given path. Used by the frontend
+    directory browser to pick directories outside the library_path.
+    Uses os.scandir for fast, non-blocking directory listing.
+    """
+    from fastapi.concurrency import run_in_threadpool
+
+    resolved = Path(path).resolve()
+    resolved_str = str(resolved)
+
+    # Block sensitive paths
+    for blocked in _BLOCKED_PATHS:
+        if resolved_str == blocked or resolved_str.startswith(blocked + "/"):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Access denied: system directory",
+            )
+
+    if not resolved.exists() or not resolved.is_dir():
+        raise HTTPException(status_code=404, detail=f"Directory not found: {path}")
+
+    def _list_dirs() -> list[dict]:
+        entries = []
+        try:
+            with os.scandir(resolved) as it:
+                dirs = [
+                    e for e in it
+                    if e.is_dir(follow_symlinks=False)
+                    and not e.name.startswith(".")
+                    and str(Path(e.path).resolve()) not in _BLOCKED_PATHS
+                ]
+            dirs.sort(key=lambda e: e.name.lower())
+
+            for entry in dirs:
+                try:
+                    # Quick has_subdirs check — stops at first subdir found
+                    with os.scandir(entry.path) as sub_it:
+                        has_subdirs = any(
+                            s.is_dir(follow_symlinks=False) and not s.name.startswith(".")
+                            for s in sub_it
+                        )
+                    entries.append({
+                        "name": entry.name,
+                        "path": str(Path(entry.path).resolve()),
+                        "has_subdirs": has_subdirs,
+                    })
+                except PermissionError:
+                    entries.append({
+                        "name": entry.name,
+                        "path": str(Path(entry.path).resolve()),
+                        "has_subdirs": False,
+                        "permission_denied": True,
+                    })
+        except PermissionError:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Permission denied: {path}",
+            )
+        return entries
+
+    return await run_in_threadpool(_list_dirs)
+
+
 @router.post("/library/import-file")
 async def import_book_file(
     request: dict,
@@ -249,8 +385,8 @@ async def upload_book(
     Returns:
         Imported book metadata
     """
-    # Check extension
-    filename = file.filename or "unknown"
+    # Sanitize filename to prevent path traversal
+    filename = os.path.basename(file.filename or "unknown")
     ext = os.path.splitext(filename)[1].lower()
     if ext not in {".epub", ".pdf", ".mobi"}:
         raise HTTPException(
@@ -266,8 +402,13 @@ async def upload_book(
     file_path = os.path.join(uploads_dir, filename)
 
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        from fastapi.concurrency import run_in_threadpool
+
+        def _save_upload():
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+
+        await run_in_threadpool(_save_upload)
 
         service = LibraryService(db)
         book = await service.import_book(file_path)
@@ -311,6 +452,7 @@ async def refresh_covers(
 
 @router.get("/books", response_model=BookListResponse)
 async def list_books(
+    request: Request,
     page: int = 1,
     page_size: int = 20,  # max 100 enforced below
     favorite_only: bool = False,
@@ -407,8 +549,11 @@ async def list_books(
             counts=counts,
         )
 
-    # Check search cache
-    cache_key = f"{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}"
+    # Check search cache — include session token hash for user isolation
+    from app.auth import SESSION_COOKIE_NAME as _SCN
+    session_token = request.cookies.get(_SCN, "")
+    user_hash = hashlib.sha256(session_token.encode()).hexdigest()[:8] if session_token else "anon"
+    cache_key = f"{user_hash}|{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}"
     if cache_key in _search_cache:
         cached_result, cached_time = _search_cache[cache_key]
         if time.time() - cached_time < _SEARCH_CACHE_TTL:
@@ -539,9 +684,13 @@ async def upload_cover(
     os.makedirs(covers_dir, exist_ok=True)
     filepath = os.path.join(covers_dir, filename)
 
-    with open(filepath, "wb") as f:
-        content = await file.read()
-        f.write(content)
+    content = await file.read()
+
+    def _write_cover():
+        with open(filepath, "wb") as f:
+            f.write(content)
+
+    await asyncio.get_event_loop().run_in_executor(None, _write_cover)
 
     book.cover_path = filename
     await db.flush()

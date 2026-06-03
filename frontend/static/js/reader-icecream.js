@@ -22,8 +22,8 @@ const IcecreamReader = {
     loading: false,
     // Layout & Display
     pageLayout: 'single',
-    fontSize: 16,
-    lineHeight: 1.8,
+    fontSize: 15,
+    lineHeight: 1.5,
     // Volume
     volume: 80,
     // Right panel state
@@ -1158,7 +1158,7 @@ function setMargin(percent) {
  * @param {number} delta - Amount to change (positive = wider margins, negative = narrower)
  */
 function adjustMargin(delta) {
-    const current = IcecreamReader.margin || 15;
+    const current = IcecreamReader.margin || 20;
     setMargin(current + delta);
 }
 
@@ -2084,7 +2084,7 @@ function applyPreferences() {
     const savedLayout = localStorage.getItem('reader-page-layout') || 'single';
     setPageLayout(savedLayout);
 
-    const savedFontSize = parseInt(localStorage.getItem('reader-font-size')) || 16;
+    const savedFontSize = parseInt(localStorage.getItem('reader-font-size')) || 15;
     IcecreamReader.fontSize = savedFontSize;
     setFontSize(savedFontSize);
 
@@ -2128,10 +2128,8 @@ function applyPreferences() {
     }
 
     // Load saved margin
-    const savedMargin = parseInt(localStorage.getItem('reader-margin'));
-    if (savedMargin) {
-        setMargin(savedMargin);
-    }
+    const savedMargin = parseInt(localStorage.getItem('reader-margin')) || 20;
+    setMargin(savedMargin);
 
     // Initialization complete — enable settings sync
     _initializing = false;

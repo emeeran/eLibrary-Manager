@@ -1,5 +1,7 @@
 """Application configuration management with Pydantic Settings."""
 
+import os
+import warnings
 from functools import lru_cache
 from typing import Literal
 
@@ -61,9 +63,14 @@ class AppConfig(BaseSettings):
     @field_validator("secret_key")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
-        """Warn if SECRET_KEY is not set or using a default value."""
+        """Validate SECRET_KEY — fail in production, warn in development."""
         if not v:
-            import warnings
+            app_env = os.environ.get("APP_ENV", "development")
+            if app_env == "production":
+                raise ValueError(
+                    "SECRET_KEY is not set. Set a strong SECRET_KEY environment "
+                    "variable for production. Generate with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                )
             warnings.warn(
                 "SECRET_KEY is not set. Set a strong SECRET_KEY environment "
                 "variable for production. Using derived fallback.",
@@ -96,7 +103,6 @@ class AppConfig(BaseSettings):
         """Ensure paths are absolute paths."""
         if not v:
             return v
-        import os
         return os.path.abspath(v)
 
     @field_validator("google_api_key")
@@ -104,9 +110,9 @@ class AppConfig(BaseSettings):
     def validate_api_keys(cls, v: str) -> str:
         """Warn if API keys are not set (but allow for local Ollama)."""
         if not v:
-            import warnings
             warnings.warn(
-                "API key not set. AI features will rely on Ollama Local if available."
+                "API key not set. AI features will rely on Ollama Local if available.",
+                stacklevel=2,
             )
         return v
 

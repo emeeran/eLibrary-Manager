@@ -12,28 +12,8 @@ from app.database import Base
 class Book(Base):
     """Represents an ebook in the library.
 
-    Attributes:
-        id: Primary key
-        title: Book title
-        author: Book author (optional)
-        path: Filesystem path to ebook file
-        cover_path: Path to extracted cover image
-        format: File format (EPUB, PDF, etc.)
-        total_chapters: Number of chapters in the book
-        current_chapter: Reading progress (chapter index)
-        progress: Reading progress percentage (0-100)
-        is_favorite: User's favorite status
-        is_recent: Recently read flag
-        file_size: Size in bytes
-        added_date: When the book was added to library
-        last_read_date: Last time book was opened
-        publisher: Book publisher
-        publish_date: Publication date/year
-        description: Book description/synopsis
-        language: Book language
-        isbn: ISBN identifier
-        total_pages: Total pages (for PDFs) or estimated pages
-        summaries: Related chapter summaries
+    Stores metadata, reading progress, and user preferences for each book.
+    Related to ChapterSummary (1:many), BookCategory (many:many via junction).
     """
 
     __tablename__ = "books"
@@ -80,7 +60,7 @@ class Book(Base):
         "ChapterSummary",
         back_populates="book",
         cascade="all, delete-orphan",
-        lazy="noload",
+        lazy="selectin",
     )
     category_links: Mapped[list["BookCategory"]] = relationship(
         "BookCategory",
@@ -395,6 +375,7 @@ class BookCategory(Base):
         Integer,
         ForeignKey("books.id", ondelete="CASCADE"),
         primary_key=True,
+        index=True,
     )
     category_id: Mapped[int] = mapped_column(
         Integer,

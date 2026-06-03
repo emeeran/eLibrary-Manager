@@ -1,9 +1,9 @@
 """Unified production middleware — logging, caching, and rate limiting."""
 
-import threading
+import asyncio
 import time
 from collections import defaultdict
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -24,6 +24,9 @@ RATE_LIMITS: dict[str, tuple[int, int]] = {
     "/api/auth/login": (10, 60),
 }
 
+# Maximum period across all rate limits (for stale entry cleanup)
+_MAX_PERIOD = max(period for _, period in RATE_LIMITS.values()) if RATE_LIMITS else 300
+
 # Cache-Control rules for static assets
 CACHE_RULES: dict[str, str] = {
     "/static/": "public, max-age=86400",
@@ -38,14 +41,14 @@ class ProductionMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, **kwargs):
         super().__init__(app, **kwargs)
         self._requests: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         path = request.url.path
         start_time = time.time()
 
         # 1. Rate limiting (before processing)
-        response = self._check_rate_limit(request)
+        response = await self._check_rate_limit(request)
         if response:
             return response
 
@@ -69,7 +72,7 @@ class ProductionMiddleware(BaseHTTPMiddleware):
 
         return response
 
-    def _check_rate_limit(self, request: Request) -> Response | None:
+    async def _check_rate_limit(self, request: Request) -> Response | None:
         """Check rate limit for the request. Returns 429 response if exceeded."""
         path = request.url.path
 
@@ -87,7 +90,7 @@ class ProductionMiddleware(BaseHTTPMiddleware):
         key = f"{client_ip}:{path}"
 
         now = time.time()
-        with self._lock:
+        async with self._lock:
             self._requests[key][path] = [
                 t for t in self._requests[key][path] if now - t < period
             ]
@@ -104,5 +107,14 @@ class ProductionMiddleware(BaseHTTPMiddleware):
                 )
 
             self._requests[key][path].append(now)
+
+        # Periodic cleanup of stale entries (every ~100 requests)
+        if len(self._requests) > 100:
+            stale_keys = [
+                k for k, paths in self._requests.items()
+                if all(not ts for ts in paths.values())
+            ]
+            for k in stale_keys:
+                del self._requests[k]
 
         return None

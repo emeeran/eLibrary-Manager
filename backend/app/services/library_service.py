@@ -149,7 +149,13 @@ class LibraryService:
                 if cover_path:
                     book_data.cover_path = cover_path
 
-                await self.book_repo.create(book_data)
+                try:
+                    await self.book_repo.create(book_data)
+                except Exception as create_err:
+                    errors += 1
+                    logger.error(f"Failed to index {book_data.path}: {create_err}")
+                    continue
+
                 existing_paths.add(book_data.path)
                 imported += 1
                 batch_count += 1

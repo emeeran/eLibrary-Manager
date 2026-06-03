@@ -705,6 +705,7 @@ button {
 
 .main-content {
     flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1033,7 +1034,8 @@ button {
 
 .book-grid-container {
     flex: 1;
-    overflow-y: auto;
+    min-height: 0;
+    overflow-y: scroll;
     padding: 20px;
 }
 
@@ -2274,6 +2276,37 @@ button {
     height: 16px;
 }
 
+/* Filesystem Browser (Local Directory Index) */
+.fs-dir-item {
+    cursor: pointer;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border, #333);
+    transition: background 0.15s ease;
+}
+
+.fs-dir-item:hover {
+    background: var(--hover-bg, rgba(255,255,255,0.05));
+}
+
+.fs-dir-item.fs-dir-selected {
+    background: rgba(59, 130, 246, 0.15);
+    border-left: 3px solid var(--accent-blue, #3b82f6);
+}
+
+.fs-dir-item.fs-dir-locked {
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.fs-dir-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
 /* Form Success Messages */
 .form-success {
     font-size: 11px;
@@ -2393,12 +2426,12 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--content-border);
+    background: rgba(0, 0, 0, 0.25);
     border-radius: var(--radius-md);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-tertiary);
+    background: rgba(0, 0, 0, 0.4);
 }
 
 /* Dark sidebar scrollbar */
@@ -2634,9 +2667,9 @@ button {
     max-width: 720px;
     margin: 0 auto;
     font-family: 'Georgia', 'Times New Roman', serif;
-    line-height: 1.8;
+    line-height: 1.5;
     color: var(--reader-text);
-    font-size: 16px;
+    font-size: 15px;
 }
 
 .reader-content-inner h1,
@@ -4901,19 +4934,19 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.15);
+    background: rgba(0, 0, 0, 0.25);
     border-radius: var(--radius-md);
     transition: background var(--transition-fast);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.25);
+    background: rgba(0, 0, 0, 0.4);
 }
 
 /* Firefox */
 * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+    scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
 }
 
 /* ========================================

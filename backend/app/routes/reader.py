@@ -1,5 +1,6 @@
 """Reader routes for chapter content, bookmarks, notes, and annotations."""
 
+import nh3
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +20,30 @@ from app.schemas import (
     TOCResponse,
 )
 from app.services import LibraryService, ReaderService
+
+# Allowed HTML tags for chapter content rendering
+_SANITIZATION_TAGS = {
+    "a", "abbr", "b", "blockquote", "br", "code", "div", "em", "h1", "h2",
+    "h3", "h4", "h5", "h6", "hr", "i", "img", "li", "ol", "p", "pre",
+    "span", "strong", "sub", "sup", "table", "tbody", "td", "tfoot", "th",
+    "thead", "tr", "ul", "dl", "dt", "dd", "figure", "figcaption",
+}
+_SANITIZATION_ATTRIBUTES = {
+    "a": {"href", "title"},
+    "img": {"src", "alt", "loading", "width", "height"},
+    "td": {"colspan", "rowspan"},
+    "th": {"colspan", "rowspan"},
+}
+
+
+def _sanitize_html(html_content: str) -> str:
+    """Sanitize HTML content to prevent XSS while preserving reading-safe tags."""
+    return nh3.clean(
+        html_content,
+        tags=_SANITIZATION_TAGS,
+        attributes=_SANITIZATION_ATTRIBUTES,
+        clean_content_tags={"script", "style"},
+    )
 
 router = APIRouter(prefix="/api", tags=["reader"])
 
@@ -85,6 +110,9 @@ async def get_chapter(
     content, title, total = await service.get_chapter_content(
         book_id, chapter_index
     )
+
+    # Sanitize chapter HTML to prevent XSS from malicious ebook content
+    content = _sanitize_html(content)
 
     # Auto-cache NAS books for offline access
     if book and getattr(book, "storage_type", "local") == "nas":
@@ -195,7 +223,7 @@ async def get_batch_chapters(
             chapters_data.append({
                 "index": idx,
                 "title": title,
-                "content": content,
+                "content": _sanitize_html(content),
                 "estimated_pages": RE.estimate_chapter_pages(content)
             })
         except Exception:

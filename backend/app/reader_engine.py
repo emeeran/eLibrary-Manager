@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 
 from app.chapter_cache import get_chapter_cache
@@ -30,6 +31,15 @@ class ReaderEngine:
         """Get file modification time for cache invalidation."""
         try:
             return os.path.getmtime(path)
+        except OSError:
+            return None
+
+    def _get_file_fingerprint(self, path: str) -> str | None:
+        """Get a content fingerprint (first 1KB hash) for secondary cache validation."""
+        try:
+            with open(path, "rb") as f:
+                head = f.read(1024)
+            return hashlib.md5(head).hexdigest()
         except OSError:
             return None
 

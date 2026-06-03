@@ -4,11 +4,9 @@ Provides minimal single-admin-user auth with cookie-based sessions.
 Uses in-memory session store with configurable expiry.
 """
 
-import os
+import functools
 import secrets
 import time
-from datetime import datetime, timezone
-from typing import Optional
 
 from app.config import get_config
 from app.logging_config import get_logger
@@ -55,16 +53,11 @@ def _get_password_hash() -> str:
     return hashed
 
 
-# Lazy-initialized password hash
-_admin_password_hash: Optional[str] = None
-
-
+# Thread-safe lazy-initialized password hash
+@functools.cache
 def _ensure_password_hash() -> str:
     """Ensure the admin password hash is initialized and return it."""
-    global _admin_password_hash
-    if _admin_password_hash is None:
-        _admin_password_hash = _get_password_hash()
-    return _admin_password_hash
+    return _get_password_hash()
 
 
 def verify_credentials(username: str, password: str) -> bool:

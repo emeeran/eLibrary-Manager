@@ -12,6 +12,10 @@ from PIL import Image
 
 from app.exceptions import EbookParsingError
 from app.logging_config import get_logger
+
+# Suppress MuPDF C-library warnings (corrupt profiles, broken xrefs, etc.)
+# These are non-fatal and printed directly to stderr by the native library.
+fitz.TOOLS.mupdf_display_errors(False)
 from app.parsers.image_service import BookImageService
 from app.schemas import BookCreate
 

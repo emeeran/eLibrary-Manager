@@ -34,7 +34,6 @@ fail_fast = false
 
 # File patterns to exclude
 exclude: |
-  ^tests/
   ^library/
   ^dawnstar_data/
   ^static_covers/

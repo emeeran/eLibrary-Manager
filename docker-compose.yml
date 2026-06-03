@@ -7,7 +7,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./library:/app/library:ro
+      - ./library:/app/library
       - ./dawnstar_data:/app/dawnstar_data
       - ./static_covers:/app/static_covers
       - ./static_book_images:/app/static_book_images
@@ -28,9 +28,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
+          memory: 1G
         reservations:
-          memory: 128M
+          memory: 256M
 
   # Optional: Ollama for local AI summaries
   ollama:

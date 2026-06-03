@@ -203,6 +203,9 @@ function renderGridView(books, append = false) {
             grid.innerHTML = html;
         }
         initializeKeyboardNavigation();
+        // Force scrollbar recalculation after layout
+        const container = document.querySelector('.book-grid-container');
+        if (container) container.offsetHeight;
     });
 }
 
@@ -988,6 +991,148 @@ async function handleImport(event) {
         hideLoading();
     } finally {
         form.reset();
+    }
+}
+
+
+// ============================================
+// FILESYSTEM BROWSER (Local Directory Index)
+// ============================================
+
+let _fsSelectedPath = null;
+
+/**
+ * Switch between library-path import and local filesystem browser
+ */
+function switchImportMethod(method) {
+    const tabs = document.querySelectorAll('#import-modal .add-method-tab');
+    tabs.forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.method === method);
+    });
+
+    const libraryGroup = document.getElementById('import-library-group');
+    const localGroup = document.getElementById('import-local-group');
+
+    if (method === 'local') {
+        libraryGroup.style.display = 'none';
+        localGroup.style.display = 'block';
+        fsBrowse('/');
+    } else {
+        libraryGroup.style.display = 'block';
+        localGroup.style.display = 'none';
+    }
+}
+
+/**
+ * Browse filesystem directory
+ */
+async function fsBrowse(path) {
+    const browserEl = document.getElementById('fs-browser');
+    const pathInput = document.getElementById('fs-path-input');
+
+    if (!path || path.trim() === '') path = '/';
+    pathInput.value = path;
+
+    browserEl.innerHTML = '<div style="padding:12px;color:var(--text-secondary,#999);font-size:13px;">Loading...</div>';
+
+    try {
+        const res = await fetch(`/api/library/browse-fs?path=${encodeURIComponent(path)}`);
+        if (!res.ok) {
+            const err = await res.json();
+            browserEl.innerHTML = `<div style="padding:12px;color:#f87171;font-size:13px;">${escapeHtml(err.detail || 'Failed to browse')}</div>`;
+            return;
+        }
+        const dirs = await res.json();
+
+        let html = '';
+        // Parent directory link (if not at root)
+        const parentDir = path.replace(/\/[^/]+$/, '') || '/';
+        if (path !== '/') {
+            html += `<div class="fs-dir-item" onclick="fsBrowse('${escapeAttr(parentDir)}')" title="${escapeHtml(parentDir)}">
+                <span class="fs-dir-icon">&#x25B2;</span>
+                <span style="flex:1;color:var(--text-secondary,#999);">..</span>
+            </div>`;
+        }
+
+        if (dirs.length === 0) {
+            html += '<div style="padding:12px;color:var(--text-secondary,#999);font-size:13px;">No subdirectories found</div>';
+        }
+
+        dirs.forEach(d => {
+            const icon = d.permission_denied ? '&#x1F512;' : '&#x1F4C1;';
+            const dimClass = d.permission_denied ? 'fs-dir-locked' : '';
+            const navHandler = d.permission_denied ? '' : `ondblclick="fsBrowse('${escapeAttr(d.path)}')"`;
+            html += `<div class="fs-dir-item ${dimClass}" ${navHandler} title="${escapeHtml(d.path)}">
+                <span class="fs-dir-icon">${icon}</span>
+                <span style="flex:1;" onclick="fsSelect('${escapeAttr(d.path)}', this)">${escapeHtml(d.name)}</span>
+                ${d.has_subdirs ? '<span style="color:var(--text-secondary,#999);font-size:11px;">&#x25B6;</span>' : ''}
+            </div>`;
+        });
+
+        browserEl.innerHTML = html;
+
+    } catch (e) {
+        console.error('FS browse error:', e);
+        browserEl.innerHTML = '<div style="padding:12px;color:#f87171;font-size:13px;">Failed to browse filesystem</div>';
+    }
+}
+
+/**
+ * Select a directory for indexing (single click)
+ */
+function fsSelect(path, el) {
+    _fsSelectedPath = path;
+
+    // Highlight selected
+    document.querySelectorAll('.fs-dir-item').forEach(i => i.classList.remove('fs-dir-selected'));
+    el.closest('.fs-dir-item').classList.add('fs-dir-selected');
+
+    // Update display
+    document.getElementById('fs-selected-path').textContent = `Selected: ${path}`;
+    document.getElementById('fs-index-btn').disabled = false;
+}
+
+/**
+ * Navigate into a directory (double click) — alias for fsBrowse
+ */
+
+/**
+ * Index the selected local directory
+ */
+async function fsIndexSelected() {
+    if (!_fsSelectedPath) {
+        showNotification('Select a directory first', 'error');
+        return;
+    }
+
+    showLoading('Indexing directory...');
+    closeModal('import-modal');
+
+    try {
+        const response = await fetch('/api/library/index-local-dir', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: _fsSelectedPath }),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Index failed');
+        }
+
+        const data = await response.json();
+
+        if (data.scan_id) {
+            trackScanProgress(data.scan_id);
+        } else {
+            showNotification(`Index complete`, 'success');
+            hideLoading();
+            loadBooks();
+        }
+    } catch (error) {
+        console.error('Index error:', error);
+        showError(`Index failed: ${error.message}`);
+        hideLoading();
     }
 }
 

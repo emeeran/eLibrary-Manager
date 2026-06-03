@@ -3,6 +3,8 @@
 Provides login, logout, and auth status endpoints.
 """
 
+import os
+
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -60,7 +62,7 @@ async def login(request: Request, response: Response) -> JSONResponse:
     if not password:
         return JSONResponse(
             status_code=401,
-            content={"error": "Password required"},
+            content={"error": "Invalid credentials"},
         )
 
     if not verify_credentials(username, password):
@@ -82,6 +84,7 @@ async def login(request: Request, response: Response) -> JSONResponse:
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
         samesite="lax",
+        secure=os.environ.get("APP_ENV") == "production",
     )
     logger.info("User %s logged in successfully", username)
     return response

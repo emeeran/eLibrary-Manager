@@ -27,7 +27,7 @@ class BookCreate(BookBase):
     isbn: Optional[str] = Field(None, max_length=30)
     total_pages: int = Field(default=0, ge=0)
     storage_type: str = Field(default="local", pattern="^(local|nas)$")
-    subjects: list[str] = Field(default_factory=list, description="Subjects/tags from metadata")
+    subjects: list[str] = Field(default_factory=list, max_length=20, description="Subjects/tags from metadata")
 
 
 class BookUpdate(BaseModel):
@@ -69,18 +69,24 @@ class BookResponse(BookBase):
 
     model_config = {"from_attributes": True}
 
+    @staticmethod
+    def from_book(book) -> "BookResponse":
+        """Convert a Book ORM object to BookResponse, including categories."""
+        from app.models import Book as BookModel
 
+        resp = BookResponse.model_validate(book)
+        if isinstance(book, BookModel) and hasattr(book, "category_links"):
+            resp.categories = [
+                link.category.name for link in book.category_links
+                if link.category is not None
+            ]
+        return resp
+
+
+# Backward-compatible alias
 def book_to_response(book):
     """Convert a Book ORM object to BookResponse, including categories."""
-    from app.models import Book as BookModel
-
-    resp = BookResponse.model_validate(book)
-    if isinstance(book, BookModel) and hasattr(book, "category_links"):
-        resp.categories = [
-            link.category.name for link in book.category_links
-            if link.category is not None
-        ]
-    return resp
+    return BookResponse.from_book(book)
 
 
 class BookListResponse(BaseModel):

@@ -1,5 +1,6 @@
 """MOBI format parser using pymobi."""
 
+import asyncio
 import os
 import re
 import struct
@@ -65,13 +66,13 @@ class MOBIParser:
         """
         try:
             # Check if file is DRM-protected
-            if self._is_drm_protected(mobi_path):
+            if await asyncio.to_thread(self._is_drm_protected, mobi_path):
                 raise EbookParsingError(
                     "DRM-protected MOBI files are not supported",
                     {"path": mobi_path, "reason": "DRM protection"}
                 )
 
-            mobi = BookMobi(mobi_path)
+            mobi = await asyncio.to_thread(BookMobi, mobi_path)
 
             # Extract metadata from EXTH headers or metadata records
             title = self._get_metadata_value(mobi, 'title') or None
@@ -179,7 +180,7 @@ class MOBIParser:
             Path to extracted cover or None
         """
         try:
-            mobi = BookMobi(mobi_path)
+            mobi = await asyncio.to_thread(BookMobi, mobi_path)
 
             # Try to get cover image from records
             import hashlib
@@ -189,7 +190,7 @@ class MOBIParser:
 
             # Extract first image record (usually cover)
             try:
-                mobi.saveRecordImage(0, str(cover_path))
+                await asyncio.to_thread(mobi.saveRecordImage, 0, str(cover_path))
                 if cover_path.exists():
                     logger.debug(f"Cover extracted: {cover_path}")
                     return str(cover_path)
@@ -287,14 +288,14 @@ class MOBIParser:
         try:
             # Try HTML extraction first
             try:
-                return self._get_chapters_from_html(mobi_path)
+                return await asyncio.to_thread(self._get_chapters_from_html, mobi_path)
             except Exception as html_err:
                 logger.warning(
                     f"MOBI HTML extraction failed, falling back to text: {html_err}"
                 )
 
             # Fallback to plain text
-            return self._get_chapters_from_text(mobi_path)
+            return await asyncio.to_thread(self._get_chapters_from_text, mobi_path)
 
         except Exception as e:
             raise EbookParsingError(

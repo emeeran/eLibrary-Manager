@@ -1002,8 +1002,8 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
 /* Chapter Text - Matches Icecream exactly */
 .ic-chapter-text {
     font-family: Georgia, "Times New Roman", serif;
-    font-size: 17px;
-    line-height: 1.8;
+    font-size: 15px;
+    line-height: 1.5;
     color: var(--ic-text);
     text-align: justify;
     word-break: break-word;

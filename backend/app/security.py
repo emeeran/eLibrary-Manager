@@ -9,11 +9,12 @@ from cryptography.fernet import Fernet
 
 
 def _derive_key() -> bytes:
-    """Derive a Fernet key from a stable local secret (DB path)."""
+    """Derive a Fernet key from the app's SECRET_KEY (preferred) or DB URL (dev fallback)."""
     from app.config import get_config
 
     config = get_config()
-    secret = config.database_url.encode("utf-8")
+    # Prefer SECRET_KEY when available (production-safe)
+    secret = (config.secret_key or config.database_url).encode("utf-8")
     digest = hashlib.sha256(secret).digest()
     return base64.urlsafe_b64encode(digest)
 

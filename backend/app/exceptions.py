@@ -7,7 +7,10 @@ class DawnstarError(Exception):
     Attributes:
         message: Human-readable error message
         details: Additional context for debugging
+        error_code: Machine-readable error code
     """
+
+    error_code: str = "UNKNOWN_ERROR"
 
     def __init__(self, message: str, details: dict | None = None) -> None:
         """Initialize exception with message and optional details.
@@ -29,34 +32,34 @@ class DawnstarError(Exception):
 
 class DatabaseError(DawnstarError):
     """Raised when database operations fail."""
-    pass
+    error_code = "DATABASE_ERROR"
 
 
 class LibraryScannerError(DawnstarError):
     """Raised when library scanning operations fail."""
-    pass
+    error_code = "LIBRARY_SCAN_ERROR"
 
 
 class EbookParsingError(DawnstarError):
     """Raised when EPUB/PDF/MOBI parsing operations fail."""
-    pass
+    error_code = "EBOOK_PARSING_ERROR"
 
 
 class AIServiceError(DawnstarError):
     """Raised when AI summarization service fails."""
-    pass
+    error_code = "AI_SERVICE_ERROR"
 
 
 class ValidationError(DawnstarError):
     """Raised when input validation fails."""
-    pass
+    error_code = "VALIDATION_ERROR"
 
 
 class ResourceNotFoundError(DawnstarError):
     """Raised when a requested resource doesn't exist."""
-    pass
+    error_code = "RESOURCE_NOT_FOUND"
 
 
 class RateLimitError(DawnstarError):
     """Raised when rate limits are exceeded."""
-    pass
+    error_code = "RATE_LIMIT_EXCEEDED"

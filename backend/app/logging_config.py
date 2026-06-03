@@ -49,7 +49,7 @@ def setup_logging(
         format=format_str,
         datefmt=date_format,
         handlers=handlers,
-        force=True  # Override any existing config
+        force=config.debug  # Only override existing config in development
     )
 
     # Set specific log levels for noisy libraries

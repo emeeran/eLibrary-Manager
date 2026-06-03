@@ -1,18 +1,16 @@
 """FastAPI application entry point."""
 
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request as StarletteRequest
-from starlette.responses import Response as StarletteResponse
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
 
 from app.auth import SESSION_COOKIE_NAME, validate_session
 from app.config import get_config
@@ -99,8 +97,47 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     logger.info("Starting eBook Manager")
+
+    # Initialize async engine and create all tables first
     await db_manager.init_db()
     logger.info("Database initialized")
+
+    # Run Alembic migrations (sync, in thread to avoid blocking event loop)
+    import asyncio
+
+    from alembic import command
+    from alembic.config import Config as AlembicConfig
+
+    alembic_cfg = AlembicConfig("alembic.ini")
+    db_url = config.database_url
+    if "+aiosqlite:" in db_url:
+        db_url = db_url.replace("+aiosqlite:", ":")
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+
+    def _run_alembic():
+        from alembic.script import ScriptDirectory
+        script = ScriptDirectory.from_config(alembic_cfg)
+        head = script.get_current_head()
+        # Check if DB has existing tables but no alembic_version
+        from sqlalchemy import create_engine, inspect as sa_inspect
+        engine = create_engine(db_url)
+        inspector = sa_inspect(engine)
+        tables = inspector.get_table_names()
+        engine.dispose()
+        if tables and "alembic_version" not in tables:
+            # Existing DB without alembic — stamp with current head
+            logger.info("Stamping existing schema at Alembic head: %s", head)
+            command.stamp(alembic_cfg, head)
+        elif not tables:
+            # Fresh DB — tables already created by init_db, just stamp
+            logger.info("Fresh database — stamping at Alembic head: %s", head)
+            command.stamp(alembic_cfg, head)
+        else:
+            # Apply any pending migrations
+            command.upgrade(alembic_cfg, "head")
+
+    await asyncio.to_thread(_run_alembic)
+    logger.info("Database migrations applied")
 
     # Start NAS health monitor if enabled
     if config.nas_enabled and config.nas_mount_path:
@@ -137,10 +174,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add middleware (order matters: outermost first)
+# Add middleware (order matters: outermost first in add_middleware = innermost at runtime)
+# Runtime order: ProductionMiddleware -> AuthMiddleware -> GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
 app.add_middleware(AuthMiddleware)                     # Session-based auth
-app.add_middleware(ProductionMiddleware)               # Logging + caching + rate limiting
+app.add_middleware(ProductionMiddleware)               # Logging + caching + rate limiting (outermost)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
@@ -193,16 +231,21 @@ async def parsing_exception_handler(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "error": "File Not Found",
-                "message": f"The book file could not be found. It may have been moved or deleted. {exc.message}"
+                "message": "The book file could not be found. It may have been moved or deleted."
+            }
+        )
+    if config.debug:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error": type(exc).__name__,
+                "message": exc.message,
+                "details": exc.details
             }
         )
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={
-            "error": type(exc).__name__,
-            "message": exc.message,
-            "details": exc.details
-        }
+        content={"error": "Parsing Error", "message": "Failed to process the ebook file"}
     )
 
 
@@ -227,13 +270,19 @@ async def dawnstar_exception_handler(
     exc: DawnstarError
 ) -> JSONResponse:
     """Handle all other Dawnstar-specific exceptions."""
+    logger.error(f"{type(exc).__name__}: {exc.message} — {exc.details}")
+    if config.debug:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "error": type(exc).__name__,
+                "message": exc.message,
+                "details": exc.details
+            }
+        )
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={
-            "error": type(exc).__name__,
-            "message": exc.message,
-            "details": exc.details
-        }
+        content={"error": "Request Failed", "message": "An error occurred processing your request"}
     )
 @app.get("/", response_class=HTMLResponse)
 async def library_home(request: Request) -> HTMLResponse:

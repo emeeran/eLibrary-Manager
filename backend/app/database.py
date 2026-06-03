@@ -1,16 +1,16 @@
 """Database connection and session management."""
 
+import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase
-
-from fastapi import HTTPException
 
 from app.config import get_config
 from app.exceptions import DatabaseError, DawnstarError
@@ -60,7 +60,8 @@ class DatabaseManager:
                 cursor.execute("PRAGMA synchronous=NORMAL")
                 cursor.execute("PRAGMA cache_size=-64000")  # 64MB cache
                 cursor.execute("PRAGMA temp_store=MEMORY")
-                cursor.execute("PRAGMA mmap_size=268435456")  # 256MB mmap
+                mmap_size = int(os.environ.get("DB_MMAP_SIZE", 33554432))  # 32MB default
+                cursor.execute(f"PRAGMA mmap_size={mmap_size}")
                 cursor.close()
 
             logger.info(f"Database engine created: {self.config.database_url}")
@@ -101,7 +102,7 @@ class DatabaseManager:
             raise
         except Exception as e:
             await session.rollback()
-            logger.error(f"Database session error: {e}")
+            logger.exception("Database session error: %s", e)
             raise DatabaseError("Database operation failed", {"error": str(e)}) from e
         finally:
             await session.close()
@@ -109,8 +110,8 @@ class DatabaseManager:
     async def init_db(self) -> None:
         """Initialize database schema.
 
-        Creates all tables if they don't exist, then applies any pending
-        column migrations for existing tables. Should be called on app startup.
+        Creates all tables if they don't exist, then runs Alembic migrations
+        to apply any pending schema changes. Should be called on app startup.
         """
         try:
             # Ensure all models are registered with Base.metadata
@@ -119,43 +120,10 @@ class DatabaseManager:
             async with self.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
 
-                # Apply migrations for new columns on existing tables
-                await self._migrate(conn)
-
             logger.info("Database schema initialized successfully")
         except Exception as e:
             logger.error(f"Database initialization failed: {e}")
             raise DatabaseError("Failed to initialize database", {"error": str(e)}) from e
-
-    async def _migrate(self, conn) -> None:
-        """Apply incremental schema migrations for existing tables."""
-        from sqlalchemy import text, inspect
-
-        def _apply_migrations(sync_conn):
-            inspector = inspect(sync_conn)
-
-            # Migration 1: Add storage_type column to books table
-            if "books" in inspector.get_table_names():
-                columns = {col["name"] for col in inspector.get_columns("books")}
-                if "storage_type" not in columns:
-                    sync_conn.execute(
-                        text(
-                            "ALTER TABLE books ADD COLUMN storage_type "
-                            "VARCHAR(10) NOT NULL DEFAULT 'local'"
-                        )
-                    )
-                    logger.info("Migration: added storage_type column to books")
-
-                if "rating" not in columns:
-                    sync_conn.execute(
-                        text(
-                            "ALTER TABLE books ADD COLUMN rating "
-                            "INTEGER NOT NULL DEFAULT 0"
-                        )
-                    )
-                    logger.info("Migration: added rating column to books")
-
-        await conn.run_sync(_apply_migrations)
 
     async def close(self) -> None:
         """Close database connections.
@@ -189,12 +157,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     session = db_manager.session_factory()
     try:
         yield session
-        await session.commit()
+        # Only commit if there are pending changes (avoid write-locking on reads)
+        if session.new or session.dirty or session.deleted:
+            await session.commit()
     except (DawnstarError, HTTPException):
         await session.rollback()
         raise
     except Exception as e:
         await session.rollback()
+        logger.exception("Database operation failed: %s", e)
         raise DatabaseError("Database operation failed", {"error": str(e)}) from e
     finally:
         await session.close()

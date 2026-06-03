@@ -1,5 +1,6 @@
 """EPUB format parser using ebooklib."""
 
+import asyncio
 import hashlib
 import os
 from pathlib import Path
@@ -54,7 +55,7 @@ class EPUBParser:
             EbookParsingError: If parsing fails
         """
         try:
-            book = epub.read_epub(epub_path)
+            book = await asyncio.to_thread(epub.read_epub, epub_path)
 
             # Extract title
             title_metadata = book.get_metadata('DC', 'title')
@@ -94,7 +95,7 @@ class EPUBParser:
             subjects = [s[0] for s in subject_metadata if s[0]]
 
             # Get file size
-            file_size = os.path.getsize(epub_path)
+            file_size = await asyncio.to_thread(os.path.getsize, epub_path)
 
             # Estimate pages (rough estimate: 1 page ≈ 2KB of content)
             total_pages = max(1, file_size // 2048)
@@ -135,7 +136,7 @@ class EPUBParser:
             EbookParsingError: If cover extraction fails
         """
         try:
-            book = epub.read_epub(epub_path)
+            book = await asyncio.to_thread(epub.read_epub, epub_path)
             cover_item = None
             is_svg = False
 
@@ -223,7 +224,7 @@ class EPUBParser:
             from bs4 import XMLParsedAsHTMLWarning
             warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
-            book = epub.read_epub(epub_path)
+            book = await asyncio.to_thread(epub.read_epub, epub_path)
             spine_items = self._filter_spine_items(book)
             chapters: list[tuple[int, str, str]] = []
 
@@ -264,7 +265,7 @@ class EPUBParser:
             from bs4 import XMLParsedAsHTMLWarning
             warnings.filterwarnings("ignore", category=XMLParsedAsHTMLWarning)
 
-            book = epub.read_epub(epub_path)
+            book = await asyncio.to_thread(epub.read_epub, epub_path)
             spine_items = self._filter_spine_items(book)
             total = len(spine_items)
 
@@ -508,7 +509,7 @@ class EPUBParser:
             Number of chapters
         """
         try:
-            book = epub.read_epub(epub_path, options={"ignore_ncx": True})
+            book = await asyncio.to_thread(epub.read_epub, epub_path, {"ignore_ncx": True})
             spine_items = self._filter_spine_items(book)
             return len(spine_items)
         except Exception:
@@ -530,7 +531,7 @@ class EPUBParser:
             EbookParsingError: If parsing fails
         """
         try:
-            book = epub.read_epub(epub_path)
+            book = await asyncio.to_thread(epub.read_epub, epub_path)
             toc_items = []
             toc = book.toc if hasattr(book, 'toc') else []
 
