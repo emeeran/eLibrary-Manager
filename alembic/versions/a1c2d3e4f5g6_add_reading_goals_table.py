@@ -19,6 +19,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Use IF NOT EXISTS since init_db() may have already created the table
     op.create_table(
         'reading_goals',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
@@ -27,6 +28,7 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(), nullable=False),
         sa.Column('updated_at', sa.DateTime(), nullable=False),
         sa.PrimaryKeyConstraint('id'),
+        if_not_exists=True,
     )
 
 

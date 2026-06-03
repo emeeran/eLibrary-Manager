@@ -284,6 +284,15 @@ wheels = [
 ]
 
 [[package]]
+name = "cachetools"
+version = "7.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f4/8b/0d3945a13955303b81272f759a0331e54c5c793da455e6f5706b89d2639c/cachetools-7.1.4.tar.gz", hash = "sha256:437f55a4e0c1b01a4f3077cc470e6991d47430970e36fbcb77e2be0df4fc1cd6", size = 40085, upload-time = "2026-05-21T22:40:43.376Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/7b/1fc1c09cc0756cf25861a3be10565915953876da48bb228fb9a672b20a42/cachetools-7.1.4-py3-none-any.whl", hash = "sha256:323dc4127934744db5b54eb4924482d7edafbf9554e820d1531c2e08c0e4ef54", size = 16761, upload-time = "2026-05-21T22:40:41.845Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -580,6 +589,7 @@ dependencies = [
     { name = "aiosqlite" },
     { name = "alembic" },
     { name = "beautifulsoup4" },
+    { name = "cachetools" },
     { name = "cryptography" },
     { name = "ebooklib" },
     { name = "edge-tts" },
@@ -615,6 +625,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.19.0" },
     { name = "alembic", specifier = ">=1.18.4" },
     { name = "beautifulsoup4", specifier = ">=4.12.2" },
+    { name = "cachetools", specifier = ">=5.3.0" },
     { name = "cryptography", specifier = ">=42.0.0" },
     { name = "ebooklib", specifier = ">=0.18" },
     { name = "edge-tts", specifier = ">=6.1.0" },
