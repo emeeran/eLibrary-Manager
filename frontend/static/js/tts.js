@@ -881,7 +881,7 @@
      * Build a map from TTS segment index → DOM word range.
      */
     function _buildSegmentWordMap(segments) {
-        segmentWords();
+        segmentSentencesAndWords();
 
         const allWords = _wordSpans.map(s => s.textContent.trim());
         _segmentWordMap = [];
@@ -1150,7 +1150,7 @@
         pauseResume,
         isSpeaking: () => getTTS()?.isSpeaking() || false,
         isLoading: () => isServerLoading,
-        segmentWords,
+        segmentSentencesAndWords,
         highlightWord,
         clearHighlights,
         setRate: (rate) => getTTS()?.setRate(rate),
