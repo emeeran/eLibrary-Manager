@@ -251,10 +251,16 @@ async def get_summary(
     Returns:
         Summary dictionary
     """
+    from app.exceptions import AIServiceError
+
     service = ReaderService(db)
-    summary = await service.get_chapter_summary(
-        book_id, chapter_index, force_refresh=refresh
-    )
+    try:
+        summary = await service.get_chapter_summary(
+            book_id, chapter_index, force_refresh=refresh
+        )
+    except AIServiceError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=str(e)) from None
 
     return {
         "summary": summary.summary_text,
@@ -279,10 +285,16 @@ async def get_book_summary(
     Returns:
         Book summary dictionary
     """
+    from app.exceptions import AIServiceError
+
     service = ReaderService(db)
-    summary = await service.get_book_summary(
-        book_id, force_refresh=refresh
-    )
+    try:
+        summary = await service.get_book_summary(
+            book_id, force_refresh=refresh
+        )
+    except AIServiceError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=str(e)) from None
 
     return {
         "summary": summary.summary_text,

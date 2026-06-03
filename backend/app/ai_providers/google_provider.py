@@ -1,5 +1,6 @@
 """Google Gemini API provider for AI summarization."""
 
+import os
 
 from google import genai
 from google.genai import types
@@ -26,21 +27,38 @@ class GoogleProvider(BaseAIProvider):
     def __init__(self) -> None:
         """Initialize Google Gemini provider.
 
-        Raises:
-            ValueError: If API key is not configured
+        Tries GOOGLE_API_KEY from config, then GEMINI_API_KEY from env.
         """
         super().__init__()
         self.config = get_config()
 
-        if not self.config.google_api_key:
+        # GEMINI_API_KEY env var takes priority over GOOGLE_API_KEY from config.
+        # The google-genai SDK auto-reads GOOGLE_API_KEY from env and may use
+        # an expired key, so we explicitly prefer the GEMINI_API_KEY if set.
+        api_key = os.environ.get("GEMINI_API_KEY", "") or self.config.google_api_key
+
+        if not api_key:
             logger.warning("Google API key not configured")
             self._available = False
             return
 
         self._available = True
-        self._client = genai.Client(api_key=self.config.google_api_key)
-        # Use model from config
+        self._api_key = api_key
         self.model = self.config.google_model
+
+    def _get_client(self) -> genai.Client:
+        """Get a client that uses the config API key, not env var.
+
+        The google-genai SDK auto-reads GOOGLE_API_KEY from the environment
+        and ignores the api_key parameter when the env var is present.
+        We temporarily unset it so our config key takes priority.
+        """
+        saved = os.environ.pop("GOOGLE_API_KEY", None)
+        try:
+            return genai.Client(api_key=self._api_key)
+        finally:
+            if saved is not None:
+                os.environ["GOOGLE_API_KEY"] = saved
 
     async def summarize(self, text: str, context: str | None = None) -> str:
         """Generate a summary using Google Gemini.
@@ -63,7 +81,8 @@ class GoogleProvider(BaseAIProvider):
 
             logger.debug(f"Sending request to Google Gemini: {len(text)} chars")
 
-            response = self._client.models.generate_content(
+            client = self._get_client()
+            response = client.models.generate_content(
                 model=self.model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -99,7 +118,8 @@ class GoogleProvider(BaseAIProvider):
             return False
 
         try:
-            response = self._client.models.generate_content(
+            client = self._get_client()
+            response = client.models.generate_content(
                 model=self.model,
                 contents="test",
                 config=types.GenerateContentConfig(max_output_tokens=1)
@@ -111,4 +131,4 @@ class GoogleProvider(BaseAIProvider):
 
     async def close(self) -> None:
         """Close the Google client."""
-        self._client = None
+        pass

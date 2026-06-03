@@ -521,6 +521,9 @@ class EPUBParser:
     async def count_chapters(self, epub_path: str) -> int:
         """Count the number of chapters in an EPUB.
 
+        Uses the same lightweight spine filtering as get_single_chapter
+        to ensure the count matches what get_single_chapter will return.
+
         Args:
             epub_path: Path to EPUB file
 
@@ -528,9 +531,21 @@ class EPUBParser:
             Number of chapters
         """
         try:
+            import re
+
             book = await asyncio.to_thread(epub.read_epub, epub_path, {"ignore_ncx": True})
-            spine_items = self._filter_spine_items(book)
-            return len(spine_items)
+            count = 0
+            for idref, _linear in book.spine:
+                item = book.get_item_with_id(idref)
+                if item is None or item.get_type() != ebooklib.ITEM_DOCUMENT:
+                    continue
+                raw = item.get_content()
+                has_img = b'<img' in raw or b'<image' in raw
+                text_only = re.sub(rb'<[^>]+>', b'', raw)
+                if len(text_only.strip()) < 100 and not has_img:
+                    continue
+                count += 1
+            return count
         except Exception:
             return 0
 

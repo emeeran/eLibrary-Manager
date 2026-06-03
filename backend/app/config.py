@@ -33,7 +33,7 @@ class AppConfig(BaseSettings):
 
     # AI Configuration - Google Gemini (Primary)
     google_api_key: str = ""
-    google_model: str = "gemini-1.5-flash"
+    google_model: str = "gemini-2.5-flash"
     google_rate_limit_rpm: int = 15
 
     # AI Configuration - Ollama Cloud (Secondary)
@@ -42,7 +42,7 @@ class AppConfig(BaseSettings):
 
     # AI Configuration - Ollama Local (Fallback)
     ollama_local_url: str = "http://localhost:11434"
-    ollama_local_model: str = "llama3.3"
+    ollama_local_model: str = "llama3.2:3b"
 
     # AI Settings
     ai_default_provider: str = "auto"

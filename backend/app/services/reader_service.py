@@ -224,34 +224,37 @@ class ReaderService:
         from app.reader_engine import get_reader_engine
 
         reader = get_reader_engine()
-        total_chapters = await reader.get_total_chapters(book.path)
 
         chapter_summaries = []
-        for i in range(total_chapters):
-            cached = await self.summary_repo.get_cached_summary(book_id, i)
+        chapter_idx = 0
+        while True:
+            cached = await self.summary_repo.get_cached_summary(book_id, chapter_idx)
             if cached:
                 chapter_summaries.append(cached.summary_text)
-            else:
-                # Fetch only the single chapter needed — avoids full-book parse
-                try:
-                    text, title, _ = await reader.get_chapter_content(book.path, i)
-                except ResourceNotFoundError:
-                    continue
+                chapter_idx += 1
+                continue
 
-                orchestrator = await get_ai_orchestrator()
-                summary_text = await orchestrator.summarize(
-                    text,
-                    context=f"Chapter {i + 1}: {title}"
-                )
-                chapter_summaries.append(summary_text)
+            try:
+                text, title, _ = await reader.get_chapter_content(book.path, chapter_idx)
+            except ResourceNotFoundError:
+                break  # No more chapters
 
-                await self.summary_repo.create(
-                    book_id=book_id,
-                    chapter_index=i,
-                    chapter_title=title,
-                    summary_text=summary_text,
-                    provider=await orchestrator.get_active_provider()
-                )
+            orchestrator = await get_ai_orchestrator()
+            summary_text = await orchestrator.summarize(
+                text,
+                context=f"Chapter {chapter_idx + 1}: {title}"
+            )
+            chapter_summaries.append(summary_text)
+
+            await self.summary_repo.create(
+                book_id=book_id,
+                chapter_index=chapter_idx,
+                chapter_title=title,
+                summary_text=summary_text,
+                provider=await orchestrator.get_active_provider()
+            )
+
+            chapter_idx += 1
 
         orchestrator = await get_ai_orchestrator()
         combined_text = "\n\n".join([
