@@ -151,22 +151,21 @@ class PDFParser:
             mat = fitz.Matrix(2, 2)  # 2x zoom for better quality
             pix = page.get_pixmap(matrix=mat)
 
-            # Convert to PIL Image
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            doc.close()
-
-            # Resize to standard cover dimensions (max 600x900)
-            max_width = 600
-            max_height = 900
-            img.thumbnail((max_width, max_height), Image.Resampling.LANCZOS)
-
             # Generate unique filename using path hash (SHA256 for security)
             path_hash = hashlib.sha256(pdf_path.encode()).hexdigest()[:32]
             cover_filename = f"{path_hash}.jpg"
             cover_path = self.covers_path / cover_filename
 
-            # Save as JPEG with good quality
-            img.save(cover_path, "JPEG", quality=85, optimize=True)
+            doc.close()
+
+            # Re-encode via the shared cover optimizer (resize to 600x900, q85).
+            from io import BytesIO
+
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            buf = BytesIO()
+            img.save(buf, "PNG")
+            from app.parsers.image_service import optimize_cover_bytes
+            optimize_cover_bytes(buf.getvalue(), cover_path)
 
             logger.info(f"Extracted PDF cover from first page: {pdf_path}")
             return str(cover_path)

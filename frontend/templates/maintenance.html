@@ -372,6 +372,20 @@
                     </div>
                     <div class="maint-result-box" id="vacuum-result"></div>
                 </div>
+
+                <!-- Cover re-optimization -->
+                <div class="maint-card">
+                    <div class="maint-card-header">
+                        <h3>Optimize Covers</h3>
+                    </div>
+                    <p class="maint-card-desc">Re-encode oversized cover images to the standard 600×900 / JPEG q85. Frees disk and speeds grid loads. Targets covers above 300KB.</p>
+                    <div class="maint-progress" id="cov-progress"><div class="maint-progress-bar" id="cov-progress-bar"></div></div>
+                    <p class="maint-progress-text" id="cov-progress-text">Idle</p>
+                    <div class="maint-btn-group">
+                        <button class="settings-btn settings-btn-primary" onclick="runBackgroundTask('cov', '/api/maintenance/reoptimize-covers?threshold_kb=300', 'POST')">Optimize Covers</button>
+                    </div>
+                    <div class="maint-result-box" id="cov-result"></div>
+                </div>
             </div>
         </main>
     </div>

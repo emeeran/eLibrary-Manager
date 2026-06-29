@@ -2,6 +2,7 @@
 
 
 import os
+import re
 import time
 
 from sqlalchemy import and_, asc, desc, func, or_, select
@@ -13,6 +14,22 @@ from app.models import Book, BookCategory, BookSummary, Category, ChapterSummary
 from app.schemas import BookCreate, BookUpdate, ProgressUpdate
 
 _COUNT_CACHE_TTL = 10.0  # seconds
+
+
+def _build_fts_query(search: str) -> str | None:
+    """Build a safe FTS5 prefix query for the given search string.
+
+    Each whitespace-delimited token is double-quoted (so FTS5 operators in the
+    user input are treated as literals) and given the ``*`` prefix flag for
+    type-ahead matching. Returns None if the input has no usable tokens. Whether
+    the FTS index exists is checked separately per-session (see
+    :meth:`BookRepository._fts_available`) because tests use an in-memory DB
+    where the migration (and thus ``books_fts``) is absent.
+    """
+    tokens = [t for t in re.split(r"\s+", search.strip()) if t]
+    if not tokens:
+        return None
+    return " ".join(f'"{t.replace(chr(34), "")}"*' for t in tokens)
 
 
 class BookRepository:
@@ -30,6 +47,43 @@ class BookRepository:
         """
         self.session = session
         self._count_cache: dict[str, tuple[int, float]] = {}
+        self._fts_available_cache: bool | None = None
+
+    async def _fts_available(self) -> bool:
+        """Return True if the books_fts virtual table exists on this database.
+
+        Checked against the bound session (not a hardcoded path) so it works
+        in tests that use an in-memory DB. Cached per-instance.
+        """
+        if self._fts_available_cache is None:
+            try:
+                result = await self.session.execute(
+                    __import__("sqlalchemy").text(
+                        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='books_fts'"
+                    )
+                )
+                self._fts_available_cache = result.scalar() is not None
+            except Exception:
+                self._fts_available_cache = False
+        return self._fts_available_cache
+
+    def _apply_fts_filter(self, query, search: str):
+        """Return ``query`` with an FTS5 prefix-search filter applied.
+
+        Falls back to the original ``query`` unchanged if the FTS query can't be
+        built (caller should have already confirmed availability).
+        """
+        from sqlalchemy import column, text
+
+        fts_match = _build_fts_query(search)
+        if fts_match is None:
+            return query
+        fts_ids = (
+            select(column("rowid"))
+            .select_from(text("books_fts"))
+            .where(text("books_fts MATCH :fts_q").bindparams(fts_q=fts_match))
+        )
+        return query.where(Book.id.in_(fts_ids))
 
     async def create(self, book_data: BookCreate) -> Book:
         """Create a new book record.
@@ -134,6 +188,9 @@ class BookRepository:
         if reading_only:
             conditions.append(Book.progress > 0)
         if search:
+            # Default to the portable ilike scan. The async callers
+            # (list_with_count / count_filtered) swap this for an FTS5 query
+            # when the books_fts index exists on the bound database.
             search_pattern = f"%{search}%"
             conditions.append(
                 or_(
@@ -202,6 +259,11 @@ class BookRepository:
             show_hidden=show_hidden,
             directory_filter=directory_filter,
         )
+        # Upgrade the search filter to an FTS5 prefix query when the index is
+        # available (fast at scale). The ilike condition already in the query
+        # stays as a harmless extra predicate; the FTS subquery drives the match.
+        if search and await self._fts_available():
+            query = self._apply_fts_filter(query, search)
 
         # Separate COUNT query — much faster than window function for large tables
         total = await self.count_filtered(
@@ -271,6 +333,9 @@ class BookRepository:
             show_hidden=show_hidden,
             directory_filter=directory_filter,
         )
+        # Mirror the FTS upgrade from list_with_count so the count matches.
+        if search and await self._fts_available():
+            query = self._apply_fts_filter(query, search)
         count_query = select(func.count()).select_from(query.subquery())
         result = await self.session.execute(count_query)
         count = result.scalar() or 0

@@ -172,12 +172,18 @@ class MOBIParser:
     async def extract_cover(self, mobi_path: str) -> str | None:
         """Extract cover from MOBI.
 
+        The embedded record is written to a temp file, then re-encoded to the
+        standard cover dimensions (600x900, JPEG q85) so MOBI covers aren't
+        disproportionately larger than EPUB/PDF ones.
+
         Args:
             mobi_path: Path to MOBI file
 
         Returns:
             Path to extracted cover or None
         """
+        from app.parsers.image_service import optimize_cover_file
+
         try:
             mobi = await asyncio.to_thread(BookMobi, mobi_path)
 
@@ -187,14 +193,25 @@ class MOBIParser:
             cover_filename = f"{epub_hash}.jpg"
             cover_path = self.covers_path / cover_filename
 
-            # Extract first image record (usually cover)
+            # Extract first image record (usually cover) to a temp path, then
+            # re-optimize it to the standard cover dimensions/quality.
+            tmp_path = cover_path.with_suffix(".raw.jpg")
             try:
-                await asyncio.to_thread(mobi.saveRecordImage, 0, str(cover_path))
-                if cover_path.exists():
-                    logger.debug(f"Cover extracted: {cover_path}")
+                await asyncio.to_thread(mobi.saveRecordImage, 0, str(tmp_path))
+                if tmp_path.exists():
+                    if optimize_cover_file(tmp_path, cover_path):
+                        return str(cover_path)
+                    # Optimization failed — keep the raw image as a fallback.
+                    tmp_path.replace(cover_path)
                     return str(cover_path)
             except Exception:
                 pass
+            finally:
+                if tmp_path.exists():
+                    try:
+                        tmp_path.unlink()
+                    except OSError:
+                        pass
 
             logger.debug(f"No cover found for {mobi_path}")
             return None

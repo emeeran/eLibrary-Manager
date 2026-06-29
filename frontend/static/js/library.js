@@ -23,10 +23,107 @@ function escapeHtml(text) {
 }
 
 /**
+ * Generate a colored placeholder cover for books without a cover image.
+ * The hue is derived deterministically from the title+author so the same
+ * book always gets the same color (stable across renders/reloads).
+ * Returns an HTML string for a colored block with the title text on it.
+ */
+function generatedCover(title, author, compact = false) {
+    const seed = String(title || '') + '|' + String(author || '');
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+        hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    }
+    const hue = hash % 360;
+    const bg = `linear-gradient(135deg, hsl(${hue}, 45%, 45%), hsl(${(hue + 40) % 360}, 45%, 35%))`;
+    const safeTitle = escapeHtml((title || 'Untitled').slice(0, 60));
+    const cls = compact ? 'book-card-cover-placeholder generated' : 'book-card-cover-placeholder generated';
+    return `<div class="${cls}" style="background:${bg};" aria-hidden="true">${safeTitle}</div>`;
+}
+
+/**
+ * Cover image error handler. Replaces the broken image with a generated
+ * colored cover. Reads the title/author from data-* attributes set at render
+ * time, which sidesteps all the quoting hazards of embedding HTML inside an
+ * inline onerror="..." attribute (that bug previously corrupted the card DOM
+ * and broke the action buttons). Wired via onerror="coverError(this)".
+ */
+function coverError(img) {
+    const title = img.getAttribute('data-title') || 'Untitled';
+    const author = img.getAttribute('data-author') || '';
+    const parent = img.parentElement;
+    if (parent) parent.innerHTML = generatedCover(title, author);
+}
+window.coverError = coverError;
+
+/**
+ * "Continue Reading" shelf: shows up to 6 in-progress books, sorted by
+ * last-read date. Only populated on the default (unfiltered "All") view so
+ * it doesn't clutter search/filter results.
+ */
+async function loadContinueReading() {
+    const section = document.getElementById('continue-reading');
+    const grid = document.getElementById('continue-reading-grid');
+    if (!section || !grid) return;
+
+    // Hide the shelf whenever the user applies filters/search.
+    const hasFilters = Object.keys(currentFilters).length > 0;
+    if (hasFilters) {
+        section.hidden = true;
+        return;
+    }
+
+    try {
+        const params = new URLSearchParams({
+            page: 1, page_size: 6,
+            reading_only: true,
+            sort_by: 'last_read', sort_order: 'desc',
+        });
+        const res = await fetch(`/api/books?${params}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.books.length) { section.hidden = true; return; }
+
+        grid.className = 'book-grid';
+        grid.innerHTML = data.books.map(book => {
+            const safeTitle = escapeHtml(book.title);
+            const safeAuthor = escapeHtml(book.author || 'Unknown Author');
+            return `
+            <div class="book-card-wrapper" role="listitem">
+                <div class="book-card" data-book-id="${book.id}" tabindex="0" role="button" aria-label="Read ${safeTitle} by ${safeAuthor}">
+                    <div class="book-card-cover">
+                        ${book.cover_path
+                    ? `<img src="/covers/${encodeURIComponent(book.cover_path.split('/').pop())}" alt="${safeTitle}" loading="lazy" class="lazy-image" data-title="${safeTitle}" data-author="${safeAuthor}" onload="this.classList.add('loaded')" onerror="coverError(this)">`
+                    : generatedCover(book.title, book.author)}
+                        <div class="book-card-progress"><div class="book-card-progress-fill" style="width:${book.progress||0}%"></div></div>
+                    </div>
+                    <div class="book-card-info">
+                        <div class="book-card-title">${safeTitle}</div>
+                        <div class="book-card-author">${safeAuthor}</div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+        section.hidden = false;
+    } catch (e) {
+        section.hidden = true;
+    }
+}
+
+/**
  * Load books from API
  */
 async function loadBooks(append = false) {
-    if (!append) showLoading();
+    // Initial page load (empty grid) -> full loading overlay. Subsequent
+    // filter/sort/page changes -> slim top progress bar so the grid stays
+    // visible and the change feels smooth instead of flashing a blank spinner.
+    const grid = document.getElementById('book-grid');
+    const isInitialLoad = !append && (!grid || !grid.children.length);
+    if (isInitialLoad) {
+        showLoading();
+    } else if (!append) {
+        showTopProgress();
+    }
 
     const params = new URLSearchParams({
         page: currentPage,
@@ -42,11 +139,16 @@ async function loadBooks(append = false) {
         renderBooks(data.books, append);
         // Fetch sidebar counts independently for better performance
         loadSidebarCounts();
+        // The Continue Reading shelf only appears on the default view —
+        // refresh/hide it whenever the grid reloads.
+        if (!append) loadContinueReading();
         hideLoading();
+        hideTopProgress();
     } catch (error) {
         console.error('Failed to load books:', error);
         showError('Failed to load books. Please try again.');
         hideLoading();
+        hideTopProgress();
     }
 }
 
@@ -164,9 +266,11 @@ function renderGridView(books, append = false) {
                        alt="${safeTitle}"
                        loading="lazy"
                        class="lazy-image"
+                       data-title="${safeTitle}"
+                       data-author="${safeAuthor}"
                        onload="this.classList.add('loaded')"
-                       onerror="this.parentElement.innerHTML='<div class=&quot;book-card-cover-placeholder&quot;>📖</div>'">`
-                : '<div class="book-card-cover-placeholder" aria-hidden="true">📖</div>'
+                       onerror="coverError(this)">`
+                : generatedCover(book.title, book.author)
             }
                     <div class="book-card-progress">
                         <div class="book-card-progress-fill" style="width: ${book.progress || 0}%" data-progress="${Math.round(book.progress || 0)}%"></div>
@@ -283,8 +387,8 @@ function tableRowHtml(book) {
             <td class="table-col-cover">
                 <div class="table-cover">
                     ${book.cover_path
-        ? `<img src="/covers/${encodeURIComponent(book.cover_path.split('/').pop())}" alt="${escapeHtml(book.title)}" onerror="this.src='/static/images/no-cover.svg'">`
-        : '<div class="table-cover-placeholder">📖</div>'
+        ? `<img src="/covers/${encodeURIComponent(book.cover_path.split('/').pop())}" alt="${escapeHtml(book.title)}" data-title="${escapeHtml(book.title)}" data-author="${escapeHtml(book.author||'')}" onerror="coverError(this)">`
+        : generatedCover(book.title, book.author, true)
     }
                     ${book.is_favorite ? '<span class="table-favorite">★</span>' : ''}
                 </div>
@@ -1344,6 +1448,44 @@ function hideLoading() {
 }
 
 /**
+ * Slim top progress bar — used for filter/sort/page changes so the grid stays
+ * visible instead of flashing the full-screen overlay. Lazily created.
+ */
+function _getTopProgress() {
+    let bar = document.getElementById('top-progress-bar');
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'top-progress-bar';
+        bar.className = 'top-progress';
+        const fill = document.createElement('div');
+        fill.className = 'top-progress-fill';
+        bar.appendChild(fill);
+        document.body.appendChild(bar);
+    }
+    return bar;
+}
+function showTopProgress() {
+    const bar = _getTopProgress();
+    bar.classList.add('visible');
+    const fill = bar.querySelector('.top-progress-fill');
+    if (fill) {
+        fill.classList.remove('done');
+        fill.style.width = '30%';
+        // Nudge to ~80% to convey in-flight work; completes on hideTopProgress().
+        setTimeout(() => { if (!fill.classList.contains('done')) fill.style.width = '80%'; }, 100);
+    }
+}
+function hideTopProgress() {
+    const bar = _getTopProgress();
+    const fill = bar.querySelector('.top-progress-fill');
+    if (fill) {
+        fill.classList.add('done');
+        fill.style.width = '100%';
+    }
+    setTimeout(() => bar.classList.remove('visible'), 250);
+}
+
+/**
  * Show error message
  */
 function showError(message) {
@@ -1744,10 +1886,12 @@ document.addEventListener('keydown', (e) => {
         return;
     }
 
-    // Ctrl/Cmd + F: Focus search
-    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+    // Ctrl/Cmd + F or bare "/": Focus search
+    if (((e.ctrlKey || e.metaKey) && e.key === 'f') || e.key === '/') {
         e.preventDefault();
-        document.getElementById('search').focus();
+        const s = document.getElementById('search');
+        if (s) { s.focus(); s.select(); }
+        return;
     }
 
     // Ctrl/Cmd + B: Toggle sidebar
@@ -1826,6 +1970,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeSort();
     initializeGridDelegation();
     loadBooks();
+    loadContinueReading();
     loadCategories();
     loadDirectories();
     loadFormats();

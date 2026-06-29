@@ -239,6 +239,59 @@ async def vacuum_database() -> VacuumResult:
         return await service.vacuum_database()
 
 
+@router.post("/reoptimize-covers")
+async def reoptimize_covers(
+    threshold_kb: int = Query(100, ge=10, le=2000, description="Re-encode covers larger than this many KB"),
+) -> dict:
+    """Re-encode oversized cover images to the standard 600x900 / q85.
+
+    Runs as a background task; poll progress via ``/api/maintenance/progress/{task_id}``.
+    Returns a ``task_id`` immediately. Frees disk and speeds grid loads —
+    MOBI covers in particular were previously stored at full embedded size.
+    """
+    if _active_tasks:
+        raise HTTPException(
+            status_code=409,
+            detail="A maintenance task is already running. Wait for it to finish.",
+        )
+    task_id = uuid.uuid4().hex[:8]
+    scan_store.create(task_id)
+    _active_tasks.add(task_id)
+
+    async def _run() -> None:
+        try:
+            async with db_manager.get_session() as db:
+                service = MaintenanceService(db)
+
+                async def progress_cb(processed: int, total: int) -> None:
+                    scan_store.update(
+                        task_id,
+                        processed=processed,
+                        total_found=total,
+                        message=f"Re-optimizing covers: {processed}/{total}",
+                    )
+
+                result = await service.reoptimize_covers(
+                    threshold_bytes=threshold_kb * 1024,
+                    progress_callback=progress_cb,
+                )
+                scan_store.update(
+                    task_id,
+                    status="completed",
+                    message=(
+                        f"Optimized {result['optimized']} covers; "
+                        f"freed {result['freed'] / 1048576:.1f} MB"
+                    ),
+                )
+        except Exception as e:
+            scan_store.update(task_id, status="failed", message=str(e))
+        finally:
+            _active_tasks.discard(task_id)
+
+    asyncio.create_task(_run())
+    return {"task_id": task_id, "status": "started"}
+
+
 # ---- SSE Progress ----
 
 

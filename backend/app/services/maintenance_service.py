@@ -394,6 +394,61 @@ class MaintenanceService:
             db_size_bytes=db_size,
         )
 
+    # ---- Cover re-optimization ----
+
+    async def reoptimize_covers(
+        self,
+        threshold_bytes: int = 300_000,
+        progress_callback: "Callable[[int, int], object] | None" = None,
+    ) -> dict:
+        """Re-encode oversized cover images to the standard size/quality.
+
+        Scans the covers directory for JPEGs larger than ``threshold_bytes``
+        (default 300KB — the config cover ceiling) and re-encodes them at
+        600x900 / q85. Covers already at that size are detailed images and are
+        left alone; this targets genuinely bloated covers (e.g. legacy MOBI
+        raw embedded images stored before the resize fix). Returns before/after
+        byte totals so the caller can report freed space. Idempotent.
+        """
+        from pathlib import Path
+
+        from app.config import get_config
+        from app.parsers.image_service import optimize_cover_file
+
+        config = get_config()
+        covers_dir = Path(config.covers_path)
+        if not covers_dir.is_dir():
+            return {"optimized": 0, "bytes_before": 0, "bytes_after": 0, "freed": 0}
+
+        # Gather candidate files (oversized JPEGs).
+        candidates = [
+            p for p in covers_dir.iterdir()
+            if p.is_file() and p.suffix.lower() in (".jpg", ".jpeg")
+            and p.stat().st_size > threshold_bytes
+        ]
+        total = len(candidates)
+        bytes_before = sum(p.stat().st_size for p in candidates)
+
+        optimized = 0
+        bytes_after_total = 0
+        for i, path in enumerate(candidates):
+            # Run the (CPU-bound) PIL work in a thread to avoid blocking the loop.
+            ok = await asyncio.to_thread(optimize_cover_file, path, path)
+            if ok:
+                optimized += 1
+            bytes_after_total += path.stat().st_size
+            if progress_callback:
+                cb = progress_callback(i + 1, total)
+                if asyncio.iscoroutine(cb):
+                    await cb
+
+        return {
+            "optimized": optimized,
+            "bytes_before": bytes_before,
+            "bytes_after": bytes_after_total,
+            "freed": max(0, bytes_before - bytes_after_total),
+        }
+
     # ---- Internal helpers ----
 
     def _select_best_copy(

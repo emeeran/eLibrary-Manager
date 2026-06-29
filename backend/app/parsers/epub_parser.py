@@ -178,25 +178,12 @@ class EPUBParser:
 
             # Handle image covers with PIL
             try:
-                from io import BytesIO
+                from app.parsers.image_service import optimize_cover_bytes
 
-                from PIL import Image
-
-                img = Image.open(BytesIO(cover_content))
-
-                # Convert to RGB if necessary
-                if img.mode != 'RGB':
-                    img = img.convert('RGB')
-
-                # Resize if too large
-                max_size = (600, 900)
-                img.thumbnail(max_size, Image.Resampling.LANCZOS)
-
-                # Save optimized cover
-                img.save(cover_path, "JPEG", quality=85, optimize=True)
-
-                logger.debug(f"Cover extracted: {cover_path}")
-                return str(cover_path)
+                if optimize_cover_bytes(cover_content, cover_path):
+                    logger.debug(f"Cover extracted: {cover_path}")
+                    return str(cover_path)
+                return None
 
             except Exception as e:
                 logger.warning(f"Cover image processing failed: {e}")

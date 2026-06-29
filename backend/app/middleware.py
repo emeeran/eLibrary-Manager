@@ -34,9 +34,11 @@ _MAX_PERIOD = max(period for _, period in RATE_LIMITS.values()) if RATE_LIMITS e
 
 # Cache-Control rules for static assets
 CACHE_RULES: dict[str, str] = {
-    "/static/": "public, max-age=86400",
-    "/covers/": "public, max-age=86400",
-    "/book-images/": "public, max-age=604800",
+    # Assets are cache-busted via ?v=N query strings, so they're effectively
+    # immutable; a 1-year TTL maximizes repeat-visit speed without staleness.
+    "/static/": "public, max-age=31536000, immutable",
+    "/covers/": "public, max-age=31536000, immutable",
+    "/book-images/": "public, max-age=31536000, immutable",
 }
 
 

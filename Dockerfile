@@ -30,8 +30,11 @@ COPY --from=builder /app/.venv /app/.venv
 COPY backend/app/ backend/app/
 COPY frontend/ frontend/
 
-# Minify CSS and JS for production
-RUN /app/.venv/bin/python -c "import csscompressor,jsmin;from pathlib import Path;[css.write_text(csscompressor.compress(css.read_text())) for css in Path('frontend/static/css').glob('*.css') if not css.name.endswith('.min.css')];[js.write_text(jsmin.jsmin(js.read_text())) for js in Path('frontend/static/js').glob('*.js') if not js.name.endswith('.min.js')]"
+# Minify CSS and JS for production. Use recursive globs so the modularized
+# reader (`js/reader/*.js`) and shared helpers (`js/lib/*.js`) are included.
+RUN /app/.venv/bin/python -c "import csscompressor,jsmin;from pathlib import Path;\
+[css.write_text(csscompressor.compress(css.read_text())) for css in Path('frontend/static/css').rglob('*.css') if not css.name.endswith('.min.css')];\
+[js.write_text(jsmin.jsmin(js.read_text())) for js in Path('frontend/static/js').rglob('*.js') if not js.name.endswith('.min.js')]"
 
 # Create data directories and non-root user
 RUN mkdir -p /app/library /app/dawnstar_data /app/static_covers /app/static_book_images && \

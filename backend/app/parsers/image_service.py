@@ -14,6 +14,52 @@ logger = get_logger(__name__)
 # Safe characters for filenames
 _SAFE_FILENAME_RE = re.compile(r"[^\w\-.]")
 
+# Standard cover dimensions and JPEG quality used across all parsers.
+# Keeping these in one place guarantees every format produces covers of the
+# same (small) size — a previous bug had MOBI writing multi-hundred-KB raw
+# embedded images while EPUB/PDF correctly thumbnailed to 600x900.
+COVER_MAX_SIZE = (600, 900)
+COVER_JPEG_QUALITY = 85
+
+
+def optimize_cover_bytes(image_bytes: bytes, dest_path: Path) -> bool:
+    """Decode ``image_bytes`` and write a resized/optimized JPEG to ``dest_path``.
+
+    Used by every parser's ``extract_cover`` so all covers are capped at
+    ``COVER_MAX_SIZE`` (600x900) and saved at ``COVER_JPEG_QUALITY`` with
+    ``optimize=True``. Returns True on success, False if the bytes aren't a
+    decodable image (caller should then decide whether to keep the raw file).
+    """
+    try:
+        img = Image.open(BytesIO(image_bytes))
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        img.thumbnail(COVER_MAX_SIZE, Image.Resampling.LANCZOS)
+        img.save(dest_path, "JPEG", quality=COVER_JPEG_QUALITY, optimize=True)
+        return True
+    except Exception as e:
+        logger.warning(f"optimize_cover_bytes failed for {dest_path}: {e}")
+        return False
+
+
+def optimize_cover_file(src_path: Path, dest_path: Path | None = None) -> bool:
+    """Re-optimize an existing cover image in place (or to ``dest_path``).
+
+    Opens the file, re-encodes at the standard dimensions/quality. Used by the
+    maintenance "re-optimize covers" job to shrink oversized legacy covers.
+    Returns True if the file was rewritten, False on failure or if the source
+    was already smaller and ``dest_path`` is None (in which case it's still
+    rewritten for consistency — callers gate on size themselves).
+    """
+    dest = dest_path or src_path
+    try:
+        with open(src_path, "rb") as f:
+            raw = f.read()
+        return optimize_cover_bytes(raw, dest)
+    except Exception as e:
+        logger.warning(f"optimize_cover_file failed for {src_path}: {e}")
+        return False
+
 
 class BookImageService:
     """Manages extracted book images on disk.
