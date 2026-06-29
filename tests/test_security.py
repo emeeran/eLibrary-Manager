@@ -1,7 +1,5 @@
 """Tests for security functions."""
 
-import pytest
-from unittest.mock import patch, MagicMock
 
 
 class TestPasswordHashing:
@@ -42,7 +40,7 @@ class TestValueEncryption:
 
     def test_encrypt_decrypt_roundtrip(self):
         """Test encrypting and decrypting a value."""
-        from app.security import encrypt_value, decrypt_value
+        from app.security import decrypt_value, encrypt_value
         plaintext = "sensitive-password-123"
         encrypted = encrypt_value(plaintext)
         assert encrypted != plaintext
@@ -57,13 +55,13 @@ class TestValueEncryption:
 
     def test_empty_string_encryption(self):
         """Test encrypting empty string."""
-        from app.security import encrypt_value, decrypt_value
+        from app.security import decrypt_value, encrypt_value
         encrypted = encrypt_value("")
         assert decrypt_value(encrypted) == ""
 
     def test_unicode_encryption(self):
         """Test encrypting unicode characters."""
-        from app.security import encrypt_value, decrypt_value
+        from app.security import decrypt_value, encrypt_value
         plaintext = "パスワード 🔐"
         encrypted = encrypt_value(plaintext)
         assert decrypt_value(encrypted) == plaintext

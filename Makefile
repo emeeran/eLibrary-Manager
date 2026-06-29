@@ -1,19 +1,22 @@
 # Dawnstar eBook Manager - Makefile
 # Provides convenient commands for development and deployment
 
-.PHONY: help dev test lint format clean docker-build docker-up docker-down docker-logs
+.PHONY: help dev test lint format clean docker-build docker-up docker-down docker-logs deb deb-clean deb-install
 
 help:
 	@echo "Dawnstar eBook Manager - Available commands:"
-	@echo "  make dev         - Run development server"
-	@echo "  make test        - Run tests"
-	@echo "  make lint        - Run linters"
-	@echo "  make format      - Format code"
-	@echo "  make clean       - Clean generated files"
+	@echo "  make dev          - Run development server"
+	@echo "  make test         - Run tests"
+	@echo "  make lint         - Run linters"
+	@echo "  make format       - Format code"
+	@echo "  make clean        - Clean generated files"
 	@echo "  make docker-build - Build Docker image"
-	@echo "  make docker-up     - Start Docker containers"
-	@echo "  make docker-down   - Stop Docker containers"
-	@echo "  make docker-logs   - View Docker logs"
+	@echo "  make docker-up    - Start Docker containers"
+	@echo "  make docker-down  - Stop Docker containers"
+	@echo "  make docker-logs  - View Docker logs"
+	@echo "  make deb          - Build .deb package"
+	@echo "  make deb-clean    - Clean .deb build directory"
+	@echo "  make deb-install  - Build and install .deb package"
 
 dev:
 	PYTHONPATH=backend uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -57,6 +60,17 @@ install:
 
 .PHONY: check
 check: lint test
+
+# --- Debian packaging ---
+
+deb:
+	@./packaging/deb/build-deb.sh
+
+deb-clean:
+	rm -rf build/
+
+deb-install: deb
+	sudo dpkg -i build/elibrary-manager_*.deb
 
 .PHONY: run
 run: dev

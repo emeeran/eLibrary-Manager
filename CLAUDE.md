@@ -15,35 +15,41 @@ eLibrary Manager is a lightweight web application for managing and reading large
 ## Architecture
 
 ```
-dawnstar/
+eLibrary-Manager/
 ├── backend/
 │   └── app/                  # Python package (imported as `app`)
-│       ├── main.py           # FastAPI entry point
+│       ├── main.py           # FastAPI entry point + middleware wiring
 │       ├── config.py         # Pydantic settings
-│       ├── database.py       # SQLite/SQLAlchemy setup
-│       ├── models.py         # DB models (Book, ChapterSummary, Bookmark, Note, Annotation)
+│       ├── database.py       # SQLite/SQLAlchemy async setup
+│       ├── models.py         # DB models (Book, *Summary, Bookmark, Note, Annotation, Category, ReadingGoal)
 │       ├── schemas.py        # Pydantic API schemas
-│       ├── exceptions.py     # Custom exceptions
+│       ├── exceptions.py     # Custom domain exceptions
+│       ├── auth.py           # Stateless signed-cookie sessions
+│       ├── security.py       # Fernet/bcrypt credential helpers
+│       ├── security_middleware.py  # CSP headers + CSRF origin check
+│       ├── middleware.py     # Logging / caching / rate limiting
 │       ├── scanner.py        # Library scanning orchestration
 │       ├── ai_engine.py      # Multi-provider AI orchestrator
 │       ├── chapter_cache.py  # LRU chapter cache
 │       ├── reader_engine.py  # Unified content extraction
 │       ├── repositories.py   # Data access layer
-│       ├── routes/           # Route modules (library, reader, settings, ai_tts)
-│       ├── services/         # Service layer (library_service, reader_service)
+│       ├── routes/           # Route modules (library, reader, settings, ai_tts, stats, maintenance, categories, hidden, auth)
+│       ├── services/         # Service layer (library, reader, categorization, maintenance)
 │       ├── parsers/          # Format parsers (epub, pdf, mobi)
 │       ├── storage/          # Storage backends (local, NAS)
-│       └── ai_providers/     # AI providers (google, groq, ollama cloud/local)
+│       └── ai_providers/     # AI providers (google, ollama)
 ├── frontend/
 │   ├── templates/            # Jinja2 templates (Icecream UI clone)
 │   └── static/               # CSS, JS, images
 ├── specs/                    # Spec-Driven Development specifications
 │   ├── INDEX.md              # Spec registry
-│   └── 001-*.md ... 008-*.md # Feature specs
-├── tests/                    # Test suite
+│   └── 001-*.md ... 009-*.md # Feature specs (incl. NAS integration)
+├── alembic/                  # Database migrations
+├── tests/                    # Pytest suite (run: `uv run python -m pytest`)
 ├── library/                  # Local ebook storage
-├── dawnstar_data/            # SQLite database
+├── dawnstar_data/            # SQLite database + WAL
 ├── static_covers/            # Extracted cover images
+├── packaging/deb/            # .deb packaging + systemd unit
 ├── pyproject.toml            # Managed by uv
 └── .env                      # API keys and local paths
 ```
@@ -58,6 +64,25 @@ dawnstar/
 
 **Frontend:**
 - Jinja2 templating
+- Tailwind-inspired utility CSS (no build step currently)
+- Vanilla JavaScript (ES2015+) — `reader-icecream.js`, `library.js`, `tts.js`
+  (see *Frontend modernization roadmap* below)
+
+**Processing:**
+- ebooklib (EPUB parsing)
+- PyMuPDF/fitz (PDF parsing)
+- BeautifulSoup4 + nh3 (HTML cleaning/sanitization)
+
+**AI / TTS:**
+- Google GenAI Python SDK (Gemini, default provider)
+- OpenAI SDK client pointing at Ollama (secondary/fallback)
+- gTTS + edge-tts (text-to-speech with browser fallback)
+
+**Security:**
+- Stateless HMAC-signed session cookies + session-epoch revocation
+- CSP / X-Frame-Options / X-Content-Type-Options / Referrer-Policy headers
+- Same-origin CSRF enforcement on mutating methods
+- bcrypt password hashing (HMAC fallback), Fernet-encrypted secrets
 - Tailwind CSS (no heavy JS frameworks)
 - Minimal JavaScript for interactivity
 
@@ -107,6 +132,9 @@ All features are governed by formal specifications in `specs/`. The specs are th
 | 006 | Text-to-Speech | `specs/006-text-to-speech.md` |
 | 007 | Settings | `specs/007-settings.md` |
 | 008 | File Parsers | `specs/008-file-parsers.md` |
+| 009 | NAS Integration | `specs/009-nas-integration.md` |
+
+The authoritative registry (with status, version, dependency graph) is `specs/INDEX.md`.
 
 ## Key Design Requirements
 
@@ -137,9 +165,32 @@ Planned deployment using `docker-compose up -d`:
 
 ## Environment Variables
 
-- `GEMINI_API_KEY` - Google Gemini API key for AI summaries
-- `DATABASE_URL` - SQLite database connection
-- `LIBRARY_PATH` - Path to local ebook collection
+- `SECRET_KEY` — **required in production**; signs session cookies and encrypts secrets.
+- `ADMIN_USERNAME` / `ADMIN_PASSWORD` (plaintext, auto-hashed) or `ADMIN_PASSWORD_HASH` (bcrypt).
+- `GOOGLE_API_KEY` — Google Gemini key for AI summaries (optional if Ollama is used).
+- `DATABASE_URL` — SQLite connection string (default `sqlite+aiosqlite:///./dawnstar_data/dawnstar.db`).
+- `LIBRARY_PATH` / `COVERS_PATH` / `BOOK_IMAGES_PATH` — storage paths.
+- `NAS_*` — NAS backend (see spec 009).
+- `APP_ENV=production` enforces strict `SECRET_KEY` validation.
+
+## Security Architecture
+
+Sessions are **stateless HMAC-signed cookies** (`app/auth.py`). Logout and
+password change bump a `session_epoch` in the settings table, invalidating all
+prior tokens. `SecurityHeadersMiddleware` emits CSP + browser hardening headers;
+`CSRFMiddleware` enforces same-origin on `POST/PUT/PATCH/DELETE` (layered on the
+`SameSite=Lax` session cookie). Rate limiting lives in `ProductionMiddleware`.
+
+## Frontend modernization roadmap
+
+The vanilla-JS monoliths are the largest maintainability debt. The agreed
+incremental plan (tracked in `docs/frontend-modernization.md`):
+
+1. Introduce a bundler (esbuild) + ESLint flat config (no behavior change).
+2. Extract pure-logic helpers (DOM, fetch, storage) into `frontend/static/js/lib/`.
+3. Split `reader-icecream.js` by concern: TOC, summary, bookmarks, annotations, TTS bridge.
+4. Add Vitest unit tests for extracted modules.
+5. Adopt the same pattern for `library.js` and `tts.js`.
 
 ## Reference Implementation
 
@@ -183,17 +234,19 @@ The PRD (`Gemini-Dawnstar eBook Manager PRD.md`) contains the original product r
     * Isolate API keys (Gemini, OpenAI) in `os.environ`. Never hardcode keys.
 
 ## 4. JAVASCRIPT/TYPESCRIPT RULES (Frontend)
-* **Framework:** React / Next.js (App Router).
-* **Style:** Functional components only. No class components.
-* **State Management:**
-    * Use `useState` for local state.
-    * Use `Context` or `Zustand` for global state. Avoid Redux boilerplate.
-* **Styling:**
-    * Use Tailwind CSS. Avoid raw CSS files where possible.
-    * Use descriptive class names if custom CSS is required.
-* **Async:**
-    * Always use `async/await`. Avoid `.then()` chains.
-    * Wrap API calls in standard error handling hooks.
+
+> **Current reality:** the frontend is **vanilla JS + Jinja2 templates** (no
+> React/Next.js). The files `reader-icecream.js` (~3.4k LOC), `library.js`
+> (~2.6k LOC) and `tts.js` (~1.2k LOC) are large monoliths. New work should
+> extract focused ES modules and migrate toward a small bundler (see the
+> *Frontend modernization roadmap* in `docs/`).
+
+* **Style:** ES2015+ (arrow functions, `const`/`let`, template literals, `async/await`).
+* **State:** keep the existing `const XReader = { ... }` module-object pattern; prefer named ES module exports for new code.
+* **Styling:** utility CSS in `frontend/static/css`; custom classes with descriptive names.
+* **Async:** always `async/await`; no `.then()` chains. Wrap API calls in `try/catch`.
+* **Linting:** ESLint flat config lives in `frontend/` (run `npm run lint`).
+* **XSS:** never `innerHTML` untrusted book HTML without sanitization — use the existing nh3-sanitized server output.
 
 ## 5. DEVOPS & INFRASTRUCTURE
 * **Environment:**

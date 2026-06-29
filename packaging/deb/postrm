@@ -1,0 +1,39 @@
+#!/bin/bash
+# postrm: Clean up after package removal.
+
+set -e
+
+if [ "$1" = "purge" ]; then
+    # Stop and disable service
+    if [ -d /run/systemd/system ]; then
+        systemctl stop elibrary-manager >/dev/null 2>&1 || true
+        systemctl disable elibrary-manager >/dev/null 2>&1 || true
+    fi
+
+    # Remove persistent data
+    rm -rf /var/lib/elibrary-manager
+    rm -rf /var/log/elibrary-manager
+    rm -rf /etc/elibrary-manager
+
+    # Remove system user
+    if id -u elibrary > /dev/null 2>&1; then
+        deluser --system elibrary 2>/dev/null || true
+    fi
+
+    # Reload systemd
+    systemctl daemon-reload >/dev/null 2>&1 || true
+
+    # Update desktop database
+    if command -v update-desktop-database > /dev/null 2>&1; then
+        update-desktop-database -q /usr/share/applications 2>/dev/null || true
+    fi
+elif [ "$1" = "remove" ]; then
+    # Just disable service, preserve user data
+    if [ -d /run/systemd/system ]; then
+        systemctl disable elibrary-manager >/dev/null 2>&1 || true
+    fi
+fi
+
+#DEBHELPER#
+
+exit 0

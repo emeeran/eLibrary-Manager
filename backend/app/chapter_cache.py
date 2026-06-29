@@ -28,14 +28,14 @@ class CachedChapter:
 
 class ChapterCache:
     """LRU cache for parsed chapter content.
-    
+
     Provides O(1) lookup for cached chapters and automatic eviction
     when the cache size limit is reached.
     """
 
     def __init__(self, max_size: int = 200) -> None:
         """Initialize cache with size limit.
-        
+
         Args:
             max_size: Maximum number of chapters to cache (increased for PDFs)
         """
@@ -100,7 +100,7 @@ class ChapterCache:
         file_mtime: float
     ) -> None:
         """Store chapter in cache.
-        
+
         Args:
             book_path: Path to ebook file
             chapter_index: Zero-based chapter index
@@ -128,10 +128,10 @@ class ChapterCache:
 
     async def invalidate_book(self, book_path: str) -> int:
         """Remove all cached chapters for a book.
-        
+
         Args:
             book_path: Path to ebook file
-            
+
         Returns:
             Number of entries removed
         """

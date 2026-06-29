@@ -1,0 +1,101 @@
+#!/bin/bash
+# postinst: Configure permissions, generate defaults, enable service.
+
+set -e
+
+# Set ownership on data directories
+chown -R elibrary:elibrary /var/lib/elibrary-manager
+chown -R elibrary:elibrary /var/log/elibrary-manager
+
+# Generate default config.env if missing (conffile — preserved on upgrade)
+if [ ! -f /etc/elibrary-manager/config.env ]; then
+    cat > /etc/elibrary-manager/config.env <<'ENVEOF'
+# eLibrary Manager Configuration
+# Edit this file to set your API keys and preferences.
+# Changes take effect after: sudo systemctl restart elibrary-manager
+
+# AI Provider — Google Gemini (set your API key below)
+#GEMINI_API_KEY=your-api-key-here
+#GOOGLE_MODEL=gemini-2.5-flash
+
+# AI Provider — OpenAI
+#OPENAI_API_KEY=
+
+# AI Provider — Ollama Local
+#OLLAMA_LOCAL_URL=http://localhost:11434
+#OLLAMA_LOCAL_MODEL=llama3.2:3b
+
+# Application
+#APP_ENV=production
+#SECRET_KEY=generate-with:-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+#DEBUG=false
+#LOG_LEVEL=INFO
+
+# Authentication
+#ADMIN_USERNAME=admin
+#ADMIN_PASSWORD=
+
+# NAS Storage (optional)
+#NAS_ENABLED=false
+#NAS_HOST=
+#NAS_MOUNT_PATH=
+ENVEOF
+    chmod 640 /etc/elibrary-manager/config.env
+    chown root:elibrary /etc/elibrary-manager/config.env
+fi
+
+# Ensure a SECRET_KEY exists (required when APP_ENV=production). Generate a
+# strong, per-install unique key if an active one is not already present.
+# Idempotent: preserves any user-provided key on upgrades.
+CONFIG_FILE=/etc/elibrary-manager/config.env
+if [ -f "$CONFIG_FILE" ] && ! grep -qE '^[[:space:]]*SECRET_KEY[[:space:]]*=[[:space:]]*[A-Za-z0-9_-]+' "$CONFIG_FILE"; then
+    GENERATED_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))' 2>/dev/null \
+        || head -c 48 /dev/urandom | base64 | tr -d '\n=' | tr '+/' '-_')
+    if grep -qE '^[[:space:]]*#?[[:space:]]*SECRET_KEY' "$CONFIG_FILE"; then
+        sed -i -E "s|^[[:space:]]*#?[[:space:]]*SECRET_KEY.*|SECRET_KEY=${GENERATED_KEY}|" "$CONFIG_FILE"
+    else
+        echo "SECRET_KEY=${GENERATED_KEY}" >> "$CONFIG_FILE"
+    fi
+    chmod 640 "$CONFIG_FILE"
+    chown root:elibrary "$CONFIG_FILE"
+fi
+
+# Fix venv python symlinks to point to system python3.12
+VENV_BIN="/opt/elibrary-manager/.venv/bin"
+if [ -d "$VENV_BIN" ]; then
+    # Remove stale symlinks and recreate pointing to system python
+    for target in python python3; do
+        if [ -L "$VENV_BIN/$target" ]; then
+            rm -f "$VENV_BIN/$target"
+            ln -sf /usr/bin/python3.12 "$VENV_BIN/$target"
+        fi
+    done
+fi
+
+# Reload systemd, enable and start service
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable elibrary-manager >/dev/null 2>&1 || true
+
+# Update desktop database and icon cache
+if command -v update-desktop-database > /dev/null 2>&1; then
+    update-desktop-database -q /usr/share/applications 2>/dev/null || true
+fi
+if command -v gtk-update-icon-cache > /dev/null 2>&1; then
+    gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || true
+fi
+
+echo ""
+echo "=== eLibrary Manager installed successfully ==="
+echo ""
+echo "Next steps:"
+echo "  1. Edit config:  sudo nano /etc/elibrary-manager/config.env"
+echo "  2. Add ebooks:   cp ~/Books/*.epub /var/lib/elibrary-manager/library/"
+echo "  3. Start app:    sudo systemctl start elibrary-manager"
+echo "  4. Open in browser: http://localhost:8000"
+echo "  5. Check status: systemctl status elibrary-manager"
+echo "  6. View logs:    journalctl -u elibrary-manager -f"
+echo ""
+
+#DEBHELPER#
+
+exit 0

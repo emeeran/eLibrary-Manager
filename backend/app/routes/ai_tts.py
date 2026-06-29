@@ -228,7 +228,7 @@ async def stream_speech(request: Request) -> StreamingResponse:
         raise
     except Exception as e:
         logger.error(f"TTS stream error: {e}")
-        raise HTTPException(status_code=500, detail=f"Stream failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Stream failed: {e}") from e
 
 
 @router.post("/tts/synthesize")
@@ -334,7 +334,7 @@ async def synthesize_speech(
                 "message": e.message,
                 "details": e.details
             }
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
@@ -342,7 +342,7 @@ async def synthesize_speech(
         raise HTTPException(
             status_code=500,
             detail=f"Synthesis failed: {str(e)}"
-        )
+        ) from e
 
 
 def _audio_response(audio_data: bytes, engine: str) -> Response:

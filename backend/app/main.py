@@ -25,7 +25,18 @@ from app.logging_config import get_logger, setup_logging
 from app.middleware import ProductionMiddleware
 
 # Import route modules
-from app.routes import ai_tts, auth, categories, hidden, library, maintenance, reader, settings, stats
+from app.routes import (
+    ai_tts,
+    auth,
+    categories,
+    hidden,
+    library,
+    maintenance,
+    reader,
+    settings,
+    stats,
+)
+from app.security_middleware import CSRFMiddleware, SecurityHeadersMiddleware
 
 # Setup logging
 setup_logging()
@@ -75,7 +86,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         # Check session cookie
         token = request.cookies.get(SESSION_COOKIE_NAME)
-        if token and validate_session(token):
+        if token and await validate_session(token):
             return await call_next(request)
 
         # API routes return 401
@@ -119,23 +130,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         from alembic.script import ScriptDirectory
         script = ScriptDirectory.from_config(alembic_cfg)
         head = script.get_current_head()
-        # Check if DB has existing tables but no alembic_version
+        # Inspect existing schema state to decide stamp vs upgrade.
         from sqlalchemy import create_engine
         from sqlalchemy import inspect as sa_inspect
         engine = create_engine(db_url)
         inspector = sa_inspect(engine)
         tables = inspector.get_table_names()
         engine.dispose()
-        if tables and "alembic_version" not in tables:
-            # Existing DB without alembic — stamp with current head
+        if not tables:
+            # Fresh DB — let migrations create the schema from scratch.
+            logger.info("Fresh database — applying migrations to head: %s", head)
+            command.upgrade(alembic_cfg, "head")
+        elif "alembic_version" not in tables:
+            # Existing pre-Alembic DB — stamp with current head so future
+            # upgrades apply incrementally.
             logger.info("Stamping existing schema at Alembic head: %s", head)
             command.stamp(alembic_cfg, head)
-        elif not tables:
-            # Fresh DB — tables already created by init_db, just stamp
-            logger.info("Fresh database — stamping at Alembic head: %s", head)
-            command.stamp(alembic_cfg, head)
         else:
-            # Apply any pending migrations
+            # Apply any pending migrations.
             command.upgrade(alembic_cfg, "head")
 
     await asyncio.to_thread(_run_alembic)
@@ -200,9 +212,11 @@ app = FastAPI(
 )
 
 # Add middleware (order matters: outermost first in add_middleware = innermost at runtime)
-# Runtime order: ProductionMiddleware -> AuthMiddleware -> GZipMiddleware
+# Runtime order: ProductionMiddleware -> SecurityHeaders -> AuthMiddleware -> GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
 app.add_middleware(AuthMiddleware)                     # Session-based auth
+app.add_middleware(CSRFMiddleware)                     # Same-origin check for mutating requests
+app.add_middleware(SecurityHeadersMiddleware)          # CSP + browser security headers
 app.add_middleware(ProductionMiddleware)               # Logging + caching + rate limiting (outermost)
 
 # Mount static files

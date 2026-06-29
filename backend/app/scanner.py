@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 from app.config import get_config
-from app.exceptions import LibraryScannerError
+from app.exceptions import EbookParsingError, LibraryScannerError
 from app.logging_config import get_logger
 from app.parsers import EPUBParser, MOBIParser, PDFParser
 from app.schemas import BookCreate
@@ -152,7 +152,7 @@ class LibraryScanner:
                 {"directory": target_dir},
             )
 
-        SUPPORTED = self.SUPPORTED_FORMATS
+        supported = self.SUPPORTED_FORMATS
         books: list[BookCreate] = []
         dirs_to_process = [target_dir]
         scanned = 0
@@ -171,7 +171,7 @@ class LibraryScanner:
                                     dirs_to_process.append(entry.path)
                                 elif entry.is_file(follow_symlinks=False):
                                     ext = Path(entry.name).suffix.lower()
-                                    if ext not in SUPPORTED:
+                                    if ext not in supported:
                                         continue
 
                                     str_path = entry.path

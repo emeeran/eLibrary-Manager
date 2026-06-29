@@ -1,6 +1,7 @@
 """Unified production middleware — logging, caching, and rate limiting."""
 
 import asyncio
+import os
 import time
 from collections import defaultdict
 from collections.abc import Callable
@@ -74,6 +75,11 @@ class ProductionMiddleware(BaseHTTPMiddleware):
 
     async def _check_rate_limit(self, request: Request) -> Response | None:
         """Check rate limit for the request. Returns 429 response if exceeded."""
+        # Tests run many requests against the same process; the in-memory limiter
+        # would otherwise trip across test boundaries. Auth middleware already
+        # short-circuits under APP_ENV=testing for the same reason.
+        if os.environ.get("APP_ENV") == "testing":
+            return None
         path = request.url.path
 
         limit_config = None

@@ -128,9 +128,9 @@ class BookRepository:
         query = select(Book).options(noload(Book.category_links))
         conditions = []
         if favorite_only:
-            conditions.append(Book.is_favorite == True)
+            conditions.append(Book.is_favorite)
         if recent_only:
-            conditions.append(Book.is_recent == True)
+            conditions.append(Book.is_recent)
         if reading_only:
             conditions.append(Book.progress > 0)
         if search:
@@ -157,9 +157,9 @@ class BookRepository:
 
         # Hidden book filtering
         if hidden_only:
-            conditions.append(Book.is_hidden == True)
+            conditions.append(Book.is_hidden)
         elif not show_hidden:
-            conditions.append(Book.is_hidden == False)
+            conditions.append(Book.is_hidden.is_(False))
 
         if conditions:
             query = query.where(and_(*conditions))
@@ -367,7 +367,7 @@ class BookRepository:
         """
         query = select(Book).order_by(Book.id)
         if not show_hidden:
-            query = query.where(Book.is_hidden == False)
+            query = query.where(Book.is_hidden.is_(False))
         query = query.offset(offset).limit(limit)
         result = await self.session.execute(query)
         return list(result.scalars().all())

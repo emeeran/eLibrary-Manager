@@ -92,9 +92,10 @@ Chapter Text:
 Provide a clear, well-structured summary that helps readers understand the chapter's main points without reading the full text."""
         return prompt
 
-    async def close(self) -> None:
+    async def close(self) -> None:  # noqa: B027 - optional override hook
         """Close any open connections or resources.
 
         This method should be called when shutting down the provider.
+        Providers without persistent resources may leave this as a no-op.
         """
         pass

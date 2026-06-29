@@ -42,11 +42,11 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run tests
+      - name: Run tests with coverage
         env:
           APP_ENV: testing
           SECRET_KEY: ci-test-secret-key
-        run: uv run pytest tests/ -v --tb=short
+        run: uv run python -m pytest tests/ -v --tb=short --cov=backend/app --cov-report=term-missing --cov-fail-under=35
 
   docker:
     runs-on: ubuntu-latest

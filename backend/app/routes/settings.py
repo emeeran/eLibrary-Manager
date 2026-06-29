@@ -224,7 +224,7 @@ async def test_ai_connection(request: AIConnectionTest) -> dict:
         raise HTTPException(
             status_code=400,
             detail={"error": "Connection failed", "message": str(e)}
-        )
+        ) from e
 
 
 @router.get("/settings/nas-health", response_model=NASHealthResponse)

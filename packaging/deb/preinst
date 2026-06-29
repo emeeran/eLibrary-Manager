@@ -1,0 +1,21 @@
+#!/bin/bash
+# preinst: Create system user and directories before package is unpacked.
+
+set -e
+
+# Create system user if it doesn't exist
+if ! id -u elibrary > /dev/null 2>&1; then
+    adduser --system --group --home /var/lib/elibrary-manager --shell /usr/sbin/nologin elibrary
+fi
+
+# Create persistent data directories
+mkdir -p /var/lib/elibrary-manager/dawnstar_data
+mkdir -p /var/lib/elibrary-manager/static_covers
+mkdir -p /var/lib/elibrary-manager/static_book_images
+mkdir -p /var/lib/elibrary-manager/library
+mkdir -p /var/log/elibrary-manager
+mkdir -p /etc/elibrary-manager
+
+#DEBHELPER#
+
+exit 0

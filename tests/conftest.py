@@ -4,12 +4,11 @@ import os
 import tempfile
 from pathlib import Path
 
-import pytest_asyncio
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-
+import pytest_asyncio
 from app.database import Base
 from app.main import app
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 # Set test credentials before any app imports resolve
 os.environ.setdefault("ADMIN_PASSWORD", "test-password")
@@ -66,7 +65,7 @@ async def client(db_session):
 
     app.dependency_overrides[get_db] = override_get_db
 
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         # Authenticate to get session cookie

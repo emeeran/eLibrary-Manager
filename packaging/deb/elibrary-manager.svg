@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7c3aed;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="pageGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8fafc;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="spineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#6d28d9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#5b21b6;stop-opacity:1" />
+    </linearGradient>
+    <filter id="sparkleGlow">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="2" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- Background rounded rectangle -->
+  <rect x="0" y="0" width="256" height="256" rx="48" ry="48" fill="url(#bgGrad)" />
+
+  <!-- Book group with shadow -->
+  <g filter="url(#shadow)">
+    <!-- Back cover (slightly offset) -->
+    <rect x="62" y="52" width="132" height="160" rx="4" fill="#c4b5fd" />
+
+    <!-- Left page -->
+    <path d="M 68 56 Q 128 48 128 56 L 128 200 Q 128 192 68 200 Z" fill="url(#pageGrad)" />
+
+    <!-- Right page -->
+    <path d="M 128 56 Q 128 48 188 56 L 188 200 Q 128 192 128 200 Z" fill="url(#pageGrad)" />
+
+    <!-- Spine -->
+    <line x1="128" y1="56" x2="128" y2="200" stroke="url(#spineGrad)" stroke-width="3" />
+
+    <!-- Text lines on left page -->
+    <line x1="82" y1="82" x2="118" y2="78" stroke="#94a3b8" stroke-width="3" stroke-linecap="round" />
+    <line x1="82" y1="96" x2="116" y2="92" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+    <line x1="82" y1="108" x2="120" y2="104" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+    <line x1="82" y1="120" x2="112" y2="117" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+    <line x1="82" y1="132" x2="118" y2="129" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+    <line x1="82" y1="144" x2="106" y2="141" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+
+    <!-- Text lines on right page -->
+    <line x1="138" y1="78" x2="174" y2="82" stroke="#94a3b8" stroke-width="3" stroke-linecap="round" />
+    <line x1="138" y1="92" x2="172" y2="96" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+    <line x1="138" y1="104" x2="176" y2="108" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+    <line x1="138" y1="116" x2="168" y2="120" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+    <line x1="138" y1="128" x2="174" y2="132" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+    <line x1="138" y1="140" x2="164" y2="144" stroke="#cbd5e1" stroke-width="2.5" stroke-linecap="round" />
+  </g>
+
+  <!-- AI Sparkle top-right -->
+  <g filter="url(#sparkleGlow)">
+    <!-- Main sparkle -->
+    <path d="M 192 48 L 195 40 L 198 48 L 206 51 L 198 54 L 195 62 L 192 54 L 184 51 Z" fill="#fbbf24" />
+    <!-- Small sparkle -->
+    <path d="M 206 32 L 208 28 L 210 32 L 214 34 L 210 36 L 208 40 L 206 36 L 202 34 Z" fill="#fde68a" />
+    <!-- Tiny sparkle -->
+    <path d="M 182 34 L 183.5 30 L 185 34 L 189 35.5 L 185 37 L 183.5 41 L 182 37 L 178 35.5 Z" fill="#fde68a" />
+  </g>
+</svg>

@@ -1,0 +1,45 @@
+[Unit]
+Description=eLibrary Manager - Ebook collection manager with AI summaries
+After=network.target
+Documentation=https://github.com/elibrary-manager
+
+[Service]
+Type=simple
+User=elibrary
+Group=elibrary
+
+WorkingDirectory=/opt/elibrary-manager
+Environment=PYTHONPATH=/opt/elibrary-manager
+Environment=APP_ENV=production
+
+# Absolute data paths (override config.py defaults).
+# NOTE: 4 slashes after the scheme => absolute path. (3 slashes would be
+# interpreted by SQLAlchemy as a relative path and fail to open the file.)
+Environment=DATABASE_URL=sqlite+aiosqlite:////var/lib/elibrary-manager/dawnstar_data/dawnstar.db
+Environment=LIBRARY_PATH=/var/lib/elibrary-manager/library
+Environment=COVERS_PATH=/var/lib/elibrary-manager/static_covers
+Environment=BOOK_IMAGES_PATH=/var/lib/elibrary-manager/static_book_images
+
+# Load user configuration (API keys, etc.)
+EnvironmentFile=/etc/elibrary-manager/config.env
+
+ExecStart=/opt/elibrary-manager/.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
+
+Restart=on-failure
+RestartSec=5
+
+# Security hardening
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/elibrary-manager /var/log/elibrary-manager
+NoNewPrivileges=true
+MemoryMax=1G
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=elibrary-manager
+
+[Install]
+WantedBy=multi-user.target

@@ -50,6 +50,18 @@ line-length = 100
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
 ignore = ["E501"]
 
+[tool.ruff.lint.per-file-ignores]
+# `Depends()` in argument defaults is idiomatic FastAPI;
+# route modules use deferred imports for circular-import avoidance.
+"backend/app/routes/*" = ["B008", "E402"]
+# Conditional/deferred imports inside lifespan & service init
+"backend/app/main.py" = ["E402"]
+"backend/app/services/*" = ["E402"]
+# PyMuPDF warning suppression must run before sibling imports
+"backend/app/parsers/pdf_parser.py" = ["E402"]
+# Re-exports in __init__ modules are intentional
+"**/__init__.py" = ["F401"]
+
 [tool.mypy]
 python_version = "3.12"
 warn_return_any = true
@@ -58,7 +70,22 @@ disallow_untyped_defs = true
 
 [tool.pytest.ini_options]
 pythonpath = ["backend"]
+addopts = "-ra"
+
+[tool.coverage.run]
+source = ["backend/app"]
+omit = ["backend/app/main.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
 
 [project.scripts]
-test = "pytest tests/ -v"
+# Use `python -m pytest` so resolution does not depend on a console-script
+# shebang that may go stale across venv relocations.
+test = "python -m pytest tests/ -v"
 lint = "ruff check backend/ tests/"

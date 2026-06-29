@@ -3,7 +3,6 @@
 Provides login, logout, and auth status endpoints.
 """
 
-import os
 
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -31,12 +30,12 @@ async def login_page(request: Request) -> HTMLResponse:
     If already authenticated, redirect to home.
     """
     token = request.cookies.get(SESSION_COOKIE_NAME)
-    if token and validate_session(token):
+    if token and await validate_session(token):
         return RedirectResponse(url="/", status_code=302)
 
     from fastapi.templating import Jinja2Templates
 
-    config = get_config()
+    get_config()
     templates = Jinja2Templates(directory="frontend/templates")
     return templates.TemplateResponse("login.html", {"request": request})
 
@@ -72,7 +71,7 @@ async def login(request: Request, response: Response) -> JSONResponse:
             content={"error": "Invalid credentials"},
         )
 
-    token = create_session(username)
+    token = await create_session(username)
 
     response = JSONResponse(
         status_code=200,
@@ -84,7 +83,12 @@ async def login(request: Request, response: Response) -> JSONResponse:
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
         samesite="lax",
-        secure=os.environ.get("APP_ENV") == "production",
+        # Tie the Secure flag to the actual transport scheme, not APP_ENV:
+        # the app is commonly accessed over plain http://localhost (see the
+        # desktop entry), where a Secure cookie would be silently dropped and
+        # login could never persist. Behind a TLS-terminating proxy with
+        # X-Forwarded-Proto honored, scheme is "https" and the flag engages.
+        secure=(request.url.scheme == "https"),
     )
     logger.info("User %s logged in successfully", username)
     return response
@@ -95,7 +99,7 @@ async def logout(request: Request) -> JSONResponse:
     """Clear session and remove cookie."""
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if token:
-        destroy_session(token)
+        await destroy_session(token)
 
     response = JSONResponse(
         status_code=200,
@@ -109,7 +113,7 @@ async def logout(request: Request) -> JSONResponse:
 async def auth_status(request: Request) -> JSONResponse:
     """Return current authentication status."""
     token = request.cookies.get(SESSION_COOKIE_NAME)
-    authenticated = bool(token and validate_session(token))
+    authenticated = bool(token and (await validate_session(token) if token else False))
     return JSONResponse(
         status_code=200,
         content={"authenticated": authenticated},

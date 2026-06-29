@@ -157,19 +157,19 @@ class GTTSService:
             raise GTTSError(
                 "gTTS library not installed",
                 "Install it with: uv add gtts"
-            )
+            ) from e
         except ValueError as e:
             logger.error(f"Invalid input for gTTS: {e}")
             raise GTTSError(
                 "Invalid input",
                 str(e)
-            )
+            ) from e
         except Exception as e:
             logger.error(f"gTTS generation failed: {type(e).__name__}: {e}\n{traceback.format_exc()}")
             raise GTTSError(
                 "Failed to generate speech",
                 f"{type(e).__name__}: {str(e)}"
-            )
+            ) from e
 
     @classmethod
     async def generate_audio(
@@ -240,7 +240,7 @@ class GTTSService:
         try:
             return await cls.generate_audio(text, lang=lang, slow=slow, tld=tld)
         except Exception as e:
-            raise GTTSError(f"Text-to-speech failed: {str(e)}")
+            raise GTTSError(f"Text-to-speech failed: {str(e)}") from e
 
 
 # Global instance

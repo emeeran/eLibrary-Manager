@@ -108,22 +108,27 @@ class DatabaseManager:
             await session.close()
 
     async def init_db(self) -> None:
-        """Initialize database schema.
+        """Prepare the database for migrations.
 
-        Creates all tables if they don't exist, then runs Alembic migrations
-        to apply any pending schema changes. Should be called on app startup.
+        Ensures the database file's parent directory exists and imports all
+        models so ``Base.metadata`` is fully populated. Schema creation itself
+        is owned by Alembic (see the lifespan in ``app.main``) so that model and
+        migration definitions can never silently drift apart.
         """
         try:
             # Ensure all models are registered with Base.metadata
             import app.models  # noqa: F401
 
-            async with self.engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+            # Ensure the SQLite database file's directory exists.
+            db_path = self.config.database_url.split("///")[-1]
+            db_dir = os.path.dirname(os.path.abspath(db_path))
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
 
-            logger.info("Database schema initialized successfully")
+            logger.info("Database prepared for migrations")
         except Exception as e:
-            logger.error(f"Database initialization failed: {e}")
-            raise DatabaseError("Failed to initialize database", {"error": str(e)}) from e
+            logger.error(f"Database preparation failed: {e}")
+            raise DatabaseError("Failed to prepare database", {"error": str(e)}) from e
 
     async def close(self) -> None:
         """Close database connections.
@@ -142,9 +147,8 @@ db_manager = DatabaseManager()
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency for database sessions.
 
-    Creates and manages a session directly without nesting async context
-    managers, which avoids greenlet context tracking issues with concurrent
-    requests under SQLAlchemy's async engine.
+    Thin wrapper around :meth:`DatabaseManager.get_session` so all transaction
+    semantics (commit / rollback / exception mapping) live in exactly one place.
 
     Yields:
         AsyncSession: Database session for request handling
@@ -154,16 +158,5 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         ... async def list_books(db: AsyncSession = Depends(get_db)):
         ...     result = await db.execute(select(Book))
     """
-    session = db_manager.session_factory()
-    try:
+    async with db_manager.get_session() as session:
         yield session
-        await session.commit()
-    except (DawnstarError, HTTPException):
-        await session.rollback()
-        raise
-    except Exception as e:
-        await session.rollback()
-        logger.exception("Database operation failed: %s", e)
-        raise DatabaseError("Database operation failed", {"error": str(e)}) from e
-    finally:
-        await session.close()

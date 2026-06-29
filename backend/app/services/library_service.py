@@ -4,8 +4,9 @@ Coordinates between repositories, scanner, and business logic
 for library operations.
 """
 
-from datetime import UTC, datetime
+import asyncio
 import time
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -486,11 +487,11 @@ class LibraryService:
         result = await self.session.execute(
             select(
                 func.count(Book.id),
-                func.count().filter(Book.is_favorite == True),
-                func.count().filter(Book.is_recent == True),
+                func.count().filter(Book.is_favorite),
+                func.count().filter(Book.is_recent),
                 func.count().filter(Book.progress > 0),
                 func.coalesce(func.sum(Book.file_size), 0),
-                func.count().filter(Book.is_hidden == True),
+                func.count().filter(Book.is_hidden),
             )
         )
         row = result.one()

@@ -228,7 +228,7 @@ class PDFParser:
             raise EbookParsingError(
                 f"Failed to parse PDF: {str(e)}",
                 {"path": pdf_path}
-            )
+            ) from e
 
     async def get_single_chapter(
         self, pdf_path: str, chapter_index: int
@@ -341,7 +341,7 @@ class PDFParser:
             return False
 
         # --- Phase 1: collect all lines as flat records -------------------
-        LineRec = dict  # typed for readability
+        LineRec = dict  # typed for readability  # noqa: N806
         lines: list[LineRec] = []
 
         for block in text_dict.get("blocks", []):

@@ -53,7 +53,7 @@ def _validate_path_within_library(file_path: str) -> str:
         raise HTTPException(
             status_code=403,
             detail="Path must be within the configured library directory",
-        )
+        ) from None
     return str(resolved)
 
 
@@ -318,7 +318,7 @@ async def browse_filesystem(
             raise HTTPException(
                 status_code=403,
                 detail=f"Permission denied: {path}",
-            )
+            ) from None
         return entries
 
     return await run_in_threadpool(_list_dirs)
@@ -375,7 +375,7 @@ async def import_book_file(
         raise HTTPException(
             status_code=500,
             detail=f"Import failed: {str(e)}"
-        )
+        ) from e
 
 
 @router.post("/library/upload")
@@ -438,7 +438,7 @@ async def upload_book(
         raise HTTPException(
             status_code=500,
             detail=f"Upload failed: {str(e)}"
-        )
+        ) from e
 
 
 @router.post("/library/refresh-covers")
@@ -872,7 +872,7 @@ async def list_directories(
     from app.models import Book
 
     result = await db.execute(
-        select(Book.path).where(Book.is_hidden == False)
+        select(Book.path).where(Book.is_hidden.is_(False))
     )
     paths = [row[0] for row in result.all()]
 
@@ -945,7 +945,7 @@ async def list_formats(db: AsyncSession = Depends(get_db)) -> list[dict]:
 
     result = await db.execute(
         select(Book.format, func.count(Book.id))
-        .where(Book.is_hidden == False)
+        .where(Book.is_hidden.is_(False))
         .group_by(Book.format)
         .order_by(func.count(Book.id).desc())
     )

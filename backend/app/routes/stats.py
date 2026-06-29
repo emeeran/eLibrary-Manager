@@ -203,7 +203,7 @@ async def get_recommendations(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """
     # Find book IDs the user has already started reading
     read_result = await db.execute(
-        select(Book.id).where(Book.progress > 0, Book.is_hidden == False)
+        select(Book.id).where(Book.progress > 0, Book.is_hidden.is_(False))
     )
     read_ids = [row[0] for row in read_result.all()]
 
@@ -232,7 +232,7 @@ async def get_recommendations(db: AsyncSession = Depends(get_db)) -> list[dict]:
     unread_query = (
         select(Book)
         .where(
-            Book.is_hidden == False,
+            Book.is_hidden.is_(False),
             Book.progress == 0,
             ~Book.id.in_(read_ids),
         )
@@ -376,7 +376,7 @@ async def get_reading_goal_progress(db: AsyncSession = Depends(get_db)) -> dict:
     # Count distinct reading dates in the period
     reading_result = await db.execute(
         select(func.count(func.distinct(func.date(Book.last_read_date)))).where(
-            Book.is_hidden == False,
+            Book.is_hidden.is_(False),
             Book.last_read_date.isnot(None),
             Book.last_read_date >= period_start,
         )

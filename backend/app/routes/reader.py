@@ -1,7 +1,10 @@
 """Reader routes for chapter content, bookmarks, notes, and annotations."""
 
+import json
+from datetime import UTC, datetime
+
 import nh3
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -578,16 +581,23 @@ async def delete_annotation(
 @router.get("/books/{book_id}/export")
 async def export_book_data(
     book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Export bookmarks, notes, and annotations as Markdown.
+    format: str = "markdown",
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Export bookmarks, notes, and annotations.
 
     Args:
         book_id: Book primary key
+        format: "markdown" (default, human-readable) or "json" (structured,
+            machine-readable — suitable for backup and re-import).
         db: Database session
 
     Returns:
-        Dictionary with book title and Markdown content
+        Markdown body (``{book_title, markdown}`` JSON) or a JSON file download.
+
+    Raises:
+        ResourceNotFoundError: If the book does not exist.
+        HTTPException: If ``format`` is not one of markdown|json.
     """
     service = ReaderService(db)
     book = await service.book_repo.get_by_id_or_404(book_id)
@@ -595,6 +605,60 @@ async def export_book_data(
     bookmarks = await service.list_bookmarks(book_id)
     notes = await service.list_notes(book_id)
     annotations = await service.list_annotations(book_id)
+
+    if format == "json":
+        payload = {
+            "book": {
+                "id": book.id,
+                "title": book.title,
+                "author": book.author,
+            },
+            "exported_at": datetime.now(UTC).isoformat(),
+            "bookmarks": [
+                {
+                    "chapter_index": bm.chapter_index,
+                    "position_in_chapter": bm.position_in_chapter,
+                    "title": bm.title,
+                    "notes": bm.notes,
+                    "created_at": bm.created_at.isoformat() if bm.created_at else None,
+                }
+                for bm in bookmarks
+            ],
+            "notes": [
+                {
+                    "chapter_index": n.chapter_index,
+                    "position_in_chapter": n.position_in_chapter,
+                    "quoted_text": n.quoted_text,
+                    "content": n.content,
+                    "color": n.color,
+                    "created_at": n.created_at.isoformat() if n.created_at else None,
+                    "updated_at": n.updated_at.isoformat() if n.updated_at else None,
+                }
+                for n in notes
+            ],
+            "annotations": [
+                {
+                    "chapter_index": a.chapter_index,
+                    "start_position": a.start_position,
+                    "end_position": a.end_position,
+                    "text": a.text,
+                    "color": a.color,
+                    "note": a.note,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                }
+                for a in annotations
+            ],
+        }
+        safe_title = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in book.title)[:80] or str(book.id)
+        body = json.dumps(payload, indent=2, ensure_ascii=False)
+        return Response(
+            content=body,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{safe_title}.json"'},
+        )
+
+    if format != "markdown":
+        raise HTTPException(status_code=400, detail="format must be 'markdown' or 'json'")
 
     lines = [
         f"# {book.title}",

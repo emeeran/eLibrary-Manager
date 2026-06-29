@@ -23,10 +23,6 @@ MANIFEST
 trash2review
 prod-agent/
 trash2review/
-uploads/
-tests/
-automation/
-static*/
 .claude/
 .codacy/
 .git*/
@@ -79,6 +75,10 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+
+# Frontend tooling
+frontend/node_modules/
+frontend/static/js/dist/
 
 # Ignore vscode AI rules
 .github/instructions/codacy.instructions.md

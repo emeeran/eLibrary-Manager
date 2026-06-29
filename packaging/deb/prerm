@@ -1,0 +1,12 @@
+#!/bin/bash
+# prerm: Stop the service before package is removed.
+
+set -e
+
+if [ -d /run/systemd/system ]; then
+    systemctl stop elibrary-manager >/dev/null 2>&1 || true
+fi
+
+#DEBHELPER#
+
+exit 0

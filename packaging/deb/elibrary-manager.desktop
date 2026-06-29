@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=eLibrary Manager
+GenericName=Ebook Reader
+Comment=Manage and read your ebook collection with AI-powered summaries
+Icon=elibrary-manager
+Exec=xdg-open http://localhost:8000
+Terminal=false
+Categories=Office;Viewer;Literature;
+Keywords=ebook;reader;library;epub;pdf;mobi;
+StartupNotify=true
