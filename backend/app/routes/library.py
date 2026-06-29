@@ -38,6 +38,17 @@ from cachetools import TTLCache
 _search_cache: TTLCache = TTLCache(maxsize=50, ttl=30)
 
 
+def invalidate_book_list_cache() -> None:
+    """Clear the cached ``/api/books`` list responses.
+
+    Any mutation that changes which books appear in a listing (or their
+    visible flags — favorite/hidden/deleted) must call this, otherwise the UI
+    keeps serving the stale cached list for up to ``ttl`` seconds and the
+    change appears to "not work".
+    """
+    _search_cache.clear()
+
+
 def _validate_path_within_library(file_path: str) -> str:
     """Validate that a path is within the configured library directory.
 
@@ -723,6 +734,7 @@ async def delete_book(
     """
     repo = BookRepository(db)
     await repo.delete(book_id)
+    invalidate_book_list_cache()
     return {"message": "Book deleted successfully"}
 
 
@@ -745,6 +757,7 @@ async def toggle_favorite(
     book.is_favorite = not book.is_favorite
     await db.flush()
     await db.refresh(book)
+    invalidate_book_list_cache()
     return book_to_response(book)
 
 

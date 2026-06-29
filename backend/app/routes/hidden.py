@@ -1,119 +1,163 @@
-"""Hidden books password management routes."""
+"""Per-book hidden-password routes.
+
+Approach A: each hidden book is protected by its own password (stored
+Fernet-encrypted on the book). There is no global hidden-books password.
+
+Routes
+------
+- ``POST /books/{book_id}/hide``    — set a new password for *this* book and
+  mark it hidden. Body: ``{"password": "..."}``.
+- ``POST /books/{book_id}/unhide``  — verify the book's password and unhide it.
+  Body: ``{"password": "..."}``.
+- ``GET  /hidden/status``           — whether any hidden books exist (drives the
+  sidebar nav visibility).
+- ``POST /hidden/unhide-all``       — admin-only bulk reset: clears every book's
+  hidden state + password AND deletes the legacy global ``hidden_password``
+  setting. This is the "remove existing password and unhide all" action.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.logging_config import get_logger
+from app.models import Book, Setting
+from app.routes.library import invalidate_book_list_cache
+from app.security import encrypt_value
+from app.security import verify_password as check_password
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/api", tags=["hidden-books"])
 
+# Minimum length for a per-book password.
+_MIN_PASSWORD_LEN = 1
+
+
+async def _get_book_or_404(db: AsyncSession, book_id: int) -> Book:
+    """Load a book by id or raise 404."""
+    from sqlalchemy import select
+
+    result = await db.execute(select(Book).where(Book.id == book_id))
+    book = result.scalar_one_or_none()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
 
 @router.post("/books/{book_id}/hide")
-async def toggle_book_hidden(
+async def hide_book(
     book_id: int,
-    request: dict = None,
+    request: dict | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Toggle book hidden status. Requires password verification."""
-    from app.repositories import BookRepository, SettingsRepository
-    from app.security import verify_password as check_password
+    """Hide a book behind a new per-book password.
 
-    settings = SettingsRepository(db)
-    stored = await settings.get("hidden_password")
-
-    if not stored:
-        raise HTTPException(status_code=400, detail="No password set. Set a password first.")
-
+    Sets ``is_hidden = True`` and stores the Fernet-encrypted ``password`` on
+    the book. If the book is already hidden with a password, this requires the
+    *current* password to re-hide/re-key it (prevents silently overwriting a
+    forgotten password). To unhide instead, use ``/unhide``.
+    """
     password = (request or {}).get("password", "")
-    if not password:
-        raise HTTPException(status_code=400, detail="Password required")
+    if not password or len(password) < _MIN_PASSWORD_LEN:
+        raise HTTPException(status_code=400, detail="A password is required to hide this book")
 
-    if not check_password(password, stored):
-        raise HTTPException(status_code=401, detail="Incorrect password")
+    book = await _get_book_or_404(db, book_id)
 
-    repo = BookRepository(db)
-    book = await repo.get_by_id_or_404(book_id)
+    # If the book already has a password, require it before re-keying.
+    if book.hidden_password:
+        current = (request or {}).get("current_password", "")
+        if not current or not check_password(current, book.hidden_password):
+            raise HTTPException(
+                status_code=401,
+                detail="This book is already hidden. Provide the current password to re-key it, "
+                       "or use Unhide instead.",
+            )
 
-    book.is_hidden = not book.is_hidden
-    await db.flush()
-    return {"is_hidden": book.is_hidden, "message": "Book hidden" if book.is_hidden else "Book unhidden"}
+    book.hidden_password = encrypt_value(password)
+    book.is_hidden = True
+    await db.commit()
+    invalidate_book_list_cache()
+    logger.info("Book %s hidden with a per-book password", book_id)
+    return {"is_hidden": True, "message": "Book hidden"}
+
+
+@router.post("/books/{book_id}/unhide")
+async def unhide_book(
+    book_id: int,
+    request: dict | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Unhide a book by verifying its per-book password.
+
+    Clears ``is_hidden`` and the stored password on success. 401 if the
+    password is wrong or the book isn't actually hidden.
+    """
+    password = (request or {}).get("password", "")
+    book = await _get_book_or_404(db, book_id)
+
+    if not book.is_hidden or not book.hidden_password:
+        raise HTTPException(status_code=400, detail="This book is not hidden")
+
+    if not password or not check_password(password, book.hidden_password):
+        raise HTTPException(status_code=401, detail="Incorrect password for this book")
+
+    book.is_hidden = False
+    book.hidden_password = None
+    await db.commit()
+    invalidate_book_list_cache()
+    logger.info("Book %s unhidden", book_id)
+    return {"is_hidden": False, "message": "Book unhidden"}
 
 
 @router.get("/hidden/status")
 async def get_hidden_status(db: AsyncSession = Depends(get_db)) -> dict:
-    """Check if hidden books password is set."""
-    from app.repositories import SettingsRepository
+    """Report whether any hidden books exist.
 
-    settings = SettingsRepository(db)
-    stored = await settings.get("hidden_password")
-    return {"password_set": stored is not None and bool(stored)}
+    Replaces the old "global password set?" semantics: the sidebar Hidden nav
+    item is shown when at least one book is hidden.
+    """
+    from sqlalchemy import func, select
 
-
-@router.post("/hidden/set-password")
-async def set_hidden_password(
-    request: dict,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Set or update the hidden books password."""
-    from app.repositories import SettingsRepository
-    from app.security import encrypt_password
-
-    password = request.get("password")
-    if not password or len(password) < 4:
-        raise HTTPException(status_code=400, detail="Password must be at least 4 characters")
-
-    encrypted = encrypt_password(password)
-    settings = SettingsRepository(db)
-    await settings.set("hidden_password", encrypted)
-    await db.flush()
-    return {"message": "Password set successfully"}
+    count = (
+        await db.execute(select(func.count(Book.id)).where(Book.is_hidden))
+    ).scalar_one()
+    return {"password_set": count > 0, "hidden_count": int(count)}
 
 
-@router.post("/hidden/verify-password")
-async def verify_hidden_password(
-    request: dict,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Verify the hidden books password."""
-    from app.repositories import SettingsRepository
-    from app.security import verify_password as check_password
+@router.post("/hidden/unhide-all")
+async def unhide_all_books(db: AsyncSession = Depends(get_db)) -> dict:
+    """Remove every hidden-book password and unhide all books.
 
-    password = request.get("password")
-    if not password:
-        raise HTTPException(status_code=400, detail="Password required")
+    Bulk admin reset (the request is already authenticated as the admin via
+    :class:`AuthMiddleware`). Clears ``is_hidden`` and ``hidden_password`` on
+    every book and deletes the legacy global ``hidden_password`` setting if it
+    exists. This is the one-time "remove existing password and unhide all"
+    migration action.
+    """
+    from sqlalchemy import delete as sa_delete
 
-    settings = SettingsRepository(db)
-    stored = await settings.get("hidden_password")
-    if not stored:
-        raise HTTPException(status_code=400, detail="No password set")
+    # 1. Clear per-book hidden state + passwords in one statement.
+    result = await db.execute(
+        update(Book)
+        .where((Book.is_hidden == True) | (Book.hidden_password.isnot(None)))  # noqa: E712
+        .values(is_hidden=False, hidden_password=None)
+    )
+    cleared_books = result.rowcount or 0
 
-    if not check_password(password, stored):
-        raise HTTPException(status_code=401, detail="Incorrect password")
+    # 2. Remove the legacy global hidden_password setting (if present).
+    legacy = await db.execute(sa_delete(Setting).where(Setting.key == "hidden_password"))
+    cleared_legacy = legacy.rowcount or 0
 
-    return {"verified": True}
-
-
-@router.post("/hidden/reset-password")
-async def reset_hidden_password(
-    request: dict,
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Reset hidden books password. Requires current password."""
-    from app.repositories import SettingsRepository
-    from app.security import verify_password as check_password
-
-    password = request.get("password")
-    if not password:
-        raise HTTPException(status_code=400, detail="Current password required")
-
-    settings = SettingsRepository(db)
-    stored = await settings.get("hidden_password")
-    if not stored:
-        raise HTTPException(status_code=400, detail="No password set")
-
-    if not check_password(password, stored):
-        raise HTTPException(status_code=401, detail="Incorrect password")
-
-    await settings.delete("hidden_password")
-    await db.flush()
-    return {"message": "Password reset successfully"}
+    await db.commit()
+    invalidate_book_list_cache()
+    logger.info(
+        "Bulk hidden reset: cleared %s book(s), removed legacy setting: %s",
+        cleared_books, bool(cleared_legacy),
+    )
+    return {
+        "message": f"Cleared {cleared_books} hidden book(s).",
+        "cleared_books": cleared_books,
+        "legacy_setting_removed": bool(cleared_legacy),
+    }

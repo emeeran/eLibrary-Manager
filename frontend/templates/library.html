@@ -163,7 +163,7 @@
                         <span class="nav-item-count" id="count-deleted">0</span>
                     </div>
 
-                    <div class="nav-item" onclick="showHiddenBooks()" id="nav-hidden">
+                    <div class="nav-item" onclick="filterByCategory('hidden', event)" id="nav-hidden">
                         <div class="nav-item-icon">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/>
@@ -515,11 +515,11 @@
         </div>
     </div>
 
-    <!-- Hidden Books Password Modal -->
+    <!-- Hide/Unhide Book Modal (per-book password) -->
     <div id="hidden-password-modal" class="modal-overlay hidden">
         <div class="modal">
             <div class="modal-header">
-                <h2 class="modal-title">Hidden Books</h2>
+                <h2 class="modal-title" id="hidden-modal-title">Hide Book</h2>
                 <button class="modal-close" onclick="closeModal('hidden-password-modal')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
@@ -528,14 +528,14 @@
             </div>
             <div class="modal-body">
                 <div class="form-group" id="hidden-password-set-group" style="display:none;">
-                    <label class="form-label">Set Password</label>
-                    <input type="password" id="hidden-password-set" class="form-input" placeholder="Enter password to protect hidden books">
-                    <p class="form-hint">This password will be required to view hidden books</p>
+                    <label class="form-label">New password for this book</label>
+                    <input type="password" id="hidden-password-set" class="form-input" placeholder="Enter a password" autocomplete="new-password">
+                    <p class="form-hint">You'll need this exact password to unhide the book. Each book has its own password.</p>
                 </div>
                 <div class="form-group" id="hidden-password-verify-group" style="display:none;">
-                    <label class="form-label">Enter Password</label>
-                    <input type="password" id="hidden-password-verify" class="form-input" placeholder="Enter password">
-                    <button type="button" id="hidden-password-reset-link" onclick="showResetHiddenPassword()" style="background:none;border:none;color:var(--accent-blue, #4285f4);cursor:pointer;font-size:12px;margin-top:6px;padding:0;">Forgot password?</button>
+                    <label class="form-label">This book's password</label>
+                    <input type="password" id="hidden-password-verify" class="form-input" placeholder="Enter this book's password" autocomplete="current-password">
+                    <button type="button" id="hidden-password-reset-link" onclick="unhideAllBooks()" style="background:none;border:none;color:var(--danger,#d32f2f);cursor:pointer;font-size:12px;margin-top:8px;padding:0;">Forgot a password? Remove all &amp; unhide everything</button>
                 </div>
             </div>
             <div class="modal-footer">
@@ -560,7 +560,7 @@
         </div>
     </div>
 
-    <script src="/static/js/library.js?v=20" defer></script>
+    <script src="/static/js/library.js?v=21" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {

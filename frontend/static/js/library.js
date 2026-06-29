@@ -427,10 +427,8 @@ function filterByCategory(category, event) {
             currentFilters.deleted_only = true;
             break;
         case 'hidden':
-            if (!_hiddenPasswordVerified) {
-                showHiddenBooks();
-                return;
-            }
+            // Per-book passwords: viewing the hidden list needs no password.
+            // Unhiding a specific book is what requires that book's password.
             currentFilters.hidden_only = true;
             currentFilters.show_hidden = true;
             break;
@@ -2291,219 +2289,131 @@ function filterByDirectory(directory, event) {
 }
 
 // ============================================
-// HIDDEN BOOKS
+// HIDDEN BOOKS — per-book passwords (approach A)
 // ============================================
+// Each hidden book has its own password. Hiding a book = set a new password
+// for it. Unhiding = verify that book's password. There is no global
+// password; the "Hidden" sidebar view simply lists hidden books (no password
+// needed to view the list — unhiding a specific book is what needs its pw).
 
-let _hiddenPasswordVerified = false;
-let _hiddenPasswordCallback = null; // Set by toggleBookHidden to intercept submit
+// Pending action configured by toggleBookHidden; submitHiddenPassword runs it.
+let _hiddenAction = null; // {mode: 'hide'|'unhide', bookId:int, input:HTMLInputElement}
 
 async function initHiddenBooks() {
+    // Show the sidebar "Hidden" nav item whenever any books are hidden.
     try {
         const res = await fetch('/api/hidden/status');
         const data = await res.json();
         const navItem = document.getElementById('nav-hidden');
-        if (navItem) {
-            navItem.style.display = 'flex';
-        }
+        if (navItem) navItem.style.display = (data.hidden_count > 0) ? 'flex' : 'none';
     } catch (e) {
         console.error('Failed to check hidden status:', e);
     }
 }
 
-async function showHiddenBooks() {
+/** Open the modal in either "set new password" (hide) or "enter password" (unhide) mode. */
+function _openHiddenModal(mode, bookId) {
     const modal = document.getElementById('hidden-password-modal');
     const setGroup = document.getElementById('hidden-password-set-group');
     const verifyGroup = document.getElementById('hidden-password-verify-group');
+    const titleEl = document.getElementById('hidden-modal-title');
+    const submitBtn = document.getElementById('hidden-password-submit');
+    const resetLink = document.getElementById('hidden-password-reset-link');
 
-    if (_hiddenPasswordVerified) {
-        filterByCategory('hidden');
-        return;
-    }
-
-    try {
-        const res = await fetch('/api/hidden/status');
-        const data = await res.json();
-
-        if (!data.password_set) {
-            // No password set, show set password form
-            setGroup.style.display = 'block';
-            verifyGroup.style.display = 'none';
-            modal.classList.remove('hidden');
-        } else {
-            // Password required
-            setGroup.style.display = 'none';
-            verifyGroup.style.display = 'block';
-            modal.classList.remove('hidden');
-        }
-    } catch (e) {
-        showNotification('Failed to check hidden books status', 'error');
-    }
-}
-
-async function submitHiddenPassword() {
-    // If a callback was set (e.g. by toggleBookHidden), delegate to it
-    if (_hiddenPasswordCallback) {
-        const cb = _hiddenPasswordCallback;
-        _hiddenPasswordCallback = null;
-        return cb();
-    }
-
-    const setGroup = document.getElementById('hidden-password-set-group');
-    const verifyGroup = document.getElementById('hidden-password-verify-group');
-
-    if (setGroup.style.display !== 'none') {
-        // Setting new password
-        const password = document.getElementById('hidden-password-set').value;
-        if (!password) {
-            showNotification('Please enter a password', 'error');
-            return;
-        }
-        try {
-            await fetch('/api/hidden/set-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
-            });
-            _hiddenPasswordVerified = true;
-            closeModal('hidden-password-modal');
-            showNotification('Password set successfully', 'success');
-            initHiddenBooks();
-            filterByCategory('hidden');
-        } catch (e) {
-            showNotification('Failed to set password', 'error');
-        }
+    if (mode === 'hide') {
+        setGroup.style.display = 'block';
+        verifyGroup.style.display = 'none';
+        titleEl.textContent = 'Hide Book';
+        const inp = document.getElementById('hidden-password-set');
+        inp.value = '';
+        inp.focus();
+        _hiddenAction = { mode: 'hide', bookId, input: inp };
+        if (submitBtn) submitBtn.textContent = 'Hide book';
+        if (resetLink) resetLink.style.display = 'none';
     } else {
-        // Verifying password
-        const password = document.getElementById('hidden-password-verify').value;
-        if (!password) {
-            showNotification('Please enter your password', 'error');
-            return;
-        }
-        try {
-            const res = await fetch('/api/hidden/verify-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
-            });
-            const data = await res.json();
-            if (res.ok && data.verified) {
-                _hiddenPasswordVerified = true;
-                closeModal('hidden-password-modal');
-                filterByCategory('hidden');
-            } else {
-                showNotification('Incorrect password', 'error');
-            }
-        } catch (e) {
-            showNotification('Failed to verify password', 'error');
-        }
-    }
-}
-
-async function showResetHiddenPassword() {
-    const verifyGroup = document.getElementById('hidden-password-verify-group');
-    const setGroup = document.getElementById('hidden-password-set-group');
-    const modal = document.getElementById('hidden-password-modal');
-    const titleEl = modal.querySelector('.modal-title');
-
-    // Hide verify group, show set group repurposed for current password
-    verifyGroup.style.display = 'none';
-    setGroup.style.display = 'block';
-    document.getElementById('hidden-password-set').value = '';
-    document.getElementById('hidden-password-set').placeholder = 'Enter current password';
-    const setLabel = setGroup.querySelector('.form-label');
-    setLabel.textContent = 'Confirm Current Password';
-    const hint = setGroup.querySelector('.form-hint');
-    if (hint) hint.style.display = 'none';
-    titleEl.textContent = 'Reset Password';
-
-    _hiddenPasswordCallback = async function() {
-        const password = document.getElementById('hidden-password-set').value;
-        if (!password) {
-            showNotification('Enter your current password', 'error');
-            return;
-        }
-        try {
-            const res = await fetch('/api/hidden/reset-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ password })
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                showNotification(data.detail || 'Failed to reset', 'error');
-                return;
-            }
-            _hiddenPasswordVerified = false;
-            closeModal('hidden-password-modal');
-            showNotification('Password reset. Set a new one to use hidden books.', 'success');
-            initHiddenBooks();
-        } catch (e) {
-            showNotification('Failed to reset password', 'error');
-        } finally {
-            setLabel.textContent = 'Set Password';
-            document.getElementById('hidden-password-set').placeholder = 'Enter password to protect hidden books';
-            if (hint) hint.style.display = '';
-            titleEl.textContent = 'Hidden Books';
-        }
-    };
-}
-
-async function toggleBookHidden(bookId) {
-    try {
-        const res = await fetch('/api/hidden/status');
-        const data = await res.json();
-
-        if (!data.password_set) {
-            showNotification('Set a password first via Hidden Books in the sidebar', 'error');
-            return;
-        }
-
-        const modal = document.getElementById('hidden-password-modal');
-        const setGroup = document.getElementById('hidden-password-set-group');
-        const verifyGroup = document.getElementById('hidden-password-verify-group');
-        const titleEl = modal.querySelector('.modal-title');
-        const resetLink = document.getElementById('hidden-password-reset-link');
-
-        // Configure modal for hide/unhide verification
         setGroup.style.display = 'none';
         verifyGroup.style.display = 'block';
-        const pwInput = document.getElementById('hidden-password-verify');
-        pwInput.value = '';
-        titleEl.textContent = 'Confirm Password';
-        if (resetLink) resetLink.style.display = 'none';
+        titleEl.textContent = 'Unhide Book';
+        const inp = document.getElementById('hidden-password-verify');
+        inp.value = '';
+        inp.focus();
+        _hiddenAction = { mode: 'unhide', bookId, input: inp };
+        if (submitBtn) submitBtn.textContent = 'Unhide book';
+        if (resetLink) resetLink.style.display = '';
+    }
+    modal.classList.remove('hidden');
+}
 
-        // Set callback — submitHiddenPassword will call this instead of its default logic
-        _hiddenPasswordCallback = async function() {
-            const password = pwInput.value;
-            if (!password) {
-                showNotification('Please enter your password', 'error');
-                return;
-            }
-            try {
-                const hideRes = await fetch(`/api/books/${bookId}/hide`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password })
-                });
-                const hideData = await hideRes.json();
-                if (!hideRes.ok) {
-                    showNotification(hideData.detail || 'Failed to update', 'error');
-                    return;
-                }
-                closeModal('hidden-password-modal');
-                showNotification(hideData.message, 'success');
-                loadBooks();
-            } catch (e) {
-                showNotification('Failed to toggle hidden status', 'error');
-            } finally {
-                titleEl.textContent = 'Hidden Books';
-                if (resetLink) resetLink.style.display = '';
-            }
-        };
-
-        modal.classList.remove('hidden');
+/** Submit handler wired to the modal's primary button. */
+async function submitHiddenPassword() {
+    if (!_hiddenAction) return;
+    const { mode, bookId, input } = _hiddenAction;
+    const password = input.value;
+    if (!password) {
+        showNotification('Please enter a password', 'error');
+        input.focus();
+        return;
+    }
+    const endpoint = mode === 'hide' ? `/api/books/${bookId}/hide` : `/api/books/${bookId}/unhide`;
+    try {
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+            showNotification(data.detail || 'Failed', 'error');
+            return;
+        }
+        closeModal('hidden-password-modal');
+        _hiddenAction = null;
+        showNotification(data.message, 'success');
+        loadBooks();
+        initHiddenBooks();
     } catch (e) {
-        showNotification('Failed to check hidden status', 'error');
+        showNotification('Failed to update hidden status', 'error');
+    }
+}
+
+/**
+ * Hide or unhide a book depending on its current state.
+ * Looks up the book's is_hidden to decide which modal mode to open.
+ */
+async function toggleBookHidden(bookId) {
+    try {
+        const res = await fetch(`/api/books/${bookId}`);
+        if (!res.ok) { showNotification('Book not found', 'error'); return; }
+        const book = await res.json();
+        _openHiddenModal(book.is_hidden ? 'unhide' : 'hide', bookId);
+    } catch (e) {
+        showNotification('Failed to check book status', 'error');
+    }
+}
+
+/**
+ * Bulk admin reset: remove every hidden-book password and unhide all books.
+ * Triggered by the "Forgot a password?" link in the unhide modal.
+ */
+async function unhideAllBooks() {
+    if (!confirm(
+        'This will remove the password from EVERY hidden book and unhide them all.\n\n' +
+        'Use this only if you\'ve forgotten a per-book password. Continue?'
+    )) return;
+    try {
+        const res = await fetch('/api/hidden/unhide-all', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+            showNotification(data.detail || 'Failed to reset', 'error');
+            return;
+        }
+        closeModal('hidden-password-modal');
+        _hiddenAction = null;
+        showNotification(data.message, 'success');
+        loadBooks();
+        initHiddenBooks();
+    } catch (e) {
+        showNotification('Failed to unhide all books', 'error');
     }
 }
 

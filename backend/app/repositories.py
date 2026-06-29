@@ -642,10 +642,14 @@ class SettingsRepository:
                 await self.set(key, str(value))
 
     async def delete(self, key: str) -> None:
-        """Delete a setting by key."""
-        result = await self.session.execute(
-            select(Setting).where(Setting.key == key)
-        )
-        setting = result.scalar_one_or_none()
-        if setting:
-            await self.session.delete(setting)
+        """Delete a setting by key.
+
+        Uses a bulk ``DELETE`` statement (Core) rather than ``session.delete()``
+        (ORM unit-of-work). The ORM path requires a flush to schedule the row
+        deletion and was observed not to persist through some request
+        lifecycles; the Core path issues the ``DELETE`` immediately on the
+        current transaction so the subsequent commit reliably lands it.
+        """
+        from sqlalchemy import delete as sa_delete
+
+        await self.session.execute(sa_delete(Setting).where(Setting.key == key))
