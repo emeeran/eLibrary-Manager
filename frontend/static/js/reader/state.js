@@ -116,13 +116,6 @@ function escapeHtml(text) {
 }
 
 /**
- * Escape regex special characters
- */
-function escapeRegex(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
  * Show error message
  */
 function showError(message) {

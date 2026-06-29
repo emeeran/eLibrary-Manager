@@ -32,34 +32,55 @@ class DawnstarError(Exception):
 
 class DatabaseError(DawnstarError):
     """Raised when database operations fail."""
+
     error_code = "DATABASE_ERROR"
 
 
 class LibraryScannerError(DawnstarError):
     """Raised when library scanning operations fail."""
+
     error_code = "LIBRARY_SCAN_ERROR"
 
 
 class EbookParsingError(DawnstarError):
     """Raised when EPUB/PDF/MOBI parsing operations fail."""
+
     error_code = "EBOOK_PARSING_ERROR"
 
 
 class AIServiceError(DawnstarError):
     """Raised when AI summarization service fails."""
+
     error_code = "AI_SERVICE_ERROR"
 
 
 class ValidationError(DawnstarError):
     """Raised when input validation fails."""
+
     error_code = "VALIDATION_ERROR"
 
 
 class ResourceNotFoundError(DawnstarError):
     """Raised when a requested resource doesn't exist."""
+
     error_code = "RESOURCE_NOT_FOUND"
 
 
 class RateLimitError(DawnstarError):
     """Raised when rate limits are exceeded."""
+
     error_code = "RATE_LIMIT_EXCEEDED"
+
+
+class TTSError(Exception):
+    """Raised when text-to-speech synthesis fails.
+
+    Intentionally not a ``DawnstarError`` subclass: the TTS services pass a
+    free-form ``details`` string (e.g. install hints), which differs from
+    ``DawnstarError``'s dict-based ``details``.
+    """
+
+    def __init__(self, message: str, details: str | None = None) -> None:
+        self.message = message
+        self.details = details
+        super().__init__(message)

@@ -88,7 +88,7 @@ class GoogleProvider(BaseAIProvider):
                 config=types.GenerateContentConfig(
                     max_output_tokens=500,
                     temperature=0.7,
-                )
+                ),
             )
 
             summary = response.text.strip()
@@ -105,7 +105,7 @@ class GoogleProvider(BaseAIProvider):
             logger.error(f"Google Gemini API error: {e}")
             raise AIServiceError(
                 f"Google Gemini API error: {str(e)}",
-                {"provider": "google", "error_type": type(e).__name__}
+                {"provider": "google", "error_type": type(e).__name__},
             ) from e
 
     async def _perform_health_check(self) -> bool:
@@ -122,13 +122,9 @@ class GoogleProvider(BaseAIProvider):
             response = client.models.generate_content(
                 model=self.model,
                 contents="test",
-                config=types.GenerateContentConfig(max_output_tokens=1)
+                config=types.GenerateContentConfig(max_output_tokens=1),
             )
             return bool(response.text)
         except Exception as e:
             logger.warning(f"Google Gemini health check failed: {e}")
             return False
-
-    async def close(self) -> None:
-        """Close the Google client."""
-        pass

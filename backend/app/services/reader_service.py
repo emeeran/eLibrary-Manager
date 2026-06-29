@@ -38,11 +38,7 @@ class ReaderService:
         self.book_summary_repo = BookSummaryRepository(session)
         self.scanner = LibraryScanner()
 
-    async def get_chapter_content(
-        self,
-        book_id: int,
-        chapter_index: int
-    ) -> tuple[str, str, int]:
+    async def get_chapter_content(self, book_id: int, chapter_index: int) -> tuple[str, str, int]:
         """Get chapter content and metadata.
 
         On first access of a fast-indexed book, enriches the DB record
@@ -67,10 +63,7 @@ class ReaderService:
         if not book.total_chapters or book.total_chapters <= 0:
             await self._enrich_book_metadata(book)
 
-        content, title, total = await reader.get_chapter_content(
-            book.path,
-            chapter_index
-        )
+        content, title, total = await reader.get_chapter_content(book.path, chapter_index)
 
         # Update stored total_chapters if it was 0
         if book.total_chapters != total and total > 0:
@@ -107,11 +100,7 @@ class ReaderService:
         except Exception as e:
             logger.warning(f"Failed to enrich metadata for {book.path}: {e}")
 
-    async def update_progress(
-        self,
-        book_id: int,
-        progress_data: ProgressUpdate
-    ) -> Book:
+    async def update_progress(self, book_id: int, progress_data: ProgressUpdate) -> Book:
         """Update reading progress.
 
         Args:
@@ -130,10 +119,7 @@ class ReaderService:
         return book
 
     async def get_chapter_summary(
-        self,
-        book_id: int,
-        chapter_index: int,
-        force_refresh: bool = False
+        self, book_id: int, chapter_index: int, force_refresh: bool = False
     ) -> ChapterSummary:
         """Get chapter summary with AI generation if needed.
 
@@ -151,14 +137,9 @@ class ReaderService:
         book = await self.book_repo.get_by_id_or_404(book_id)
 
         if not force_refresh:
-            cached = await self.summary_repo.get_cached_summary(
-                book_id, chapter_index
-            )
+            cached = await self.summary_repo.get_cached_summary(book_id, chapter_index)
             if cached:
-                logger.debug(
-                    f"Using cached summary for book {book_id}, "
-                    f"chapter {chapter_index}"
-                )
+                logger.debug(f"Using cached summary for book {book_id}, chapter {chapter_index}")
                 return cached
 
         from app.reader_engine import get_reader_engine
@@ -166,19 +147,18 @@ class ReaderService:
         reader = get_reader_engine()
         # Extract only the requested chapter — avoids parsing the entire book
         try:
-            chapter_text, chapter_title, total_chapters = (
-                await reader.get_chapter_content(book.path, chapter_index)
+            chapter_text, chapter_title, total_chapters = await reader.get_chapter_content(
+                book.path, chapter_index
             )
         except ResourceNotFoundError:
             raise ResourceNotFoundError(
                 f"Chapter {chapter_index} not found",
-                {"book_id": book_id, "chapter_index": chapter_index}
+                {"book_id": book_id, "chapter_index": chapter_index},
             ) from None
 
         orchestrator = await get_ai_orchestrator()
         summary_text = await orchestrator.summarize(
-            chapter_text,
-            context=f"Book: {book.title} by {book.author}"
+            chapter_text, context=f"Book: {book.title} by {book.author}"
         )
 
         summary = await self.summary_repo.create(
@@ -186,7 +166,7 @@ class ReaderService:
             chapter_index=chapter_index,
             chapter_title=chapter_title,
             summary_text=summary_text,
-            provider=await orchestrator.get_active_provider()
+            provider=await orchestrator.get_active_provider(),
         )
 
         logger.info(
@@ -196,11 +176,7 @@ class ReaderService:
 
         return summary
 
-    async def get_book_summary(
-        self,
-        book_id: int,
-        force_refresh: bool = False
-    ) -> ChapterSummary:
+    async def get_book_summary(self, book_id: int, force_refresh: bool = False) -> ChapterSummary:
         """Get comprehensive book summary.
 
         Args:
@@ -241,8 +217,7 @@ class ReaderService:
 
             orchestrator = await get_ai_orchestrator()
             summary_text = await orchestrator.summarize(
-                text,
-                context=f"Chapter {chapter_idx + 1}: {title}"
+                text, context=f"Chapter {chapter_idx + 1}: {title}"
             )
             chapter_summaries.append(summary_text)
 
@@ -251,26 +226,24 @@ class ReaderService:
                 chapter_index=chapter_idx,
                 chapter_title=title,
                 summary_text=summary_text,
-                provider=await orchestrator.get_active_provider()
+                provider=await orchestrator.get_active_provider(),
             )
 
             chapter_idx += 1
 
         orchestrator = await get_ai_orchestrator()
-        combined_text = "\n\n".join([
-            f"Chapter {i + 1}: {summary}"
-            for i, summary in enumerate(chapter_summaries)
-        ])
+        combined_text = "\n\n".join(
+            [f"Chapter {i + 1}: {summary}" for i, summary in enumerate(chapter_summaries)]
+        )
 
         book_summary_text = await orchestrator.summarize(
-            combined_text,
-            context=f"Book: {book.title} by {book.author}"
+            combined_text, context=f"Book: {book.title} by {book.author}"
         )
 
         book_summary = await self.book_summary_repo.create_or_update(
             book_id=book_id,
             summary_text=book_summary_text,
-            provider=await orchestrator.get_active_provider()
+            provider=await orchestrator.get_active_provider(),
         )
 
         logger.info(f"Book summary generated for {book_id}")
@@ -331,7 +304,7 @@ class ReaderService:
 
         return {
             "active_provider": provider_name,
-            "provider_order": [p.name for p in orchestrator.providers]
+            "provider_order": [p.name for p in orchestrator.providers],
         }
 
     async def get_table_of_contents(self, book_id: int) -> list[dict]:
@@ -364,7 +337,7 @@ class ReaderService:
         chapter_index: int,
         position_in_chapter: int,
         title: str | None = None,
-        notes: str | None = None
+        notes: str | None = None,
     ) -> Bookmark:
         """Create a new bookmark.
 
@@ -383,7 +356,7 @@ class ReaderService:
             chapter_index=chapter_index,
             position_in_chapter=position_in_chapter,
             title=title,
-            notes=notes
+            notes=notes,
         )
         self.session.add(bookmark)
         await self.session.commit()
@@ -401,9 +374,7 @@ class ReaderService:
             List of Bookmark instances
         """
         result = await self.session.execute(
-            select(Bookmark)
-            .where(Bookmark.book_id == book_id)
-            .order_by(Bookmark.created_at.desc())
+            select(Bookmark).where(Bookmark.book_id == book_id).order_by(Bookmark.created_at.desc())
         )
         return list(result.scalars().all())
 
@@ -419,9 +390,7 @@ class ReaderService:
         Raises:
             ResourceNotFoundError: If bookmark not found
         """
-        result = await self.session.execute(
-            select(Bookmark).where(Bookmark.id == bookmark_id)
-        )
+        result = await self.session.execute(select(Bookmark).where(Bookmark.id == bookmark_id))
         bookmark = result.scalar_one_or_none()
         if not bookmark:
             raise ResourceNotFoundError(f"Bookmark {bookmark_id} not found")
@@ -433,9 +402,7 @@ class ReaderService:
         Args:
             bookmark_id: Bookmark primary key
         """
-        await self.session.execute(
-            delete(Bookmark).where(Bookmark.id == bookmark_id)
-        )
+        await self.session.execute(delete(Bookmark).where(Bookmark.id == bookmark_id))
         await self.session.commit()
         logger.info(f"Bookmark {bookmark_id} deleted")
 
@@ -450,7 +417,7 @@ class ReaderService:
         position_in_chapter: int,
         content: str,
         color: str = "yellow",
-        quoted_text: str | None = None
+        quoted_text: str | None = None,
     ) -> Note:
         """Create a new note.
 
@@ -471,7 +438,7 @@ class ReaderService:
             position_in_chapter=position_in_chapter,
             content=content,
             color=color,
-            quoted_text=quoted_text
+            quoted_text=quoted_text,
         )
         self.session.add(note)
         await self.session.commit()
@@ -489,9 +456,7 @@ class ReaderService:
             List of Note instances
         """
         result = await self.session.execute(
-            select(Note)
-            .where(Note.book_id == book_id)
-            .order_by(Note.created_at.desc())
+            select(Note).where(Note.book_id == book_id).order_by(Note.created_at.desc())
         )
         return list(result.scalars().all())
 
@@ -501,9 +466,7 @@ class ReaderService:
         Args:
             note_id: Note primary key
         """
-        await self.session.execute(
-            delete(Note).where(Note.id == note_id)
-        )
+        await self.session.execute(delete(Note).where(Note.id == note_id))
         await self.session.commit()
         logger.info(f"Note {note_id} deleted")
 
@@ -519,7 +482,7 @@ class ReaderService:
         end_position: int,
         text: str,
         color: str = "yellow",
-        note: str | None = None
+        note: str | None = None,
     ) -> Annotation:
         """Create a new annotation.
 
@@ -542,7 +505,7 @@ class ReaderService:
             end_position=end_position,
             text=text,
             color=color,
-            note=note
+            note=note,
         )
         self.session.add(annotation)
         await self.session.commit()
@@ -550,7 +513,9 @@ class ReaderService:
         logger.info(f"Annotation created for book {book_id}, chapter {chapter_index}")
         return annotation
 
-    async def list_annotations(self, book_id: int, chapter_index: int | None = None) -> list[Annotation]:
+    async def list_annotations(
+        self, book_id: int, chapter_index: int | None = None
+    ) -> list[Annotation]:
         """List annotations for a book.
 
         Args:
@@ -575,8 +540,6 @@ class ReaderService:
         Args:
             annotation_id: Annotation primary key
         """
-        await self.session.execute(
-            delete(Annotation).where(Annotation.id == annotation_id)
-        )
+        await self.session.execute(delete(Annotation).where(Annotation.id == annotation_id))
         await self.session.commit()
         logger.info(f"Annotation {annotation_id} deleted")

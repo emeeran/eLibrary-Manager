@@ -6,7 +6,9 @@ import json
 import os
 import shutil
 import uuid
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -70,9 +72,22 @@ def _validate_path_within_library(file_path: str) -> str:
 
 # Blocked system directories for filesystem browsing
 _BLOCKED_PATHS = {
-    "/etc", "/root", "/boot", "/dev", "/proc", "/sys", "/run",
-    "/sbin", "/bin", "/lib", "/lib64", "/usr", "/var",
-    "/lost+found", "/snap", "/swapfile",
+    "/etc",
+    "/root",
+    "/boot",
+    "/dev",
+    "/proc",
+    "/sys",
+    "/run",
+    "/sbin",
+    "/bin",
+    "/lib",
+    "/lib64",
+    "/usr",
+    "/var",
+    "/lost+found",
+    "/snap",
+    "/swapfile",
 }
 
 
@@ -106,7 +121,7 @@ def _validate_path_safe(file_path: str) -> str:
 
 async def _run_background_scan(
     scan_id: str,
-    coro_fn,
+    coro_fn: Callable[[LibraryService], Awaitable[Any]],
     complete_message: str = "Scan complete",
 ) -> None:
     """Shared background task runner for scan operations."""
@@ -135,6 +150,7 @@ async def _run_background_scan(
                     message="Finalizing...",
                 )
                 from app.services.library_service import invalidate_stats_cache
+
                 invalidate_stats_cache()
                 scan_store.update(
                     scan_id,
@@ -155,9 +171,12 @@ async def _run_background_scan(
                 except Exception:
                     pass
                 from app.services.library_service import invalidate_stats_cache
+
                 invalidate_stats_cache()
                 scan_store.update(
-                    scan_id, status="cancelled", phase="cancelled",
+                    scan_id,
+                    status="cancelled",
+                    phase="cancelled",
                     message="Scan cancelled by user",
                 )
             except Exception as e:
@@ -186,7 +205,7 @@ async def scan_library(
     scan_store.create(scan_id)
     _active_scans.add(scan_id)
 
-    async def _scan_coro(service):
+    async def _scan_coro(service: LibraryService) -> Any:
         if mode == "full":
             return await service.scan_and_import(scan_id=scan_id)
         return await service.fast_index(scan_id=scan_id)
@@ -202,7 +221,8 @@ async def scan_progress_stream(scan_id: str) -> StreamingResponse:
     Polls the in-memory progress store and yields JSON events
     until the scan completes or fails.
     """
-    async def event_generator():
+
+    async def event_generator() -> AsyncGenerator[str, None]:
         while True:
             progress = scan_store.get(scan_id)
             if not progress:
@@ -245,18 +265,14 @@ async def cancel_scan(scan_id: str) -> dict:
 
 @router.post("/library/import-dir")
 async def import_directory(
-    request: DirectoryImportRequest,
-    db: AsyncSession = Depends(get_db)
+    request: DirectoryImportRequest, db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Import books from a specific directory as a background task.
 
     Returns a scan_id for tracking progress via SSE.
     """
     if not os.path.exists(request.path) or not os.path.isdir(request.path):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Directory not found: {request.path}"
-        )
+        raise HTTPException(status_code=400, detail=f"Directory not found: {request.path}")
 
     _validate_path_within_library(request.path)
 
@@ -267,7 +283,7 @@ async def import_directory(
     scan_store.create(scan_id)
     _active_scans.add(scan_id)
 
-    async def _import_coro(service):
+    async def _import_coro(service: LibraryService) -> Any:
         return await service.scan_and_import(request.path, scan_id=scan_id)
 
     asyncio.create_task(_run_background_scan(scan_id, _import_coro, "Import complete"))
@@ -296,10 +312,12 @@ async def index_local_directory(
     scan_store.create(scan_id)
     _active_scans.add(scan_id)
 
-    async def _index_coro(service):
+    async def _index_coro(service: LibraryService) -> Any:
         return await service.fast_index(safe_path, scan_id=scan_id)
 
-    asyncio.create_task(_run_background_scan(scan_id, _index_coro, "Local directory index complete"))
+    asyncio.create_task(
+        _run_background_scan(scan_id, _index_coro, "Local directory index complete")
+    )
     return {"scan_id": scan_id, "status": "started", "path": safe_path}
 
 
@@ -334,7 +352,8 @@ async def browse_filesystem(
         try:
             with os.scandir(resolved) as it:
                 dirs = [
-                    e for e in it
+                    e
+                    for e in it
                     if e.is_dir(follow_symlinks=False)
                     and not e.name.startswith(".")
                     and str(Path(e.path).resolve()) not in _BLOCKED_PATHS
@@ -349,18 +368,22 @@ async def browse_filesystem(
                             s.is_dir(follow_symlinks=False) and not s.name.startswith(".")
                             for s in sub_it
                         )
-                    entries.append({
-                        "name": entry.name,
-                        "path": str(Path(entry.path).resolve()),
-                        "has_subdirs": has_subdirs,
-                    })
+                    entries.append(
+                        {
+                            "name": entry.name,
+                            "path": str(Path(entry.path).resolve()),
+                            "has_subdirs": has_subdirs,
+                        }
+                    )
                 except PermissionError:
-                    entries.append({
-                        "name": entry.name,
-                        "path": str(Path(entry.path).resolve()),
-                        "has_subdirs": False,
-                        "permission_denied": True,
-                    })
+                    entries.append(
+                        {
+                            "name": entry.name,
+                            "path": str(Path(entry.path).resolve()),
+                            "has_subdirs": False,
+                            "permission_denied": True,
+                        }
+                    )
         except PermissionError:
             raise HTTPException(
                 status_code=403,
@@ -372,10 +395,7 @@ async def browse_filesystem(
 
 
 @router.post("/library/import-file")
-async def import_book_file(
-    request: dict,
-    db: AsyncSession = Depends(get_db)
-) -> BookResponse:
+async def import_book_file(request: dict, db: AsyncSession = Depends(get_db)) -> BookResponse:
     """Import a book file from an existing file path.
 
     Args:
@@ -387,28 +407,19 @@ async def import_book_file(
     """
     file_path = request.get("file_path")
     if not file_path:
-        raise HTTPException(
-            status_code=400,
-            detail="file_path is required"
-        )
+        raise HTTPException(status_code=400, detail="file_path is required")
 
     # Validate path is within library directory
     _validate_path_within_library(file_path)
 
     # Validate file exists
     if not os.path.exists(file_path):
-        raise HTTPException(
-            status_code=404,
-            detail=f"File not found: {file_path}"
-        )
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
 
     # Check extension
     ext = os.path.splitext(file_path)[1].lower()
     if ext not in {".epub", ".pdf", ".mobi"}:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file format: {ext}"
-        )
+        raise HTTPException(status_code=400, detail=f"Unsupported file format: {ext}")
 
     try:
         service = LibraryService(db)
@@ -417,18 +428,15 @@ async def import_book_file(
 
     except Exception as e:
         from app.logging_config import get_logger
+
         logger = get_logger(__name__)
         logger.error(f"Import failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Import failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}") from e
 
 
 @router.post("/library/upload")
 async def upload_book(
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
 ) -> BookResponse:
     """Upload and import a book file by indexing its path (no copy).
 
@@ -446,10 +454,7 @@ async def upload_book(
     filename = os.path.basename(file.filename or "unknown")
     ext = os.path.splitext(filename)[1].lower()
     if ext not in {".epub", ".pdf", ".mobi"}:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported file format: {ext}"
-        )
+        raise HTTPException(status_code=400, detail=f"Unsupported file format: {ext}")
 
     # Create uploads directory if needed
     uploads_dir = os.path.join(os.path.dirname(config.library_path), "uploads")
@@ -461,7 +466,7 @@ async def upload_book(
     try:
         from fastapi.concurrency import run_in_threadpool
 
-        def _save_upload():
+        def _save_upload() -> None:
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
 
@@ -480,19 +485,14 @@ async def upload_book(
                 pass
 
         from app.logging_config import get_logger
+
         logger = get_logger(__name__)
         logger.error(f"Upload failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Upload failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}") from e
 
 
 @router.post("/library/refresh-covers")
-async def refresh_covers(
-    force: bool = False,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def refresh_covers(force: bool = False, db: AsyncSession = Depends(get_db)) -> dict:
     """Re-extract covers for books missing them.
 
     Args:
@@ -525,7 +525,7 @@ async def list_books(
     hidden_only: bool = False,
     show_hidden: bool = False,
     directory_filter: str | None = None,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> BookListResponse:
     """List books with pagination, filters, and sorting.
 
@@ -569,9 +569,7 @@ async def list_books(
 
         from sqlalchemy import select
 
-        result = await db.execute(
-            select(Book).where(Book.id.in_(stale_ids))
-        )
+        result = await db.execute(select(Book).where(Book.id.in_(stale_ids)))
         books = result.scalars().all()
 
         # Batch-fetch categories for stale books
@@ -588,6 +586,7 @@ async def list_books(
 
     # Check search cache — include session token hash for user isolation
     from app.auth import SESSION_COOKIE_NAME as _SCN
+
     session_token = request.cookies.get(_SCN, "")
     user_hash = hashlib.sha256(session_token.encode()).hexdigest()[:8] if session_token else "anon"
     cache_key = f"{user_hash}|{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}"
@@ -616,11 +615,13 @@ async def list_books(
     categories_map = await service.book_repo.get_categories_for_books(book_ids)
 
     result = BookListResponse(
-        books=[book_to_response(book, categories=categories_map.get(book.id, [])) for book in books],
+        books=[
+            book_to_response(book, categories=categories_map.get(book.id, [])) for book in books
+        ],
         total=total,
         page=page,
         page_size=page_size,
-        counts=None  # Fetched independently via /api/stats/sidebar
+        counts=None,  # Fetched independently via /api/stats/sidebar
     )
 
     _search_cache[cache_key] = result
@@ -628,10 +629,7 @@ async def list_books(
 
 
 @router.get("/books/{book_id}", response_model=BookResponse)
-async def get_book(
-    book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> BookResponse:
+async def get_book(book_id: int, db: AsyncSession = Depends(get_db)) -> BookResponse:
     """Get book details.
 
     Args:
@@ -648,9 +646,7 @@ async def get_book(
 
 @router.patch("/books/{book_id}", response_model=BookResponse)
 async def update_book(
-    book_id: int,
-    update_data: BookUpdate,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, update_data: BookUpdate, db: AsyncSession = Depends(get_db)
 ) -> BookResponse:
     """Update book details.
 
@@ -669,9 +665,7 @@ async def update_book(
 
 @router.post("/books/{book_id}/cover")
 async def upload_cover(
-    book_id: int,
-    file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    book_id: int, file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Upload or update a book's cover image.
 
@@ -687,10 +681,7 @@ async def upload_cover(
     """
     allowed_types = {"image/jpeg", "image/png", "image/webp"}
     if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid file type. Accepted: JPG, PNG, WebP"
-        )
+        raise HTTPException(status_code=400, detail="Invalid file type. Accepted: JPG, PNG, WebP")
 
     service = LibraryService(db)
     book = await service.get_book(book_id)
@@ -706,7 +697,7 @@ async def upload_cover(
 
     content = await file.read()
 
-    def _write_cover():
+    def _write_cover() -> None:
         with open(filepath, "wb") as f:
             f.write(content)
 
@@ -719,10 +710,7 @@ async def upload_cover(
 
 
 @router.delete("/books/{book_id}")
-async def delete_book(
-    book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def delete_book(book_id: int, db: AsyncSession = Depends(get_db)) -> dict:
     """Delete a book.
 
     Args:
@@ -739,10 +727,7 @@ async def delete_book(
 
 
 @router.post("/books/{book_id}/favorite", response_model=BookResponse)
-async def toggle_favorite(
-    book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> BookResponse:
+async def toggle_favorite(book_id: int, db: AsyncSession = Depends(get_db)) -> BookResponse:
     """Toggle book favorite status.
 
     Args:
@@ -763,9 +748,7 @@ async def toggle_favorite(
 
 @router.post("/books/{book_id}/progress", response_model=BookResponse)
 async def update_progress(
-    book_id: int,
-    progress: ProgressUpdate,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, progress: ProgressUpdate, db: AsyncSession = Depends(get_db)
 ) -> BookResponse:
     """Update reading progress.
 
@@ -778,6 +761,7 @@ async def update_progress(
         Updated book
     """
     from app.services import ReaderService
+
     service = ReaderService(db)
     book = await service.update_progress(book_id, progress)
     return book_to_response(book)
@@ -799,11 +783,9 @@ async def get_library_stats(db: AsyncSession = Depends(get_db)) -> dict:
 # NAS CACHE ENDPOINTS
 # ============================================
 
+
 @router.post("/books/{book_id}/cache")
-async def cache_book_offline(
-    book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def cache_book_offline(book_id: int, db: AsyncSession = Depends(get_db)) -> dict:
     """Pre-cache a NAS book for offline access.
 
     Args:
@@ -838,10 +820,7 @@ async def cache_book_offline(
 
 
 @router.delete("/books/{book_id}/cache")
-async def remove_book_cache(
-    book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def remove_book_cache(book_id: int, db: AsyncSession = Depends(get_db)) -> dict:
     """Remove a book from the offline cache.
 
     Args:
@@ -920,9 +899,7 @@ async def list_directories(
 
     from app.models import Book
 
-    result = await db.execute(
-        select(Book.path).where(Book.is_hidden.is_(False))
-    )
+    result = await db.execute(select(Book.path).where(Book.is_hidden.is_(False)))
     paths = [row[0] for row in result.all()]
 
     if not paths:
@@ -937,7 +914,7 @@ async def list_directories(
         children: set[str] = set()
         for d in dir_counts:
             if d.startswith(prefix):
-                rest = d[len(prefix):]
+                rest = d[len(prefix) :]
                 child_name = rest.split("/")[0]
                 children.add(prefix + child_name)
         return sorted(children)
@@ -955,9 +932,7 @@ async def list_directories(
         else:
             # Multiple unrelated roots — find shallowest directories
             min_depth = min(d.count("/") for d in dir_counts)
-            dirs_to_return = sorted(
-                d for d in dir_counts if d.count("/") == min_depth
-            )
+            dirs_to_return = sorted(d for d in dir_counts if d.count("/") == min_depth)
     else:
         dirs_to_return = _get_children(parent)
 
@@ -970,17 +945,17 @@ async def list_directories(
         total_books = direct_books + sum(
             c for dd, c in dir_counts.items() if dd.startswith(d_prefix)
         )
-        has_children = any(
-            dd.startswith(d_prefix) and dd != d for dd in dir_counts
-        )
+        has_children = any(dd.startswith(d_prefix) and dd != d for dd in dir_counts)
 
-        response.append({
-            "directory": d,
-            "name": name,
-            "book_count": direct_books,
-            "total_count": total_books,
-            "has_subdirs": has_children,
-        })
+        response.append(
+            {
+                "directory": d,
+                "name": name,
+                "book_count": direct_books,
+                "total_count": total_books,
+                "has_subdirs": has_children,
+            }
+        )
 
     return response
 
@@ -999,4 +974,3 @@ async def list_formats(db: AsyncSession = Depends(get_db)) -> list[dict]:
         .order_by(func.count(Book.id).desc())
     )
     return [{"format": row[0], "book_count": row[1]} for row in result.all()]
-

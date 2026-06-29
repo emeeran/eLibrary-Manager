@@ -3,7 +3,6 @@
 Provides login, logout, and auth status endpoints.
 """
 
-
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 

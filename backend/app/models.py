@@ -73,12 +73,12 @@ class Book(Base):
     )
 
     __table_args__ = (
-        Index('ix_books_hidden_favorite', 'is_hidden', 'is_favorite'),
-        Index('ix_books_format_hidden', 'format', 'is_hidden'),
-        Index('ix_books_recent_hidden', 'is_recent', 'is_hidden'),
-        Index('ix_books_hidden_added', 'is_hidden', 'added_date'),
-        Index('ix_books_hidden_title', 'is_hidden', 'title'),
-        Index('ix_books_storage_type', 'storage_type'),
+        Index("ix_books_hidden_favorite", "is_hidden", "is_favorite"),
+        Index("ix_books_format_hidden", "format", "is_hidden"),
+        Index("ix_books_recent_hidden", "is_recent", "is_hidden"),
+        Index("ix_books_hidden_added", "is_hidden", "added_date"),
+        Index("ix_books_hidden_title", "is_hidden", "title"),
+        Index("ix_books_storage_type", "storage_type"),
     )
 
     def __repr__(self) -> str:
@@ -104,31 +104,21 @@ class ChapterSummary(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     book_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("books.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
     )
     chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
     chapter_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     summary_text: Mapped[str] = mapped_column(Text, nullable=False)
-    provider: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-        default="google",
-        index=True
-    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, default="google", index=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(UTC),
-        nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
 
     # Relationships
     book: Mapped["Book"] = relationship("Book", back_populates="summaries")
 
     __table_args__ = (
-        Index('ix_chapter_summaries_book_chapter', 'book_id', 'chapter_index', unique=True),
+        Index("ix_chapter_summaries_book_chapter", "book_id", "chapter_index", unique=True),
     )
 
     def __repr__(self) -> str:
@@ -154,17 +144,12 @@ class BookSummary(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     book_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("books.id", ondelete="CASCADE"),
-        nullable=False,
-        unique=True
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     summary_text: Mapped[str] = mapped_column(Text, nullable=False)
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="google")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(UTC),
-        nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
 
     def __repr__(self) -> str:
@@ -190,27 +175,20 @@ class Bookmark(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     book_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("books.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
     )
     chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
     position_in_chapter: Mapped[int] = mapped_column(Integer, default=0)
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(UTC),
-        nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
 
     # Relationships
     book: Mapped["Book"] = relationship("Book")
 
-    __table_args__ = (
-        Index('ix_bookmarks_book_chapter', 'book_id', 'chapter_index'),
-    )
+    __table_args__ = (Index("ix_bookmarks_book_chapter", "book_id", "chapter_index"),)
 
     def __repr__(self) -> str:
         """String representation of Bookmark."""
@@ -236,10 +214,7 @@ class Note(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     book_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("books.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
     )
     chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
     position_in_chapter: Mapped[int] = mapped_column(Integer, default=0)
@@ -247,23 +222,19 @@ class Note(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     color: Mapped[str] = mapped_column(String(20), nullable=False, default="yellow")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(UTC),
-        nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=lambda: datetime.now(UTC),
         nullable=False,
-        onupdate=lambda: datetime.now(UTC)
+        onupdate=lambda: datetime.now(UTC),
     )
 
     # Relationships
     book: Mapped["Book"] = relationship("Book")
 
-    __table_args__ = (
-        Index('ix_notes_book_chapter', 'book_id', 'chapter_index'),
-    )
+    __table_args__ = (Index("ix_notes_book_chapter", "book_id", "chapter_index"),)
 
     def __repr__(self) -> str:
         """String representation of Note."""
@@ -290,10 +261,7 @@ class Annotation(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     book_id: Mapped[int] = mapped_column(
-        Integer,
-        ForeignKey("books.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
     )
     chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
     start_position: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -302,17 +270,13 @@ class Annotation(Base):
     color: Mapped[str] = mapped_column(String(20), nullable=False, default="yellow")
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(UTC),
-        nullable=False
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
     )
 
     # Relationships
     book: Mapped["Book"] = relationship("Book")
 
-    __table_args__ = (
-        Index('ix_annotations_book_chapter', 'book_id', 'chapter_index'),
-    )
+    __table_args__ = (Index("ix_annotations_book_chapter", "book_id", "chapter_index"),)
 
     def __repr__(self) -> str:
         """String representation of Annotation."""
@@ -390,11 +354,11 @@ class BookCategory(Base):
 
     # Relationships
     book: Mapped["Book"] = relationship("Book", back_populates="category_links")
-    category: Mapped["Category"] = relationship("Category", back_populates="book_links", lazy="selectin")
-
-    __table_args__ = (
-        Index("ix_book_categories_composite", "category_id", "book_id"),
+    category: Mapped["Category"] = relationship(
+        "Category", back_populates="book_links", lazy="selectin"
     )
+
+    __table_args__ = (Index("ix_book_categories_composite", "category_id", "book_id"),)
 
     def __repr__(self) -> str:
         return f"<BookCategory(book_id={self.book_id}, category_id={self.category_id})>"
@@ -429,4 +393,6 @@ class ReadingGoal(Base):
     )
 
     def __repr__(self) -> str:
-        return f"<ReadingGoal(id={self.id}, type='{self.goal_type}', target={self.target_minutes}m)>"
+        return (
+            f"<ReadingGoal(id={self.id}, type='{self.goal_type}', target={self.target_minutes}m)>"
+        )

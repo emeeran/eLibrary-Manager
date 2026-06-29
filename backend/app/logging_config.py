@@ -8,8 +8,7 @@ from app.config import get_config
 
 
 def setup_logging(
-    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] | None = None,
-    log_file: str | None = None
+    level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] | None = None, log_file: str | None = None
 ) -> None:
     """Configure application logging with consistent formatting.
 
@@ -24,24 +23,18 @@ def setup_logging(
     log_level = level or config.log_level
 
     # Define format
-    format_str = (
-        "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d | %(message)s"
-    )
+    format_str = "%(asctime)s | %(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d | %(message)s"
     date_format = "%Y-%m-%d %H:%M:%S"
 
     # Configure handlers
-    handlers: list[logging.Handler] = [
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
 
     if log_file:
         from pathlib import Path
 
         log_path = Path(log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(
-            logging.FileHandler(log_file, encoding="utf-8")
-        )
+        handlers.append(logging.FileHandler(log_file, encoding="utf-8"))
 
     # Apply configuration
     logging.basicConfig(
@@ -49,7 +42,7 @@ def setup_logging(
         format=format_str,
         datefmt=date_format,
         handlers=handlers,
-        force=config.debug  # Only override existing config in development
+        force=config.debug,  # Only override existing config in development
     )
 
     # Set specific log levels for noisy libraries

@@ -7,18 +7,10 @@ from collections.abc import AsyncGenerator
 
 import edge_tts
 
+from app.exceptions import TTSError
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
-
-
-class EdgeTTSError(Exception):
-    """Base exception for EdgeTTS errors."""
-
-    def __init__(self, message: str, details: str | None = None) -> None:
-        self.message = message
-        self.details = details
-        super().__init__(message)
 
 
 class EdgeTTSService:
@@ -90,12 +82,7 @@ class EdgeTTSService:
             parts = voice_id.split("-")
             lang = parts[0]
             locale = f"{parts[0]}-{parts[1]}" if len(parts) > 1 else lang
-            voices.append({
-                "id": voice_id,
-                "name": name,
-                "locale": locale,
-                "language": lang
-            })
+            voices.append({"id": voice_id, "name": name, "locale": locale, "language": lang})
         return voices
 
     @classmethod
@@ -121,11 +108,7 @@ class EdgeTTSService:
 
     @classmethod
     async def generate_audio(
-        cls,
-        text: str,
-        voice: str | None = None,
-        rate: float = 1.0,
-        pitch: str = "+0Hz"
+        cls, text: str, voice: str | None = None, rate: float = 1.0, pitch: str = "+0Hz"
     ) -> bytes:
         """Generate audio from text using EdgeTTS.
 
@@ -139,18 +122,13 @@ class EdgeTTSService:
             MP3 audio bytes
 
         Raises:
-            EdgeTTSError: If synthesis fails
+            TTSError: If synthesis fails
         """
         voice = voice or cls.DEFAULT_VOICE
         rate_str = cls.normalize_rate(rate)
 
         try:
-            communicate = edge_tts.Communicate(
-                text=text,
-                voice=voice,
-                rate=rate_str,
-                pitch=pitch
-            )
+            communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate_str, pitch=pitch)
 
             # Collect audio chunks
             audio_chunks = []
@@ -159,25 +137,20 @@ class EdgeTTSService:
                     audio_chunks.append(chunk["data"])
 
             if not audio_chunks:
-                raise EdgeTTSError("No audio data generated")
+                raise TTSError("No audio data generated")
 
-            logger.info(f"Generated {len(b''.join(audio_chunks))} bytes using EdgeTTS (voice={voice})")
+            logger.info(
+                f"Generated {len(b''.join(audio_chunks))} bytes using EdgeTTS (voice={voice})"
+            )
             return b"".join(audio_chunks)
 
         except Exception as e:
             logger.error(f"EdgeTTS error: {e}")
-            raise EdgeTTSError(
-                "Failed to generate audio",
-                details=str(e)
-            ) from e
+            raise TTSError("Failed to generate audio", details=str(e)) from e
 
     @classmethod
     async def stream_audio(
-        cls,
-        text: str,
-        voice: str | None = None,
-        rate: float = 1.0,
-        pitch: str = "+0Hz"
+        cls, text: str, voice: str | None = None, rate: float = 1.0, pitch: str = "+0Hz"
     ) -> AsyncGenerator[bytes, None]:
         """Stream audio from text using EdgeTTS.
 
@@ -191,18 +164,13 @@ class EdgeTTSService:
             MP3 audio chunks
 
         Raises:
-            EdgeTTSError: If synthesis fails
+            TTSError: If synthesis fails
         """
         voice = voice or cls.DEFAULT_VOICE
         rate_str = cls.normalize_rate(rate)
 
         try:
-            communicate = edge_tts.Communicate(
-                text=text,
-                voice=voice,
-                rate=rate_str,
-                pitch=pitch
-            )
+            communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate_str, pitch=pitch)
 
             async for chunk in communicate.stream():
                 if chunk["type"] == "audio":
@@ -210,10 +178,7 @@ class EdgeTTSService:
 
         except Exception as e:
             logger.error(f"EdgeTTS streaming error: {e}")
-            raise EdgeTTSError(
-                "Failed to stream audio",
-                details=str(e)
-            ) from e
+            raise TTSError("Failed to stream audio", details=str(e)) from e
 
 
 # Singleton instance

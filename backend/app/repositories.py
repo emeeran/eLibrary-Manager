@@ -1,11 +1,10 @@
 """Repository pattern for database operations."""
 
-
 import os
 import re
 import time
 
-from sqlalchemy import and_, asc, desc, func, or_, select
+from sqlalchemy import Select, and_, asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
@@ -67,7 +66,7 @@ class BookRepository:
                 self._fts_available_cache = False
         return self._fts_available_cache
 
-    def _apply_fts_filter(self, query, search: str):
+    def _apply_fts_filter(self, query: Select, search: str) -> Select:
         """Return ``query`` with an FTS5 prefix-search filter applied.
 
         Falls back to the original ``query`` unchanged if the FTS query can't be
@@ -100,10 +99,7 @@ class BookRepository:
         # Check for duplicates
         existing = await self.get_by_path(book_data.path)
         if existing:
-            raise ValidationError(
-                "Book already exists",
-                {"path": book_data.path}
-            )
+            raise ValidationError("Book already exists", {"path": book_data.path})
 
         book = Book(**book_data.model_dump(exclude={"subjects"}))
         self.session.add(book)
@@ -120,9 +116,7 @@ class BookRepository:
         Returns:
             Book instance or None
         """
-        result = await self.session.execute(
-            select(Book).where(Book.id == book_id)
-        )
+        result = await self.session.execute(select(Book).where(Book.id == book_id))
         return result.scalar_one_or_none()
 
     async def get_by_id_or_404(self, book_id: int) -> Book:
@@ -139,10 +133,7 @@ class BookRepository:
         """
         book = await self.get_by_id(book_id)
         if not book:
-            raise ResourceNotFoundError(
-                f"Book with ID {book_id} not found",
-                {"book_id": book_id}
-            )
+            raise ResourceNotFoundError(f"Book with ID {book_id} not found", {"book_id": book_id})
         return book
 
     async def get_by_path(self, path: str) -> Book | None:
@@ -154,9 +145,7 @@ class BookRepository:
         Returns:
             Book instance or None
         """
-        result = await self.session.execute(
-            select(Book).where(Book.path == path)
-        )
+        result = await self.session.execute(select(Book).where(Book.path == path))
         return result.scalar_one_or_none()
 
     def _build_list_query(
@@ -193,10 +182,7 @@ class BookRepository:
             # when the books_fts index exists on the bound database.
             search_pattern = f"%{search}%"
             conditions.append(
-                or_(
-                    Book.title.ilike(search_pattern),
-                    Book.author.ilike(search_pattern)
-                )
+                or_(Book.title.ilike(search_pattern), Book.author.ilike(search_pattern))
             )
         if format_filter:
             conditions.append(Book.format == format_filter.upper())
@@ -208,9 +194,10 @@ class BookRepository:
             conditions.append(Book.path.like(safe_filter + "/%", escape="\\"))
         if category_id is not None:
             from app.models import BookCategory
-            query = query.join(
-                BookCategory, Book.id == BookCategory.book_id
-            ).where(BookCategory.category_id == category_id)
+
+            query = query.join(BookCategory, Book.id == BookCategory.book_id).where(
+                BookCategory.category_id == category_id
+            )
 
         # Hidden book filtering
         if hidden_only:
@@ -371,11 +358,7 @@ class BookRepository:
         await self.session.refresh(book)
         return book
 
-    async def update_progress(
-        self,
-        book_id: int,
-        progress_data: ProgressUpdate
-    ) -> Book:
+    async def update_progress(self, book_id: int, progress_data: ProgressUpdate) -> Book:
         """Update reading progress.
 
         Args:
@@ -409,9 +392,7 @@ class BookRepository:
         Returns:
             Total number of books
         """
-        result = await self.session.execute(
-            select(func.count(Book.id))
-        )
+        result = await self.session.execute(select(func.count(Book.id)))
         return result.scalar() or 0
 
     async def list_all(
@@ -485,12 +466,14 @@ class BookRepository:
         groups = []
         for row in result.all():
             ids = [int(x) for x in row.ids.split(",")]
-            groups.append({
-                "title": row.norm_title,
-                "author": row.norm_author,
-                "ids": ids,
-                "count": row.cnt,
-            })
+            groups.append(
+                {
+                    "title": row.norm_title,
+                    "author": row.norm_author,
+                    "ids": ids,
+                    "count": row.cnt,
+                }
+            )
         return groups
 
     async def get_categories_for_books(self, book_ids: list[int]) -> dict[int, list[str]]:
@@ -518,9 +501,7 @@ class BookRepository:
         """Load multiple books by ID for batch inspection."""
         if not ids:
             return []
-        result = await self.session.execute(
-            select(Book).where(Book.id.in_(ids))
-        )
+        result = await self.session.execute(select(Book).where(Book.id.in_(ids)))
         return list(result.scalars().all())
 
 
@@ -535,11 +516,7 @@ class ChapterSummaryRepository:
         """
         self.session = session
 
-    async def get_cached_summary(
-        self,
-        book_id: int,
-        chapter_index: int
-    ) -> ChapterSummary | None:
+    async def get_cached_summary(self, book_id: int, chapter_index: int) -> ChapterSummary | None:
         """Retrieve cached summary for a chapter.
 
         Args:
@@ -552,8 +529,7 @@ class ChapterSummaryRepository:
         result = await self.session.execute(
             select(ChapterSummary).where(
                 and_(
-                    ChapterSummary.book_id == book_id,
-                    ChapterSummary.chapter_index == chapter_index
+                    ChapterSummary.book_id == book_id, ChapterSummary.chapter_index == chapter_index
                 )
             )
         )
@@ -565,7 +541,7 @@ class ChapterSummaryRepository:
         chapter_index: int,
         chapter_title: str | None,
         summary_text: str,
-        provider: str = "google"
+        provider: str = "google",
     ) -> ChapterSummary:
         """Create a new chapter summary.
 
@@ -584,7 +560,7 @@ class ChapterSummaryRepository:
             chapter_index=chapter_index,
             chapter_title=chapter_title,
             summary_text=summary_text,
-            provider=provider
+            provider=provider,
         )
         self.session.add(summary)
         await self.session.flush()
@@ -634,10 +610,7 @@ class BookSummaryRepository:
         return result.scalar_one_or_none()
 
     async def create_or_update(
-        self,
-        book_id: int,
-        summary_text: str,
-        provider: str = "google"
+        self, book_id: int, summary_text: str, provider: str = "google"
     ) -> BookSummary:
         """Create or update a book summary.
 
@@ -658,11 +631,7 @@ class BookSummaryRepository:
             await self.session.refresh(existing)
             return existing
 
-        summary = BookSummary(
-            book_id=book_id,
-            summary_text=summary_text,
-            provider=provider
-        )
+        summary = BookSummary(book_id=book_id, summary_text=summary_text, provider=provider)
         self.session.add(summary)
         await self.session.flush()
         await self.session.refresh(summary)
@@ -677,9 +646,7 @@ class SettingsRepository:
 
     async def get(self, key: str, default: str | None = None) -> str | None:
         """Get a setting value by key."""
-        result = await self.session.execute(
-            select(Setting).where(Setting.key == key)
-        )
+        result = await self.session.execute(select(Setting).where(Setting.key == key))
         setting = result.scalar_one_or_none()
         return setting.value if setting else default
 
@@ -690,9 +657,7 @@ class SettingsRepository:
 
     async def set(self, key: str, value: str) -> None:
         """Set a setting value (upsert)."""
-        result = await self.session.execute(
-            select(Setting).where(Setting.key == key)
-        )
+        result = await self.session.execute(select(Setting).where(Setting.key == key))
         setting = result.scalar_one_or_none()
         if setting:
             setting.value = value

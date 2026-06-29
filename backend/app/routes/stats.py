@@ -114,10 +114,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
         .order_by(func.count(Book.id).desc())
         .limit(5)
     )
-    top_authors = [
-        {"author": row.author, "count": row.count}
-        for row in authors_result.all()
-    ]
+    top_authors = [{"author": row.author, "count": row.count} for row in authors_result.all()]
 
     # Format distribution
     format_result = await db.execute(
@@ -127,8 +124,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
         .order_by(func.count(Book.id).desc())
     )
     format_distribution = [
-        {"format": row.format, "count": row.count}
-        for row in format_result.all()
+        {"format": row.format, "count": row.count} for row in format_result.all()
     ]
 
     # Reading streak (consecutive days with last_read_date ending at today or yesterday)
@@ -148,9 +144,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     }
 
 
-async def _calculate_reading_streak(
-    db: AsyncSession, now: datetime
-) -> int:
+async def _calculate_reading_streak(db: AsyncSession, now: datetime) -> int:
     """Calculate consecutive reading streak.
 
     A streak is the number of consecutive days ending at today or yesterday
@@ -229,27 +223,23 @@ async def get_recommendations(db: AsyncSession = Depends(get_db)) -> list[dict]:
     read_cat_ids = {row[0] for row in cat_result.all()}
 
     # Find unread books sharing those authors or categories
-    unread_query = (
-        select(Book)
-        .where(
-            Book.is_hidden.is_(False),
-            Book.progress == 0,
-            ~Book.id.in_(read_ids),
-        )
+    unread_query = select(Book).where(
+        Book.is_hidden.is_(False),
+        Book.progress == 0,
+        ~Book.id.in_(read_ids),
     )
 
     # Add OR conditions for author/category matches
     author_conditions = [Book.author == a for a in read_authors] if read_authors else []
     category_condition = (
-        Book.id.in_(
-            select(BookCategory.book_id).where(BookCategory.category_id.in_(read_cat_ids))
-        )
+        Book.id.in_(select(BookCategory.book_id).where(BookCategory.category_id.in_(read_cat_ids)))
         if read_cat_ids
         else None
     )
 
     if author_conditions or category_condition:
         from sqlalchemy import or_
+
         or_parts = list(author_conditions)
         if category_condition is not None:
             or_parts.append(category_condition)
@@ -273,14 +263,19 @@ async def get_recommendations(db: AsyncSession = Depends(get_db)) -> list[dict]:
             score += len(book_cat_ids & read_cat_ids)
 
         if score > 0:
-            scored.append((score, {
-                "id": book.id,
-                "title": book.title,
-                "author": book.author,
-                "format": book.format,
-                "cover_path": book.cover_path,
-                "score": score,
-            }))
+            scored.append(
+                (
+                    score,
+                    {
+                        "id": book.id,
+                        "title": book.title,
+                        "author": book.author,
+                        "format": book.format,
+                        "cover_path": book.cover_path,
+                        "score": score,
+                    },
+                )
+            )
 
     scored.sort(key=lambda x: x[0], reverse=True)
     return [item for _, item in scored[:10]]
@@ -294,6 +289,8 @@ from pydantic import BaseModel
 
 
 class ReadingGoalRequest(BaseModel):
+    """Request body for creating or updating a reading goal."""
+
     goal_type: str = "daily"  # "daily" or "weekly"
     target_minutes: int = 30
 
@@ -303,9 +300,7 @@ async def get_reading_goal(db: AsyncSession = Depends(get_db)) -> dict:
     """Get the current reading goal."""
     from app.models import ReadingGoal
 
-    result = await db.execute(
-        select(ReadingGoal).order_by(ReadingGoal.updated_at.desc()).limit(1)
-    )
+    result = await db.execute(select(ReadingGoal).order_by(ReadingGoal.updated_at.desc()).limit(1))
     goal = result.scalar_one_or_none()
     if not goal:
         return {"goal_type": "daily", "target_minutes": 30}
@@ -328,11 +323,10 @@ async def set_reading_goal(
 
     if request.goal_type not in ("daily", "weekly"):
         from fastapi import HTTPException
+
         raise HTTPException(status_code=400, detail="goal_type must be 'daily' or 'weekly'")
 
-    result = await db.execute(
-        select(ReadingGoal).order_by(ReadingGoal.updated_at.desc()).limit(1)
-    )
+    result = await db.execute(select(ReadingGoal).order_by(ReadingGoal.updated_at.desc()).limit(1))
     goal = result.scalar_one_or_none()
 
     if goal:
@@ -360,9 +354,7 @@ async def get_reading_goal_progress(db: AsyncSession = Depends(get_db)) -> dict:
     now = datetime.now(UTC)
 
     # Get goal
-    result = await db.execute(
-        select(ReadingGoal).order_by(ReadingGoal.updated_at.desc()).limit(1)
-    )
+    result = await db.execute(select(ReadingGoal).order_by(ReadingGoal.updated_at.desc()).limit(1))
     goal = result.scalar_one_or_none()
     goal_type = goal.goal_type if goal else "daily"
     target_minutes = goal.target_minutes if goal else 30
@@ -388,5 +380,7 @@ async def get_reading_goal_progress(db: AsyncSession = Depends(get_db)) -> dict:
         "goal_type": goal_type,
         "target_minutes": target_minutes,
         "estimated_minutes": estimated_minutes,
-        "progress_percent": min(100, round(estimated_minutes / target_minutes * 100, 1)) if target_minutes > 0 else 0,
+        "progress_percent": min(100, round(estimated_minutes / target_minutes * 100, 1))
+        if target_minutes > 0
+        else 0,
     }

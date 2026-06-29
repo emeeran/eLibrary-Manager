@@ -1,6 +1,5 @@
 """Unified Ollama API provider for AI summarization (Cloud and Local)."""
 
-
 import httpx
 from openai import AsyncOpenAI
 
@@ -66,7 +65,7 @@ class OllamaProvider(BaseAIProvider):
         try:
             client = AsyncOpenAI(
                 base_url=f"{self._base_url}/v1",
-                api_key="ollama"  # Ollama doesn't require real key
+                api_key="ollama",  # Ollama doesn't require real key
             )
 
             prompt = self._build_prompt(text, context)
@@ -77,7 +76,7 @@ class OllamaProvider(BaseAIProvider):
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=500,
-                temperature=0.7
+                temperature=0.7,
             )
 
             summary = response.choices[0].message.content.strip()
@@ -94,7 +93,7 @@ class OllamaProvider(BaseAIProvider):
             logger.error(f"{self.name} API error: {e}")
             raise AIServiceError(
                 f"{self.name} error: {str(e)}",
-                {"provider": self.name, "error_type": type(e).__name__}
+                {"provider": self.name, "error_type": type(e).__name__},
             ) from e
 
     async def _perform_health_check(self) -> bool:

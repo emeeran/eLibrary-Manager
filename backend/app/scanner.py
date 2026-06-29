@@ -71,8 +71,7 @@ class LibraryScanner:
 
         if not await self.storage.file_exists(target_dir):
             raise LibraryScannerError(
-                f"Library directory does not exist: {target_dir}",
-                {"directory": target_dir}
+                f"Library directory does not exist: {target_dir}", {"directory": target_dir}
             )
 
         books: list[BookCreate] = []
@@ -110,8 +109,7 @@ class LibraryScanner:
 
         except Exception as e:
             raise LibraryScannerError(
-                f"Scanning failed: {str(e)}",
-                {"directory": target_dir}
+                f"Scanning failed: {str(e)}", {"directory": target_dir}
             ) from e
 
         logger.info(
@@ -180,7 +178,9 @@ class LibraryScanner:
                                     # Clean filename for title
                                     clean = re.sub(
                                         r"\s*[\(\[].*?(?:z-lib|zlibrary|1lib|lib\.gen|retail).*?[\)\]]",
-                                        "", stem, flags=re.IGNORECASE,
+                                        "",
+                                        stem,
+                                        flags=re.IGNORECASE,
                                     ).strip()
                                     clean = re.sub(r"[\s._-]+$", "", clean).strip() or stem
 
@@ -196,15 +196,17 @@ class LibraryScanner:
                                     except OSError:
                                         file_size = 0
 
-                                    books.append(BookCreate(
-                                        title=title[:500],
-                                        author=author[:200],
-                                        path=str_path,
-                                        format=ext.lstrip(".").upper(),
-                                        file_size=file_size,
-                                        total_pages=max(1, file_size // 2048),
-                                        storage_type=self.storage_type,
-                                    ))
+                                    books.append(
+                                        BookCreate(
+                                            title=title[:500],
+                                            author=author[:200],
+                                            path=str_path,
+                                            format=ext.lstrip(".").upper(),
+                                            file_size=file_size,
+                                            total_pages=max(1, file_size // 2048),
+                                            storage_type=self.storage_type,
+                                        )
+                                    )
                                     scanned += 1
 
                                     # Report progress every 50 files
@@ -252,8 +254,7 @@ class LibraryScanner:
             parser = self.mobi_parser
         else:
             raise LibraryScannerError(
-                f"Unsupported file format: {ext}",
-                {"path": ebook_path, "format": ext}
+                f"Unsupported file format: {ext}", {"path": ebook_path, "format": ext}
             )
 
         # Extract metadata using format-specific parser
@@ -302,14 +303,9 @@ class LibraryScanner:
         elif ext == ".mobi":
             return await self.mobi_parser.get_chapters(ebook_path)
 
-        raise EbookParsingError(
-            f"Cannot extract chapters from {ext} files",
-            {"path": ebook_path}
-        )
+        raise EbookParsingError(f"Cannot extract chapters from {ext} files", {"path": ebook_path})
 
-    async def get_single_chapter(
-        self, ebook_path: str, chapter_index: int
-    ) -> tuple[str, str, int]:
+    async def get_single_chapter(self, ebook_path: str, chapter_index: int) -> tuple[str, str, int]:
         """Extract a single chapter without parsing the entire book.
 
         For PDF and EPUB, uses efficient single-page/chapter extraction.
@@ -339,17 +335,15 @@ class LibraryScanner:
             chapters = await self.mobi_parser.get_chapters(ebook_path)
             if chapter_index < 0 or chapter_index >= len(chapters):
                 from app.exceptions import ResourceNotFoundError
+
                 raise ResourceNotFoundError(
                     f"Chapter {chapter_index} not found (total: {len(chapters)})",
-                    {"path": ebook_path, "index": chapter_index}
+                    {"path": ebook_path, "index": chapter_index},
                 )
             _, title, content = chapters[chapter_index]
             return content, title, len(chapters)
 
-        raise EbookParsingError(
-            f"Cannot extract chapters from {ext} files",
-            {"path": ebook_path}
-        )
+        raise EbookParsingError(f"Cannot extract chapters from {ext} files", {"path": ebook_path})
 
     async def count_chapters(self, ebook_path: str) -> int:
         """Count chapters using the appropriate parser.
@@ -416,4 +410,6 @@ class LibraryScanner:
 
         # Return basic TOC for unsupported formats
         chapters = await self.get_chapters(ebook_path)
-        return [{"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)]
+        return [
+            {"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)
+        ]

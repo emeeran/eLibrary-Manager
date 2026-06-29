@@ -3,9 +3,11 @@
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -21,6 +23,7 @@ logger = get_logger(__name__)
 
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
+
     pass
 
 
@@ -38,7 +41,7 @@ class DatabaseManager:
         self._session_factory = None
 
     @property
-    def engine(self):
+    def engine(self) -> AsyncEngine:
         """Lazy-initialize database engine."""
         if self._engine is None:
             from sqlalchemy import event
@@ -48,12 +51,12 @@ class DatabaseManager:
                 echo=self.config.debug,
                 pool_size=self.config.db_pool_size,
                 max_overflow=self.config.db_max_overflow,
-                connect_args={"check_same_thread": False}  # SQLite specific
+                connect_args={"check_same_thread": False},  # SQLite specific
             )
 
             # SQLite performance pragmas
             @event.listens_for(self._engine.sync_engine, "connect")
-            def _set_sqlite_pragmas(dbapi_conn, connection_record):
+            def _set_sqlite_pragmas(dbapi_conn: Any, connection_record: Any) -> None:
                 cursor = dbapi_conn.cursor()
                 cursor.execute("PRAGMA foreign_keys=ON")
                 cursor.execute("PRAGMA journal_mode=WAL")
@@ -68,7 +71,7 @@ class DatabaseManager:
         return self._engine
 
     @property
-    def session_factory(self):
+    def session_factory(self) -> async_sessionmaker[AsyncSession]:
         """Lazy-initialize session factory."""
         if self._session_factory is None:
             self._session_factory = async_sessionmaker(
@@ -76,7 +79,7 @@ class DatabaseManager:
                 class_=AsyncSession,
                 expire_on_commit=False,
                 autocommit=False,
-                autoflush=False
+                autoflush=False,
             )
         return self._session_factory
 

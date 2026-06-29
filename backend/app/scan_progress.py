@@ -29,7 +29,9 @@ class ScanProgress:
 
     scan_id: str
     status: str = "running"  # running | completed | failed | cancelled
-    phase: str = "discovering"  # discovering | importing | checking_nas | scanning_nas | committing | done
+    phase: str = (
+        "discovering"  # discovering | importing | checking_nas | scanning_nas | committing | done
+    )
     total_found: int = 0
     processed: int = 0
     imported: int = 0

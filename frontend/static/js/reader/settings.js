@@ -257,14 +257,6 @@ function setFontSize(size) {
 }
 
 /**
- * Adjust font size by delta
- */
-function adjustFontSize(delta) {
-    const newSize = Math.max(12, Math.min(24, IcecreamReader.fontSize + delta));
-    setFontSize(newSize);
-}
-
-/**
  * Set Font Family
  */
 function setFontFamily(fontFamily) {
@@ -294,15 +286,6 @@ function setFontFamily(fontFamily) {
     contentArea.style.fontFamily = fontStack;
     localStorage.setItem('reader-font-family', fontFamily);
     syncSettingsToServer();
-}
-
-/**
- * Adjust Line Spacing
- */
-function adjustLineSpacing(delta) {
-    const current = Math.round(IcecreamReader.lineHeight * 10);
-    const newVal = Math.max(10, Math.min(30, current + (delta * 1)));
-    setLineSpacing(newVal);
 }
 
 /**

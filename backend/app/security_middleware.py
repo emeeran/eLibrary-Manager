@@ -19,6 +19,8 @@ to run on every request ahead of route dispatch.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
@@ -61,9 +63,7 @@ DEFAULT_SECURITY_HEADERS: dict[str, str] = {
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Permissions-Policy": (
-        "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-    ),
+    "Permissions-Policy": ("camera=(), microphone=(), geolocation=(), payment=(), usb=()"),
     "X-Content-Security-Policy": "default-src 'self'",  # legacy IE fallback
 }
 
@@ -71,7 +71,7 @@ DEFAULT_SECURITY_HEADERS: dict[str, str] = {
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Attach browser security headers to every response."""
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         response = await call_next(request)
         for header, value in DEFAULT_SECURITY_HEADERS.items():
             response.headers.setdefault(header, value)
@@ -86,7 +86,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     common case in modern browsers; this guards the rest.
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if (
             request.method in _MUTATING_METHODS
             and request.url.path not in CSRF_EXEMPT_PATHS
@@ -116,7 +116,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
           sends ``Origin``, so absence means a non-browser client which is
           outside the CSRF threat model. SameSite cookies still protect us.
         """
-        request_host = (request.url.hostname or (request.client.host if request.client else "")).lower()
+        request_host = (
+            request.url.hostname or (request.client.host if request.client else "")
+        ).lower()
         if not request_host:
             return True  # cannot determine host; do not block blindly
 

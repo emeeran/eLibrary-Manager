@@ -8,6 +8,7 @@ from pathlib import Path
 
 try:
     from pymobi.mobi import BookMobi
+
     MOBI_AVAILABLE = True
 except ImportError:
     MOBI_AVAILABLE = False
@@ -43,10 +44,7 @@ class MOBIParser:
             ImportError: If pymobi is not installed.
         """
         if not MOBI_AVAILABLE:
-            raise ImportError(
-                "pymobi is not installed. "
-                "Install it with: pip install pymobi"
-            )
+            raise ImportError("pymobi is not installed. Install it with: pip install pymobi")
 
         self.covers_path = Path(covers_path)
         self.covers_path.mkdir(parents=True, exist_ok=True)
@@ -68,28 +66,28 @@ class MOBIParser:
             if await asyncio.to_thread(self._is_drm_protected, mobi_path):
                 raise EbookParsingError(
                     "DRM-protected MOBI files are not supported",
-                    {"path": mobi_path, "reason": "DRM protection"}
+                    {"path": mobi_path, "reason": "DRM protection"},
                 )
 
             mobi = await asyncio.to_thread(BookMobi, mobi_path)
 
             # Extract metadata from EXTH headers or metadata records
-            title = self._get_metadata_value(mobi, 'title') or None
+            title = self._get_metadata_value(mobi, "title") or None
             if not title:
                 # Use filename as fallback
                 title = Path(mobi_path).stem.replace("-", " ").replace("_", " ").title()
 
-            author = self._get_metadata_value(mobi, 'author') or "Unknown"
+            author = self._get_metadata_value(mobi, "author") or "Unknown"
 
             # Extract subject/category from EXTH record type 105
             subjects = []
             try:
-                if hasattr(mobi, 'mobi_exth') and mobi.mobi_exth:
+                if hasattr(mobi, "mobi_exth") and mobi.mobi_exth:
                     for record in mobi.mobi_exth.get_records():
                         if record.get_type() == 105:
-                            subject = record.get_data().decode('utf-8', errors='ignore')
+                            subject = record.get_data().decode("utf-8", errors="ignore")
                             if subject:
-                                subjects = [s.strip() for s in subject.split(';') if s.strip()]
+                                subjects = [s.strip() for s in subject.split(";") if s.strip()]
                                 break
             except Exception:
                 pass
@@ -105,15 +103,14 @@ class MOBIParser:
                 path=mobi_path,
                 format="MOBI",
                 file_size=file_size,
-                subjects=subjects
+                subjects=subjects,
             )
 
         except EbookParsingError:
             raise
         except Exception as e:
             raise EbookParsingError(
-                f"Failed to parse MOBI: {str(e)}",
-                {"path": mobi_path, "error": str(e)}
+                f"Failed to parse MOBI: {str(e)}", {"path": mobi_path, "error": str(e)}
             ) from e
 
     def _get_metadata_value(self, mobi: BookMobi, key: str) -> str | None:
@@ -127,19 +124,15 @@ class MOBIParser:
             Metadata value or None
         """
         try:
-            if hasattr(mobi, 'mobi_exth') and mobi.mobi_exth:
+            if hasattr(mobi, "mobi_exth") and mobi.mobi_exth:
                 # EXTH record types: 100=author, 101=publisher, 106=title
-                record_types = {
-                    'author': 100,
-                    'title': 106,
-                    'publisher': 101
-                }
+                record_types = {"author": 100, "title": 106, "publisher": 101}
 
                 record_type = record_types.get(key)
                 if record_type:
                     for record in mobi.mobi_exth.get_records():
                         if record.get_type() == record_type:
-                            return record.get_data().decode('utf-8', errors='ignore')
+                            return record.get_data().decode("utf-8", errors="ignore")
             return None
         except Exception:
             return None
@@ -154,15 +147,11 @@ class MOBIParser:
             True if DRM detected, False otherwise
         """
         try:
-            with open(mobi_path, 'rb') as f:
+            with open(mobi_path, "rb") as f:
                 header = f.read(100)
 
             # Check for DRM markers
-            drm_markers = [
-                b'DRM',
-                b'Protected',
-                b'encryption'
-            ]
+            drm_markers = [b"DRM", b"Protected", b"encryption"]
 
             return any(marker in header for marker in drm_markers)
 
@@ -189,6 +178,7 @@ class MOBIParser:
 
             # Try to get cover image from records
             import hashlib
+
             epub_hash = hashlib.md5(mobi_path.encode()).hexdigest()
             cover_filename = f"{epub_hash}.jpg"
             cover_path = self.covers_path / cover_filename
@@ -235,13 +225,14 @@ class MOBIParser:
         """
         mobi = BookMobi(mobi_path)
 
-        rec_num = mobi.palmdoc['recordCount']
-        text_length = mobi.palmdoc['textLength']
+        rec_num = mobi.palmdoc["recordCount"]
+        text_length = mobi.palmdoc["textLength"]
 
         # Get the decompression function
         try:
             from pymobi.compression import Huffcdic, Palmdoc, Uncompression
-            compression_type = mobi.palmdoc['compressionType']
+
+            compression_type = mobi.palmdoc["compressionType"]
             if compression_type == 2:
                 unpack = Palmdoc.decompress
             elif compression_type == 17480:
@@ -257,32 +248,33 @@ class MOBIParser:
             record = mobi.loadRecord(rn)
 
             # Strip trailing entry data (MOBI-specific)
-            extraflags = mobi.mobi['extraRecordDataFlags'] >> 1
+            extraflags = mobi.mobi["extraRecordDataFlags"] >> 1
             while extraflags & 0x1:
                 from pymobi.util import decodeVarint
-                vint, = struct.unpack_from('>L', record[-4:], 0)
+
+                (vint,) = struct.unpack_from(">L", record[-4:], 0)
                 fint = decodeVarint(vint)
                 record = record[:-fint]
                 extraflags >>= 1
 
-            if mobi.mobi['extraRecordDataFlags'] & 0x1:
-                mb_num, = struct.unpack_from('>B', record[-1:], 0)
+            if mobi.mobi["extraRecordDataFlags"] & 0x1:
+                (mb_num,) = struct.unpack_from(">B", record[-1:], 0)
                 mb_num = (mb_num & 0x3) + 1
                 record = record[:-mb_num]
 
             record = mobi.decrypt(record)
             data_parts.append(unpack(record))
 
-        data_text = b''.join(data_parts)
+        data_text = b"".join(data_parts)
         # Trim to text length (rest is CSS)
         data_text = data_text[:text_length]
 
         # Decode
-        text_encoding = mobi.mobi.get('textEncoding', 1252)
+        text_encoding = mobi.mobi.get("textEncoding", 1252)
         if text_encoding == 65001:
-            html = data_text.decode('utf-8', errors='replace')
+            html = data_text.decode("utf-8", errors="replace")
         else:
-            html = data_text.decode(f'cp{text_encoding}', errors='replace')
+            html = data_text.decode(f"cp{text_encoding}", errors="replace")
 
         return html
 
@@ -306,17 +298,14 @@ class MOBIParser:
             try:
                 return await asyncio.to_thread(self._get_chapters_from_html, mobi_path)
             except Exception as html_err:
-                logger.warning(
-                    f"MOBI HTML extraction failed, falling back to text: {html_err}"
-                )
+                logger.warning(f"MOBI HTML extraction failed, falling back to text: {html_err}")
 
             # Fallback to plain text
             return await asyncio.to_thread(self._get_chapters_from_text, mobi_path)
 
         except Exception as e:
             raise EbookParsingError(
-                f"Failed to extract chapters: {str(e)}",
-                {"path": mobi_path}
+                f"Failed to extract chapters: {str(e)}", {"path": mobi_path}
             ) from e
 
     def _get_chapters_from_html(self, mobi_path: str) -> list[tuple[int, str, str]]:
@@ -329,13 +318,13 @@ class MOBIParser:
             List of (index, title, html_content) tuples.
         """
         html = self._extract_html_content(mobi_path)
-        soup = BeautifulSoup(html, 'html.parser')
+        soup = BeautifulSoup(html, "html.parser")
 
         # Remove harmful elements
-        for tag in soup.find_all(['script', 'style']):
+        for tag in soup.find_all(["script", "style"]):
             tag.decompose()
 
-        body = soup.find('body')
+        body = soup.find("body")
         if body:
             content_soup = body
         else:
@@ -343,7 +332,7 @@ class MOBIParser:
 
         # Try splitting by heading tags (h1, h2, h3)
         # First check if there are any headings
-        headings = content_soup.find_all(['h1', 'h2', 'h3'])
+        headings = content_soup.find_all(["h1", "h2", "h3"])
         chapters: list[tuple[int, str, str]] = []
 
         if len(headings) >= 2:
@@ -352,26 +341,26 @@ class MOBIParser:
             current_title = "Chapter 1"
 
             for child in content_soup.children:
-                if hasattr(child, 'name') and child.name in ('h1', 'h2', 'h3'):
+                if hasattr(child, "name") and child.name in ("h1", "h2", "h3"):
                     # Save previous chapter if it has content
                     if current_parts:
                         chapter_html = "\n".join(current_parts)
-                        text = BeautifulSoup(chapter_html, 'html.parser').get_text(strip=True)
+                        text = BeautifulSoup(chapter_html, "html.parser").get_text(strip=True)
                         if len(text) >= 50:
                             chapters.append((len(chapters), current_title, chapter_html))
 
                     current_title = child.get_text(strip=True) or f"Chapter {len(chapters) + 1}"
                     current_parts = [str(child)]
                 else:
-                    if hasattr(child, 'name') and child.name:
+                    if hasattr(child, "name") and child.name:
                         current_parts.append(str(child))
-                    elif hasattr(child, 'strip') and child.strip():
-                        current_parts.append(f'<p>{child.strip()}</p>')
+                    elif hasattr(child, "strip") and child.strip():
+                        current_parts.append(f"<p>{child.strip()}</p>")
 
             # Don't forget the last chapter
             if current_parts:
                 chapter_html = "\n".join(current_parts)
-                text = BeautifulSoup(chapter_html, 'html.parser').get_text(strip=True)
+                text = BeautifulSoup(chapter_html, "html.parser").get_text(strip=True)
                 if len(text) >= 50:
                     chapters.append((len(chapters), current_title, chapter_html))
 
@@ -380,10 +369,10 @@ class MOBIParser:
             # or return entire content as one chapter
             html_parts: list[str] = []
             for child in content_soup.children:
-                if hasattr(child, 'name') and child.name:
+                if hasattr(child, "name") and child.name:
                     html_parts.append(str(child))
-                elif hasattr(child, 'strip') and child.strip():
-                    html_parts.append(f'<p>{child.strip()}</p>')
+                elif hasattr(child, "strip") and child.strip():
+                    html_parts.append(f"<p>{child.strip()}</p>")
 
             if html_parts:
                 full_html = "\n".join(html_parts)
@@ -408,7 +397,7 @@ class MOBIParser:
         chapters: list[tuple[int, str, str]] = []
 
         # Split by common chapter markers
-        chapter_pattern = r'(?:^|\n)\s*(Chapter|CHAPTER|Part|PART)\s+[IVXLCDM\d]+'
+        chapter_pattern = r"(?:^|\n)\s*(Chapter|CHAPTER|Part|PART)\s+[IVXLCDM\d]+"
         parts = re.split(chapter_pattern, text_content, flags=re.MULTILINE)
 
         for i, part in enumerate(parts):
@@ -416,7 +405,7 @@ class MOBIParser:
                 continue
 
             # Extract chapter title
-            lines = part.strip().split('\n')
+            lines = part.strip().split("\n")
             title = f"Chapter {i + 1}"
             if lines:
                 first_line = lines[0].strip()
@@ -440,7 +429,7 @@ class MOBIParser:
         Returns:
             Title string.
         """
-        for tag_name in ['h1', 'h2', 'h3', 'title']:
+        for tag_name in ["h1", "h2", "h3", "title"]:
             tag = soup.find(tag_name)
             if tag:
                 text = tag.get_text(strip=True)
@@ -479,7 +468,7 @@ class MOBIParser:
             toc_items: list[dict] = []
 
             # Try to extract TOC from MOBI if available
-            if hasattr(mobi, 'mobi_exth') and mobi.mobi_exth:
+            if hasattr(mobi, "mobi_exth") and mobi.mobi_exth:
                 pass
 
             if toc_items:
@@ -487,9 +476,13 @@ class MOBIParser:
 
             # Fall back to chapter list
             chapters = await self.get_chapters(mobi_path)
-            return [{"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)]
+            return [
+                {"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)
+            ]
 
         except Exception:
             # Fall back to basic chapter list on error
             chapters = await self.get_chapters(mobi_path)
-            return [{"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)]
+            return [
+                {"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)
+            ]

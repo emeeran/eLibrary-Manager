@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -89,9 +90,7 @@ async def assign_categories(
     """Assign categories to a book (replaces existing assignments)."""
     from app.models import BookCategory
 
-    await db.execute(
-        BookCategory.__table__.delete().where(BookCategory.book_id == book_id)
-    )
+    await db.execute(BookCategory.__table__.delete().where(BookCategory.book_id == book_id))
 
     for cat_id in data.category_ids:
         db.add(BookCategory(book_id=book_id, category_id=cat_id))
@@ -152,14 +151,14 @@ async def auto_categorize_all(db: AsyncSession = Depends(get_db)) -> dict:
 
 
 @router.get("/library/auto-categorize-stream")
-async def auto_categorize_stream(db: AsyncSession = Depends(get_db)):
+async def auto_categorize_stream(db: AsyncSession = Depends(get_db)) -> StreamingResponse:
     """SSE stream for real-time categorization progress."""
     from sqlalchemy import select
 
     from app.models import Book
     from app.services.categorization_service import CategorizationService
 
-    async def generate():
+    async def generate() -> AsyncGenerator[str, None]:
         cat_service = CategorizationService(db)
         db_result = await db.execute(select(Book))
         books = list(db_result.scalars().all())
@@ -177,33 +176,45 @@ async def auto_categorize_stream(db: AsyncSession = Depends(get_db)):
                 categorized += 1 if added > 0 else 0
                 categories_added += added
 
-                yield f"data: {json.dumps({
-                    'type': 'progress',
-                    'current': i + 1,
-                    'total': total,
-                    'book': book.title,
-                    'categories': cats,
-                    'categories_added': added,
-                    'running_categorized': categorized,
-                    'running_total_added': categories_added,
-                })}\n\n"
+                yield f"data: {
+                    json.dumps(
+                        {
+                            'type': 'progress',
+                            'current': i + 1,
+                            'total': total,
+                            'book': book.title,
+                            'categories': cats,
+                            'categories_added': added,
+                            'running_categorized': categorized,
+                            'running_total_added': categories_added,
+                        }
+                    )
+                }\n\n"
             except Exception as e:
-                yield f"data: {json.dumps({
-                    'type': 'error',
-                    'current': i + 1,
-                    'total': total,
-                    'book': book.title,
-                    'error': str(e),
-                })}\n\n"
+                yield f"data: {
+                    json.dumps(
+                        {
+                            'type': 'error',
+                            'current': i + 1,
+                            'total': total,
+                            'book': book.title,
+                            'error': str(e),
+                        }
+                    )
+                }\n\n"
 
             await asyncio.sleep(0)
 
-        yield f"data: {json.dumps({
-            'type': 'done',
-            'total': total,
-            'categorized': categorized,
-            'categories_added': categories_added,
-        })}\n\n"
+        yield f"data: {
+            json.dumps(
+                {
+                    'type': 'done',
+                    'total': total,
+                    'categorized': categorized,
+                    'categories_added': categories_added,
+                }
+            )
+        }\n\n"
 
     return StreamingResponse(
         generate(),

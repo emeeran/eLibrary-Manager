@@ -3,6 +3,7 @@
 import asyncio
 import os
 from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select, text
@@ -273,11 +274,11 @@ class MaintenanceService:
         """Find child records whose book_id does not exist in the books table."""
         book_ids_subq = select(Book.id)
 
-        async def _count(model, col="book_id") -> int:
+        async def _count(model: Any, col: str = "book_id") -> int:
             result = await self.session.execute(
-                select(func.count()).select_from(model).where(
-                    getattr(model, col).not_in(book_ids_subq)
-                )
+                select(func.count())
+                .select_from(model)
+                .where(getattr(model, col).not_in(book_ids_subq))
             )
             return result.scalar() or 0
 
@@ -294,7 +295,7 @@ class MaintenanceService:
         """Delete orphaned child records."""
         book_ids_subq = select(Book.id)
 
-        async def _delete_orphans(model, col="book_id") -> int:
+        async def _delete_orphans(model: Any, col: str = "book_id") -> int:
             stmt = (
                 sql_delete(model)
                 .where(getattr(model, col).not_in(book_ids_subq))
@@ -422,8 +423,10 @@ class MaintenanceService:
 
         # Gather candidate files (oversized JPEGs).
         candidates = [
-            p for p in covers_dir.iterdir()
-            if p.is_file() and p.suffix.lower() in (".jpg", ".jpeg")
+            p
+            for p in covers_dir.iterdir()
+            if p.is_file()
+            and p.suffix.lower() in (".jpg", ".jpeg")
             and p.stat().st_size > threshold_bytes
         ]
         total = len(candidates)
@@ -527,11 +530,7 @@ class MaintenanceService:
             (ChapterSummary, "chapter_summaries"),
             (BookSummary, "book_summaries"),
         ]:
-            stmt = (
-                sql_delete(model)
-                .where(model.book_id == book_id)
-                .returning(model.id)
-            )
+            stmt = sql_delete(model).where(model.book_id == book_id).returning(model.id)
             result = await self.session.execute(stmt)
             counts[label] = len(result.all())
 
@@ -541,8 +540,6 @@ class MaintenanceService:
         counts["book_categories"] = result.rowcount
 
         # Delete the book itself
-        await self.session.execute(
-            sql_delete(Book).where(Book.id == book_id)
-        )
+        await self.session.execute(sql_delete(Book).where(Book.id == book_id))
 
         return counts

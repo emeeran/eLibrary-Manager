@@ -17,10 +17,7 @@ class AppConfig(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        extra="ignore"
+        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
     )
 
     # Database
@@ -69,7 +66,7 @@ class AppConfig(BaseSettings):
             if app_env == "production":
                 raise ValueError(
                     "SECRET_KEY is not set. Set a strong SECRET_KEY environment "
-                    "variable for production. Generate with: python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+                    'variable for production. Generate with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
                 )
             warnings.warn(
                 "SECRET_KEY is not set. Set a strong SECRET_KEY environment "
@@ -96,8 +93,11 @@ class AppConfig(BaseSettings):
     db_max_overflow: int = 0
 
     @field_validator(
-        "library_path", "covers_path", "book_images_path",
-        "nas_mount_path", "nas_cache_dir",
+        "library_path",
+        "covers_path",
+        "book_images_path",
+        "nas_mount_path",
+        "nas_cache_dir",
     )
     @classmethod
     def validate_paths(cls, v: str) -> str:

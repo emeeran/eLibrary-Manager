@@ -83,7 +83,7 @@ async def hide_book(
             raise HTTPException(
                 status_code=401,
                 detail="This book is already hidden. Provide the current password to re-key it, "
-                       "or use Unhide instead.",
+                "or use Unhide instead.",
             )
 
     book.hidden_password = encrypt_password(password)
@@ -144,9 +144,7 @@ async def get_hidden_status(db: AsyncSession = Depends(get_db)) -> dict:
     """
     from sqlalchemy import func, select
 
-    count = (
-        await db.execute(select(func.count(Book.id)).where(Book.is_hidden))
-    ).scalar_one()
+    count = (await db.execute(select(func.count(Book.id)).where(Book.is_hidden))).scalar_one()
     return {"password_set": count > 0, "hidden_count": int(count)}
 
 
@@ -178,7 +176,8 @@ async def unhide_all_books(db: AsyncSession = Depends(get_db)) -> dict:
     invalidate_book_list_cache()
     logger.info(
         "Bulk hidden reset: cleared %s book(s), removed legacy setting: %s",
-        cleared_books, bool(cleared_legacy),
+        cleared_books,
+        bool(cleared_legacy),
     )
     return {
         "message": f"Cleared {cleared_books} hidden book(s).",

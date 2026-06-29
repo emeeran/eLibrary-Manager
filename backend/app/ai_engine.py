@@ -1,6 +1,5 @@
 """Multi-provider AI orchestration with automatic fallback."""
 
-
 from app.ai_providers import (
     BaseAIProvider,
     GoogleProvider,
@@ -35,30 +34,30 @@ class AIProviderOrchestrator:
             self.providers.append(GoogleProvider())
 
         # Secondary: Ollama Cloud (Good quality, moderate speed)
-        self.providers.append(OllamaProvider(
-            name="ollama_cloud",
-            base_url=self.config.ollama_cloud_url,
-            model=self.config.ollama_cloud_model,
-            priority=3,
-            health_timeout=5.0,
-        ))
+        self.providers.append(
+            OllamaProvider(
+                name="ollama_cloud",
+                base_url=self.config.ollama_cloud_url,
+                model=self.config.ollama_cloud_model,
+                priority=3,
+                health_timeout=5.0,
+            )
+        )
 
         # Fallback: Ollama Local (Offline capable, no cost)
-        self.providers.append(OllamaProvider(
-            name="ollama_local",
-            base_url=self.config.ollama_local_url,
-            model=self.config.ollama_local_model,
-            priority=4,
-            health_timeout=2.0,
-        ))
+        self.providers.append(
+            OllamaProvider(
+                name="ollama_local",
+                base_url=self.config.ollama_local_url,
+                model=self.config.ollama_local_model,
+                priority=4,
+                health_timeout=2.0,
+            )
+        )
 
         logger.info(f"Initialized {len(self.providers)} AI providers")
 
-    async def summarize(
-        self,
-        text: str,
-        context: str | None = None
-    ) -> str:
+    async def summarize(self, text: str, context: str | None = None) -> str:
         """Generate summary with automatic fallback.
 
         Args:
@@ -72,9 +71,10 @@ class AIProviderOrchestrator:
             AIServiceError: If all providers fail
         """
         # Strip HTML tags for clean text summarization
-        if '<' in text and '>' in text:
+        if "<" in text and ">" in text:
             from bs4 import BeautifulSoup
-            text = BeautifulSoup(text, 'html.parser').get_text(separator='\n', strip=True)
+
+            text = BeautifulSoup(text, "html.parser").get_text(separator="\n", strip=True)
 
         if len(text) < 100:
             return "(Chapter too short to summarize)"
@@ -115,8 +115,8 @@ class AIProviderOrchestrator:
             error_msg,
             {
                 "providers_count": len(self.providers),
-                "last_error": str(last_error) if last_error else None
-            }
+                "last_error": str(last_error) if last_error else None,
+            },
         )
 
     async def get_provider_status(self) -> list[dict]:
@@ -130,22 +130,26 @@ class AIProviderOrchestrator:
         for provider in self.providers:
             try:
                 is_healthy = await provider.health_check()
-                status_list.append({
-                    "name": provider.name,
-                    "model": provider.model,
-                    "priority": provider.priority,
-                    "available": is_healthy,
-                    "is_current": provider.name == self.current_provider
-                })
+                status_list.append(
+                    {
+                        "name": provider.name,
+                        "model": provider.model,
+                        "priority": provider.priority,
+                        "available": is_healthy,
+                        "is_current": provider.name == self.current_provider,
+                    }
+                )
             except Exception as e:
-                status_list.append({
-                    "name": provider.name,
-                    "model": provider.model,
-                    "priority": provider.priority,
-                    "available": False,
-                    "is_current": False,
-                    "error": str(e)
-                })
+                status_list.append(
+                    {
+                        "name": provider.name,
+                        "model": provider.model,
+                        "priority": provider.priority,
+                        "available": False,
+                        "is_current": False,
+                        "error": str(e),
+                    }
+                )
 
         return status_list
 
@@ -186,7 +190,7 @@ class AIProviderOrchestrator:
         health_status = {
             "total_providers": len(self.providers),
             "healthy_providers": 0,
-            "providers": {}
+            "providers": {},
         }
 
         for provider in self.providers:
@@ -237,4 +241,3 @@ def reset_ai_orchestrator() -> None:
     """
     global _orchestrator
     _orchestrator = None
-

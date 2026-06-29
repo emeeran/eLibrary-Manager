@@ -812,9 +812,9 @@
             for (let i = 0; i < parts.length; i++) {
                 const part = parts[i];
                 if (part.trim() === '') continue;
-                
+
                 currentSentence += part;
-                
+
                 // Check if this part ends with sentence boundary (. ! ?)
                 if (/[.!?]$/.test(part.trim())) {
                     const trimmed = currentSentence.trim();
@@ -823,7 +823,7 @@
                         const sentenceSpan = document.createElement('span');
                         sentenceSpan.className = 'tts-sentence';
                         sentenceSpan.dataset.sentenceIndex = sentenceIndex;
-                        
+
                         // Now split this sentence into words
                         const words = currentSentence.split(/(\s+)/);
                         for (const wordPart of words) {
@@ -839,7 +839,7 @@
                                 sentenceSpan.appendChild(wordSpan);
                             }
                         }
-                        
+
                         _sentenceSpans.push(sentenceSpan);
                         sentenceIndex++;
                         fragment.appendChild(sentenceSpan);
@@ -852,7 +852,7 @@
                 const sentenceSpan = document.createElement('span');
                 sentenceSpan.className = 'tts-sentence';
                 sentenceSpan.dataset.sentenceIndex = sentenceIndex;
-                
+
                 // Split into words
                 const words = currentSentence.split(/(\s+)/);
                 for (const wordPart of words) {
@@ -868,7 +868,7 @@
                         sentenceSpan.appendChild(wordSpan);
                     }
                 }
-                
+
                 _sentenceSpans.push(sentenceSpan);
                 sentenceIndex++;
                 fragment.appendChild(sentenceSpan);

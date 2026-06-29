@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.exceptions import ResourceNotFoundError
+from app.models import Book
 from app.schemas import (
     AnnotationCreate,
     AnnotationResponse,
@@ -26,10 +27,44 @@ from app.services import LibraryService, ReaderService
 
 # Allowed HTML tags for chapter content rendering
 _SANITIZATION_TAGS = {
-    "a", "abbr", "b", "blockquote", "br", "code", "div", "em", "h1", "h2",
-    "h3", "h4", "h5", "h6", "hr", "i", "img", "li", "ol", "p", "pre",
-    "span", "strong", "sub", "sup", "table", "tbody", "td", "tfoot", "th",
-    "thead", "tr", "ul", "dl", "dt", "dd", "figure", "figcaption",
+    "a",
+    "abbr",
+    "b",
+    "blockquote",
+    "br",
+    "code",
+    "div",
+    "em",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "i",
+    "img",
+    "li",
+    "ol",
+    "p",
+    "pre",
+    "span",
+    "strong",
+    "sub",
+    "sup",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "tr",
+    "ul",
+    "dl",
+    "dt",
+    "dd",
+    "figure",
+    "figcaption",
 }
 _SANITIZATION_ATTRIBUTES = {
     "a": {"href", "title"},
@@ -48,10 +83,11 @@ def _sanitize_html(html_content: str) -> str:
         clean_content_tags={"script", "style"},
     )
 
+
 router = APIRouter(prefix="/api", tags=["reader"])
 
 
-async def _check_nas_available(book, request: Request) -> JSONResponse | None:
+async def _check_nas_available(book: Book, request: Request) -> JSONResponse | None:
     """Check if a NAS-sourced book is accessible.
 
     Returns a JSONResponse error if NAS is offline, or None if OK.
@@ -65,6 +101,7 @@ async def _check_nas_available(book, request: Request) -> JSONResponse | None:
 
     # NAS is offline — check offline cache
     from app.nas_cache import get_nas_cache
+
     cache = get_nas_cache()
     if cache and await cache.get(book.path):
         return None  # Available from cache
@@ -74,7 +111,7 @@ async def _check_nas_available(book, request: Request) -> JSONResponse | None:
         content={
             "error": "NAS Offline",
             "message": "The NAS is currently unreachable and this book is not cached locally. "
-                       "Connect to your network or make the book available offline first.",
+            "Connect to your network or make the book available offline first.",
             "storage_type": "nas",
         },
     )
@@ -86,7 +123,7 @@ async def get_chapter(
     chapter_index: int,
     request: Request,
     response: Response,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Get chapter content.
 
@@ -104,15 +141,14 @@ async def get_chapter(
 
     # NAS availability check
     from app.repositories import BookRepository
+
     book = await BookRepository(db).get_by_id(book_id)
     if book:
         nas_error = await _check_nas_available(book, request)
         if nas_error:
             return nas_error
 
-    content, title, total = await service.get_chapter_content(
-        book_id, chapter_index
-    )
+    content, title, total = await service.get_chapter_content(book_id, chapter_index)
 
     # Sanitize chapter HTML to prevent XSS from malicious ebook content
     content = _sanitize_html(content)
@@ -120,12 +156,14 @@ async def get_chapter(
     # Auto-cache NAS books for offline access
     if book and getattr(book, "storage_type", "local") == "nas":
         from app.nas_cache import get_nas_cache
+
         cache = get_nas_cache()
         if cache:
             await cache.ensure_cached(book.path)
 
     # Estimate page count from content length
     from app.reader_engine import ReaderEngine
+
     estimated_pages = ReaderEngine.estimate_chapter_pages(content)
 
     # Aggressive caching for chapter content (1 hour)
@@ -137,16 +175,13 @@ async def get_chapter(
         "title": title,
         "total_chapters": total,
         "current_chapter": chapter_index,
-        "estimated_pages": estimated_pages
+        "estimated_pages": estimated_pages,
     }
 
 
 @router.get("/books/{book_id}/page-image/{page_index}")
 async def get_page_image(
-    book_id: int,
-    page_index: int,
-    request: Request,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, page_index: int, request: Request, db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Render a PDF page as an image for faithful layout reproduction.
 
@@ -172,6 +207,7 @@ async def get_page_image(
 
     from app.config import get_config
     from app.parsers import PDFParser
+
     config = get_config()
     parser = PDFParser(
         covers_path=config.covers_path,
@@ -180,8 +216,7 @@ async def get_page_image(
     image_url = await parser.render_page_as_image(book.path, page_index)
     if not image_url:
         raise ResourceNotFoundError(
-            f"Page {page_index} not found",
-            {"book_id": book_id, "page_index": page_index}
+            f"Page {page_index} not found", {"book_id": book_id, "page_index": page_index}
         )
 
     return {"image_url": image_url}
@@ -189,10 +224,7 @@ async def get_page_image(
 
 @router.get("/books/{book_id}/chapters")
 async def get_batch_chapters(
-    book_id: int,
-    start: int = 0,
-    end: int = 5,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, start: int = 0, end: int = 5, db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Get multiple chapters in a single request for continuous scroll.
 
@@ -209,6 +241,7 @@ async def get_batch_chapters(
 
     # Get book path
     from app.repositories import BookRepository
+
     repo = BookRepository(db)
     book = await repo.get_by_id(book_id)
     if not book:
@@ -218,30 +251,24 @@ async def get_batch_chapters(
     chapters_data = []
     for idx in range(start, min(end, 100)):  # Cap at 100 chapters per request
         try:
-            content, title, total = await engine.get_chapter_content(
-                book.path, idx
+            content, title, total = await engine.get_chapter_content(book.path, idx)
+            chapters_data.append(
+                {
+                    "index": idx,
+                    "title": title,
+                    "content": _sanitize_html(content),
+                    "estimated_pages": ReaderEngine.estimate_chapter_pages(content),
+                }
             )
-            chapters_data.append({
-                "index": idx,
-                "title": title,
-                "content": _sanitize_html(content),
-                "estimated_pages": ReaderEngine.estimate_chapter_pages(content)
-            })
         except Exception:
             break
 
-    return {
-        "chapters": chapters_data,
-        "total_chapters": total if chapters_data else 0
-    }
+    return {"chapters": chapters_data, "total_chapters": total if chapters_data else 0}
 
 
 @router.get("/books/{book_id}/summary/{chapter_index}")
 async def get_summary(
-    book_id: int,
-    chapter_index: int,
-    refresh: bool = False,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, chapter_index: int, refresh: bool = False, db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Get chapter summary.
 
@@ -258,25 +285,22 @@ async def get_summary(
 
     service = ReaderService(db)
     try:
-        summary = await service.get_chapter_summary(
-            book_id, chapter_index, force_refresh=refresh
-        )
+        summary = await service.get_chapter_summary(book_id, chapter_index, force_refresh=refresh)
     except AIServiceError as e:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=503, detail=str(e)) from None
 
     return {
         "summary": summary.summary_text,
         "provider": summary.provider,
-        "created_at": summary.created_at.isoformat()
+        "created_at": summary.created_at.isoformat(),
     }
 
 
 @router.get("/books/{book_id}/summary")
 async def get_book_summary(
-    book_id: int,
-    refresh: bool = False,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, refresh: bool = False, db: AsyncSession = Depends(get_db)
 ) -> dict:
     """Get entire book summary.
 
@@ -292,25 +316,21 @@ async def get_book_summary(
 
     service = ReaderService(db)
     try:
-        summary = await service.get_book_summary(
-            book_id, force_refresh=refresh
-        )
+        summary = await service.get_book_summary(book_id, force_refresh=refresh)
     except AIServiceError as e:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=503, detail=str(e)) from None
 
     return {
         "summary": summary.summary_text,
         "provider": summary.provider,
-        "created_at": summary.created_at.isoformat()
+        "created_at": summary.created_at.isoformat(),
     }
 
 
 @router.get("/books/{book_id}/toc", response_model=TOCResponse)
-async def get_table_of_contents(
-    book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> TOCResponse:
+async def get_table_of_contents(book_id: int, db: AsyncSession = Depends(get_db)) -> TOCResponse:
     """Get table of contents for a book.
 
     Args:
@@ -338,11 +358,9 @@ async def get_table_of_contents(
 # BOOKMARK ENDPOINTS
 # ============================================
 
+
 @router.get("/books/{book_id}/bookmarks", response_model=BookmarksResponse)
-async def list_bookmarks(
-    book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> BookmarksResponse:
+async def list_bookmarks(book_id: int, db: AsyncSession = Depends(get_db)) -> BookmarksResponse:
     """List all bookmarks for a book.
 
     Args:
@@ -354,16 +372,12 @@ async def list_bookmarks(
     """
     service = ReaderService(db)
     bookmarks = await service.list_bookmarks(book_id)
-    return BookmarksResponse(
-        bookmarks=[BookmarkResponse.model_validate(b) for b in bookmarks]
-    )
+    return BookmarksResponse(bookmarks=[BookmarkResponse.model_validate(b) for b in bookmarks])
 
 
 @router.post("/books/{book_id}/bookmarks", response_model=BookmarkResponse)
 async def create_bookmark(
-    book_id: int,
-    bookmark_data: BookmarkCreate,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, bookmark_data: BookmarkCreate, db: AsyncSession = Depends(get_db)
 ) -> BookmarkResponse:
     """Create a new bookmark.
 
@@ -381,16 +395,13 @@ async def create_bookmark(
         chapter_index=bookmark_data.chapter_index,
         position_in_chapter=bookmark_data.position_in_chapter,
         title=bookmark_data.title,
-        notes=bookmark_data.notes
+        notes=bookmark_data.notes,
     )
     return BookmarkResponse.model_validate(bookmark)
 
 
 @router.delete("/bookmarks/{bookmark_id}")
-async def delete_bookmark(
-    bookmark_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def delete_bookmark(bookmark_id: int, db: AsyncSession = Depends(get_db)) -> dict:
     """Delete a bookmark.
 
     Args:
@@ -406,10 +417,7 @@ async def delete_bookmark(
 
 
 @router.get("/bookmarks/{bookmark_id}/jump")
-async def jump_to_bookmark(
-    bookmark_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def jump_to_bookmark(bookmark_id: int, db: AsyncSession = Depends(get_db)) -> dict:
     """Get bookmark data for navigation.
 
     Args:
@@ -423,7 +431,7 @@ async def jump_to_bookmark(
     bookmark = await service.get_bookmark(bookmark_id)
     return {
         "chapter_index": bookmark.chapter_index,
-        "position_in_chapter": bookmark.position_in_chapter
+        "position_in_chapter": bookmark.position_in_chapter,
     }
 
 
@@ -431,11 +439,9 @@ async def jump_to_bookmark(
 # NOTE ENDPOINTS
 # ============================================
 
+
 @router.get("/books/{book_id}/notes", response_model=NotesResponse)
-async def list_notes(
-    book_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> NotesResponse:
+async def list_notes(book_id: int, db: AsyncSession = Depends(get_db)) -> NotesResponse:
     """List all notes for a book.
 
     Args:
@@ -447,16 +453,12 @@ async def list_notes(
     """
     service = ReaderService(db)
     notes = await service.list_notes(book_id)
-    return NotesResponse(
-        notes=[NoteResponse.model_validate(n) for n in notes]
-    )
+    return NotesResponse(notes=[NoteResponse.model_validate(n) for n in notes])
 
 
 @router.post("/books/{book_id}/notes", response_model=NoteResponse)
 async def create_note(
-    book_id: int,
-    note_data: NoteCreate,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, note_data: NoteCreate, db: AsyncSession = Depends(get_db)
 ) -> NoteResponse:
     """Create a new note.
 
@@ -475,16 +477,13 @@ async def create_note(
         position_in_chapter=note_data.position_in_chapter,
         content=note_data.content,
         color=note_data.color,
-        quoted_text=note_data.quoted_text
+        quoted_text=note_data.quoted_text,
     )
     return NoteResponse.model_validate(note)
 
 
 @router.delete("/notes/{note_id}")
-async def delete_note(
-    note_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def delete_note(note_id: int, db: AsyncSession = Depends(get_db)) -> dict:
     """Delete a note.
 
     Args:
@@ -503,11 +502,10 @@ async def delete_note(
 # ANNOTATION ENDPOINTS
 # ============================================
 
+
 @router.get("/books/{book_id}/annotations", response_model=AnnotationsResponse)
 async def list_annotations(
-    book_id: int,
-    chapter_index: int | None = None,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, chapter_index: int | None = None, db: AsyncSession = Depends(get_db)
 ) -> AnnotationsResponse:
     """List annotations for a book.
 
@@ -528,9 +526,7 @@ async def list_annotations(
 
 @router.post("/books/{book_id}/annotations", response_model=AnnotationResponse)
 async def create_annotation(
-    book_id: int,
-    annotation_data: AnnotationCreate,
-    db: AsyncSession = Depends(get_db)
+    book_id: int, annotation_data: AnnotationCreate, db: AsyncSession = Depends(get_db)
 ) -> AnnotationResponse:
     """Create a new annotation.
 
@@ -550,16 +546,13 @@ async def create_annotation(
         end_position=annotation_data.end_position,
         text=annotation_data.text,
         color=annotation_data.color,
-        note=annotation_data.note
+        note=annotation_data.note,
     )
     return AnnotationResponse.model_validate(annotation)
 
 
 @router.delete("/annotations/{annotation_id}")
-async def delete_annotation(
-    annotation_id: int,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def delete_annotation(annotation_id: int, db: AsyncSession = Depends(get_db)) -> dict:
     """Delete an annotation.
 
     Args:
@@ -577,6 +570,7 @@ async def delete_annotation(
 # ============================================
 # EXPORT ENDPOINT
 # ============================================
+
 
 @router.get("/books/{book_id}/export")
 async def export_book_data(
@@ -649,7 +643,9 @@ async def export_book_data(
                 for a in annotations
             ],
         }
-        safe_title = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in book.title)[:80] or str(book.id)
+        safe_title = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in book.title)[
+            :80
+        ] or str(book.id)
         body = json.dumps(payload, indent=2, ensure_ascii=False)
         return Response(
             content=body,
@@ -689,7 +685,7 @@ async def export_book_data(
         for a in annotations:
             lines.append(
                 f"- **Chapter {a.chapter_index + 1}** [{a.color}] "
-                f"\"{a.text[:100]}{'...' if len(a.text) > 100 else ''}\""
+                f'"{a.text[:100]}{"..." if len(a.text) > 100 else ""}"'
             )
             if a.note:
                 lines.append(f"  Note: {a.note}")

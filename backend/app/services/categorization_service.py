@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.logging_config import get_logger
+from app.models import Book
 
 logger = get_logger(__name__)
 
@@ -72,8 +73,16 @@ _SUBJECT_CATEGORY_MAP: dict[str, list[str]] = {
 }
 
 _DEFAULT_COLORS = [
-    "#8b5cf6", "#ef4444", "#f59e0b", "#10b981", "#3b82f6",
-    "#ec4899", "#06b6d4", "#f97316", "#84cc16", "#6366f1",
+    "#8b5cf6",
+    "#ef4444",
+    "#f59e0b",
+    "#10b981",
+    "#3b82f6",
+    "#ec4899",
+    "#06b6d4",
+    "#f97316",
+    "#84cc16",
+    "#6366f1",
 ]
 
 
@@ -94,9 +103,7 @@ class CategorizationService:
         """Get existing category ID or create a new one."""
         from app.models import Category
 
-        result = await self.session.execute(
-            select(Category).where(Category.name == name)
-        )
+        result = await self.session.execute(select(Category).where(Category.name == name))
         cat = result.scalar_one_or_none()
         if cat:
             return cat.id
@@ -152,9 +159,7 @@ class CategorizationService:
 
         return best_matches
 
-    async def rule_based_categorize(
-        self, book, subjects: list[str]
-    ) -> dict:
+    async def rule_based_categorize(self, book: Book, subjects: list[str]) -> dict:
         """Categorize a book based on extracted metadata subjects.
 
         Args:
@@ -192,7 +197,7 @@ class CategorizationService:
         logger.info(f"Rule-based categorized '{book.title}': {category_names}")
         return {"categories_added": added, "categories": category_names}
 
-    async def ai_categorize(self, book) -> dict:
+    async def ai_categorize(self, book: Book) -> dict:
         """Use AI to suggest categories for a book."""
         try:
             from app.ai_engine import get_ai_orchestrator
@@ -204,11 +209,12 @@ class CategorizationService:
                 f"Author: {book.author or 'Unknown'}\n"
                 f"Description: {book.description or 'N/A'}\n\n"
                 f"Return ONLY a JSON array of category names, nothing else.\n"
-                f"Example: [\"Fiction\", \"Science Fiction\"]"
+                f'Example: ["Fiction", "Science Fiction"]'
             )
 
             response = await orchestrator.summarize(prompt)
             import json
+
             # Try to extract JSON array from response
             text = response.strip()
             if text.startswith("["):
@@ -216,7 +222,8 @@ class CategorizationService:
             else:
                 # Try to find array in response
                 import re
-                match = re.search(r'\[.*?\]', text, re.DOTALL)
+
+                match = re.search(r"\[.*?\]", text, re.DOTALL)
                 if match:
                     categories = json.loads(match.group())
                 else:
@@ -228,7 +235,7 @@ class CategorizationService:
             logger.warning(f"AI categorization failed for '{book.title}': {e}")
             return {"categories_added": 0, "categories": []}
 
-    async def auto_categorize(self, book) -> dict:
+    async def auto_categorize(self, book: Book) -> dict:
         """Auto-categorize a book using AI."""
         return await self.ai_categorize(book)
 

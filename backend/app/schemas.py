@@ -1,8 +1,12 @@
 """Pydantic schemas for API request/response validation."""
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from app.models import Book
 
 
 class BookBase(BaseModel):
@@ -26,7 +30,9 @@ class BookCreate(BookBase):
     isbn: str | None = Field(None, max_length=30)
     total_pages: int = Field(default=0, ge=0)
     storage_type: str = Field(default="local", pattern="^(local|nas)$")
-    subjects: list[str] = Field(default_factory=list, max_length=20, description="Subjects/tags from metadata")
+    subjects: list[str] = Field(
+        default_factory=list, max_length=20, description="Subjects/tags from metadata"
+    )
 
 
 class BookUpdate(BaseModel):
@@ -69,7 +75,7 @@ class BookResponse(BookBase):
     model_config = {"from_attributes": True}
 
     @staticmethod
-    def from_book(book, categories: list[str] | None = None) -> "BookResponse":
+    def from_book(book: "Book", categories: list[str] | None = None) -> "BookResponse":
         """Convert a Book ORM object to BookResponse, including categories.
 
         Args:
@@ -85,8 +91,7 @@ class BookResponse(BookBase):
         elif isinstance(book, BookModel) and hasattr(book, "category_links"):
             try:
                 resp.categories = [
-                    link.category.name for link in book.category_links
-                    if link.category is not None
+                    link.category.name for link in book.category_links if link.category is not None
                 ]
             except Exception:
                 resp.categories = []
@@ -94,7 +99,7 @@ class BookResponse(BookBase):
 
 
 # Backward-compatible alias
-def book_to_response(book, categories: list[str] | None = None):
+def book_to_response(book: "Book", categories: list[str] | None = None) -> BookResponse:
     """Convert a Book ORM object to BookResponse, including categories.
 
     Args:
@@ -121,7 +126,6 @@ class ProgressUpdate(BaseModel):
     progress: float = Field(..., ge=0, le=100)
 
 
-
 class DirectoryImportRequest(BaseModel):
     """Schema for directory import request."""
 
@@ -131,6 +135,7 @@ class DirectoryImportRequest(BaseModel):
 # ============================================
 # BOOKMARK SCHEMAS
 # ============================================
+
 
 class BookmarkBase(BaseModel):
     """Base schema for Bookmark data."""
@@ -167,6 +172,7 @@ class BookmarksResponse(BaseModel):
 # ============================================
 # NOTE SCHEMAS
 # ============================================
+
 
 class NoteBase(BaseModel):
     """Base schema for Note data."""
@@ -205,6 +211,7 @@ class NotesResponse(BaseModel):
 # ============================================
 # ANNOTATION SCHEMAS
 # ============================================
+
 
 class AnnotationBase(BaseModel):
     """Base schema for Annotation data."""
@@ -245,6 +252,7 @@ class AnnotationsResponse(BaseModel):
 # TABLE OF CONTENTS SCHEMAS
 # ============================================
 
+
 class TOCItem(BaseModel):
     """Schema for a table of contents item."""
 
@@ -270,6 +278,7 @@ TOCItem.model_rebuild()
 # ============================================
 # SETTINGS SCHEMAS
 # ============================================
+
 
 class SettingsCreate(BaseModel):
     """Schema for creating/updating settings."""
@@ -346,6 +355,7 @@ class AIConnectionTest(BaseModel):
 # NAS SCHEMAS
 # ============================================
 
+
 class NASHealthResponse(BaseModel):
     """Schema for NAS health check response."""
 
@@ -358,6 +368,7 @@ class NASHealthResponse(BaseModel):
 # ============================================
 # CATEGORY SCHEMAS
 # ============================================
+
 
 class CategoryCreate(BaseModel):
     """Schema for creating a category."""
@@ -386,6 +397,7 @@ class CategoryAssignRequest(BaseModel):
 # ============================================
 # MAINTENANCE SCHEMAS
 # ============================================
+
 
 class StaleBookItem(BaseModel):
     """A single stale book whose file is missing from disk."""

@@ -1,6 +1,5 @@
 """Factory for creating storage backend instances."""
 
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_config
@@ -33,7 +32,9 @@ async def get_nas_config_from_db(session: AsyncSession) -> dict[str, str | None]
     config = get_config()
 
     return {
-        "nas_enabled": _bool("nas_enabled") if _str("nas_enabled") is not None else config.nas_enabled,
+        "nas_enabled": _bool("nas_enabled")
+        if _str("nas_enabled") is not None
+        else config.nas_enabled,
         "nas_mount_path": _str("nas_mount_path") or config.nas_mount_path,
         "nas_host": _str("nas_host") or config.nas_host,
     }

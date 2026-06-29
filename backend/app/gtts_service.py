@@ -5,18 +5,10 @@ Uses gTTS library to generate speech from text.
 
 import asyncio
 
+from app.exceptions import TTSError
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
-
-
-class GTTSError(Exception):
-    """gTTS service error."""
-
-    def __init__(self, message: str, details: str | None = None):
-        self.message = message
-        self.details = details
-        super().__init__(message)
 
 
 class GTTSService:
@@ -24,51 +16,48 @@ class GTTSService:
 
     # Available language codes for gTTS
     LANGUAGES = {
-        'en': 'English',
-        'en-US': 'English (US)',
-        'en-GB': 'English (UK)',
-        'en-AU': 'English (Australia)',
-        'en-CA': 'English (Canada)',
-        'en-IN': 'English (India)',
-        'es': 'Spanish',
-        'fr': 'French',
-        'de': 'German',
-        'it': 'Italian',
-        'pt': 'Portuguese',
-        'pt-BR': 'Portuguese (Brazil)',
-        'ru': 'Russian',
-        'ja': 'Japanese',
-        'ko': 'Korean',
-        'zh-CN': 'Chinese (Simplified)',
-        'zh-TW': 'Chinese (Traditional)',
-        'ar': 'Arabic',
-        'hi': 'Hindi',
-        'nl': 'Dutch',
-        'pl': 'Polish',
-        'sv': 'Swedish',
-        'da': 'Danish',
-        'no': 'Norwegian',
-        'fi': 'Finnish',
-        'tr': 'Turkish',
-        'cs': 'Czech',
-        'el': 'Greek',
-        'he': 'Hebrew',
-        'th': 'Thai',
-        'vi': 'Vietnamese',
-        'id': 'Indonesian',
-        'ms': 'Malay',
-        'ro': 'Romanian',
-        'uk': 'Ukrainian',
+        "en": "English",
+        "en-US": "English (US)",
+        "en-GB": "English (UK)",
+        "en-AU": "English (Australia)",
+        "en-CA": "English (Canada)",
+        "en-IN": "English (India)",
+        "es": "Spanish",
+        "fr": "French",
+        "de": "German",
+        "it": "Italian",
+        "pt": "Portuguese",
+        "pt-BR": "Portuguese (Brazil)",
+        "ru": "Russian",
+        "ja": "Japanese",
+        "ko": "Korean",
+        "zh-CN": "Chinese (Simplified)",
+        "zh-TW": "Chinese (Traditional)",
+        "ar": "Arabic",
+        "hi": "Hindi",
+        "nl": "Dutch",
+        "pl": "Polish",
+        "sv": "Swedish",
+        "da": "Danish",
+        "no": "Norwegian",
+        "fi": "Finnish",
+        "tr": "Turkish",
+        "cs": "Czech",
+        "el": "Greek",
+        "he": "Hebrew",
+        "th": "Thai",
+        "vi": "Vietnamese",
+        "id": "Indonesian",
+        "ms": "Malay",
+        "ro": "Romanian",
+        "uk": "Ukrainian",
     }
 
-    # Slow speech rate flag
-    SLOW = False
-
     # Default language
-    DEFAULT_LANG = 'en'
+    DEFAULT_LANG = "en"
 
     # Default TLD (top-level domain for Google Translate)
-    DEFAULT_TLD = 'com'
+    DEFAULT_TLD = "com"
 
     @classmethod
     async def get_voices(cls) -> list[dict]:
@@ -80,33 +69,26 @@ class GTTSService:
         voices = []
         for code, name in cls.LANGUAGES.items():
             # Handle dialect codes properly
-            if '-' in code:
-                main_lang, dialect = code.split('-', 1)
+            if "-" in code:
+                main_lang, dialect = code.split("-", 1)
                 friendly_name = f"{name} ({dialect.upper()})"
             else:
                 friendly_name = name
 
-            voices.append({
-                'ShortName': code,
-                'FriendlyName': friendly_name,
-                'Locale': code,
-                'Gender': 'Unknown'  # gTTS doesn't provide gender info
-            })
+            voices.append(
+                {
+                    "ShortName": code,
+                    "FriendlyName": friendly_name,
+                    "Locale": code,
+                    "Gender": "Unknown",  # gTTS doesn't provide gender info
+                }
+            )
 
         return voices
 
     @classmethod
-    def _get_slow_flag(cls) -> str:
-        """Get the slow flag parameter for gTTS."""
-        return 'slow' if cls.SLOW else 'normal'
-
-    @classmethod
     def _generate_audio_sync(
-        cls,
-        text: str,
-        lang: str = 'en',
-        slow: bool = False,
-        tld: str = 'com'
+        cls, text: str, lang: str = "en", slow: bool = False, tld: str = "com"
     ) -> bytes:
         """Generate audio from text using gTTS (synchronous).
 
@@ -120,13 +102,14 @@ class GTTSService:
             MP3 audio data as bytes
 
         Raises:
-            GTTSError: If TTS generation fails
+            TTSError: If TTS generation fails
         """
         import io
         import traceback
 
         try:
             from gtts import gTTS
+
             # Validate input
             if not text or not text.strip():
                 raise ValueError("Text cannot be empty")
@@ -134,15 +117,12 @@ class GTTSService:
             text = text.strip()
 
             # Log parameters for debugging
-            logger.info(f"gTTS request: text_length={len(text)}, lang={lang}, slow={slow}, tld={tld}")
+            logger.info(
+                f"gTTS request: text_length={len(text)}, lang={lang}, slow={slow}, tld={tld}"
+            )
 
             # Create gTTS object
-            tts = gTTS(
-                text=text,
-                lang=lang,
-                slow=slow,
-                tld=tld
-            )
+            tts = gTTS(text=text, lang=lang, slow=slow, tld=tld)
 
             # Generate audio to bytes
             audio_fp = io.BytesIO()
@@ -154,30 +134,19 @@ class GTTSService:
 
         except ImportError as e:
             logger.error(f"gTTS library not installed: {e}")
-            raise GTTSError(
-                "gTTS library not installed",
-                "Install it with: uv add gtts"
-            ) from e
+            raise TTSError("gTTS library not installed", "Install it with: uv add gtts") from e
         except ValueError as e:
             logger.error(f"Invalid input for gTTS: {e}")
-            raise GTTSError(
-                "Invalid input",
-                str(e)
-            ) from e
+            raise TTSError("Invalid input", str(e)) from e
         except Exception as e:
-            logger.error(f"gTTS generation failed: {type(e).__name__}: {e}\n{traceback.format_exc()}")
-            raise GTTSError(
-                "Failed to generate speech",
-                f"{type(e).__name__}: {str(e)}"
-            ) from e
+            logger.error(
+                f"gTTS generation failed: {type(e).__name__}: {e}\n{traceback.format_exc()}"
+            )
+            raise TTSError("Failed to generate speech", f"{type(e).__name__}: {str(e)}") from e
 
     @classmethod
     async def generate_audio(
-        cls,
-        text: str,
-        lang: str = 'en',
-        slow: bool = False,
-        tld: str = 'com'
+        cls, text: str, lang: str = "en", slow: bool = False, tld: str = "com"
     ) -> bytes:
         """Generate audio from text using gTTS (async wrapper).
 
@@ -191,13 +160,10 @@ class GTTSService:
             MP3 audio data as bytes
 
         Raises:
-            GTTSError: If TTS generation fails
+            TTSError: If TTS generation fails
         """
         # Run the synchronous gTTS generation in a thread pool
-        return await asyncio.to_thread(
-            cls._generate_audio_sync,
-            text, lang, slow, tld
-        )
+        return await asyncio.to_thread(cls._generate_audio_sync, text, lang, slow, tld)
 
     @classmethod
     def get_default_voice(cls) -> str:
@@ -206,11 +172,7 @@ class GTTSService:
 
     @classmethod
     async def text_to_speech(
-        cls,
-        text: str,
-        voice: str | None = None,
-        rate: str | None = None,
-        pitch: str | None = None
+        cls, text: str, voice: str | None = None, rate: str | None = None, pitch: str | None = None
     ) -> bytes:
         """Convert text to speech with gTTS.
 
@@ -240,7 +202,7 @@ class GTTSService:
         try:
             return await cls.generate_audio(text, lang=lang, slow=slow, tld=tld)
         except Exception as e:
-            raise GTTSError(f"Text-to-speech failed: {str(e)}") from e
+            raise TTSError(f"Text-to-speech failed: {str(e)}") from e
 
 
 # Global instance

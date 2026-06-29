@@ -1,7 +1,6 @@
 """PDF format parser using PyMuPDF (fitz) for text and image extraction."""
 
 import asyncio
-import hashlib
 import html
 import os
 from pathlib import Path
@@ -11,6 +10,7 @@ from PIL import Image
 
 from app.exceptions import EbookParsingError
 from app.logging_config import get_logger
+from app.utils import hash_path
 
 # Suppress MuPDF C-library warnings (corrupt profiles, broken xrefs, etc.)
 # These are non-fatal and printed directly to stderr by the native library.
@@ -115,13 +115,12 @@ class PDFParser:
                 publish_date=publish_date,
                 description=description,
                 total_pages=total_pages,
-                subjects=subjects
+                subjects=subjects,
             )
 
         except Exception as e:
             raise EbookParsingError(
-                f"Failed to parse PDF: {str(e)}",
-                {"path": pdf_path, "error": str(e)}
+                f"Failed to parse PDF: {str(e)}", {"path": pdf_path, "error": str(e)}
             ) from e
 
     async def extract_cover(self, pdf_path: str) -> str | None:
@@ -152,7 +151,7 @@ class PDFParser:
             pix = page.get_pixmap(matrix=mat)
 
             # Generate unique filename using path hash (SHA256 for security)
-            path_hash = hashlib.sha256(pdf_path.encode()).hexdigest()[:32]
+            path_hash = hash_path(pdf_path)
             cover_filename = f"{path_hash}.jpg"
             cover_path = self.covers_path / cover_filename
 
@@ -165,6 +164,7 @@ class PDFParser:
             buf = BytesIO()
             img.save(buf, "PNG")
             from app.parsers.image_service import optimize_cover_bytes
+
             optimize_cover_bytes(buf.getvalue(), cover_path)
 
             logger.info(f"Extracted PDF cover from first page: {pdf_path}")
@@ -215,23 +215,30 @@ class PDFParser:
                             html_content = f'<div class="pdf-page-text"><p class="pdf-text">{self._escape_html(plain_text)}</p></div>'
                             pages.append((page_num, f"Page {page_num + 1}", html_content))
                         else:
-                            pages.append((page_num, f"Page {page_num + 1}", '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>'))
+                            pages.append(
+                                (
+                                    page_num,
+                                    f"Page {page_num + 1}",
+                                    '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>',
+                                )
+                            )
                     except Exception:
-                        pages.append((page_num, f"Page {page_num + 1}", '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>'))
+                        pages.append(
+                            (
+                                page_num,
+                                f"Page {page_num + 1}",
+                                '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>',
+                            )
+                        )
 
             doc.close()
             logger.info(f"Parsed {len(pages)} pages from PDF with formatting")
             return pages
 
         except Exception as e:
-            raise EbookParsingError(
-                f"Failed to parse PDF: {str(e)}",
-                {"path": pdf_path}
-            ) from e
+            raise EbookParsingError(f"Failed to parse PDF: {str(e)}", {"path": pdf_path}) from e
 
-    async def get_single_chapter(
-        self, pdf_path: str, chapter_index: int
-    ) -> tuple[str, str, int]:
+    async def get_single_chapter(self, pdf_path: str, chapter_index: int) -> tuple[str, str, int]:
         """Extract a single chapter (page) without parsing the entire PDF.
 
         Args:
@@ -247,9 +254,7 @@ class PDFParser:
         """
         return await asyncio.to_thread(self._get_single_chapter_sync, pdf_path, chapter_index)
 
-    def _get_single_chapter_sync(
-        self, pdf_path: str, chapter_index: int
-    ) -> tuple[str, str, int]:
+    def _get_single_chapter_sync(self, pdf_path: str, chapter_index: int) -> tuple[str, str, int]:
         """Synchronous single chapter extraction (runs in thread)."""
         try:
             doc = fitz.open(pdf_path)
@@ -258,9 +263,10 @@ class PDFParser:
             if chapter_index < 0 or chapter_index >= total:
                 doc.close()
                 from app.exceptions import ResourceNotFoundError
+
                 raise ResourceNotFoundError(
                     f"Page {chapter_index} not found (total: {total})",
-                    {"path": pdf_path, "index": chapter_index}
+                    {"path": pdf_path, "index": chapter_index},
                 )
 
             page = doc[chapter_index]
@@ -284,8 +290,7 @@ class PDFParser:
             raise
         except Exception as e:
             raise EbookParsingError(
-                f"Failed to parse PDF page: {str(e)}",
-                {"path": pdf_path, "index": chapter_index}
+                f"Failed to parse PDF page: {str(e)}", {"path": pdf_path, "index": chapter_index}
             ) from e
 
     def _render_page_to_html(
@@ -384,8 +389,8 @@ class PDFParser:
                         css_classes.append("pdf-bold")
                     if is_italic:
                         css_classes.append("pdf-italic")
-                    class_attr = f' class="{" ".join(css_classes)}"' if css_classes else ''
-                    span_parts.append(f'<span{class_attr}>{self._escape_html(stripped)}</span>')
+                    class_attr = f' class="{" ".join(css_classes)}"' if css_classes else ""
+                    span_parts.append(f"<span{class_attr}>{self._escape_html(stripped)}</span>")
                     total_size += size
                     size_count += 1
 
@@ -394,22 +399,22 @@ class PDFParser:
 
                 avg_size = total_size / size_count if size_count > 0 else 12
                 plain_text = " ".join(
-                    s.get("text", "").strip()
-                    for s in spans
-                    if s.get("text", "").strip()
+                    s.get("text", "").strip() for s in spans if s.get("text", "").strip()
                 )
 
-                lines.append({
-                    "y": line_bbox[1],
-                    "x": line_bbox[0],
-                    "x1": line_bbox[2],
-                    "y1": line_bbox[3],
-                    "html": " ".join(span_parts),
-                    "size": avg_size,
-                    "bold": all_bold,
-                    "italic": all_italic,
-                    "text": plain_text,
-                })
+                lines.append(
+                    {
+                        "y": line_bbox[1],
+                        "x": line_bbox[0],
+                        "x1": line_bbox[2],
+                        "y1": line_bbox[3],
+                        "html": " ".join(span_parts),
+                        "size": avg_size,
+                        "bold": all_bold,
+                        "italic": all_italic,
+                        "text": plain_text,
+                    }
+                )
 
         # --- Phase 2: determine dominant font size -----------------------
         size_counts: dict[float, int] = {}
@@ -472,8 +477,12 @@ class PDFParser:
                 indent_level = 0
                 if left_x > 72:
                     indent_level = min(4, int((left_x - 36) / 72))
-                indent_style = f' style="margin-left: {indent_level * 1.5}em;"' if indent_level > 0 else ''
-                block_positions.append((top_y, f'<p class="pdf-line"{indent_style}>{group_html}</p>'))
+                indent_style = (
+                    f' style="margin-left: {indent_level * 1.5}em;"' if indent_level > 0 else ""
+                )
+                block_positions.append(
+                    (top_y, f'<p class="pdf-line"{indent_style}>{group_html}</p>')
+                )
 
         # --- Phase 5: interleave with images and tables ------------------
         all_elements = block_positions + image_insertions + table_insertions
@@ -482,11 +491,13 @@ class PDFParser:
         html_parts = ['<div class="pdf-page-text">']
         for _pos, element_html in all_elements:
             html_parts.append(element_html)
-        html_parts.append('</div>')
+        html_parts.append("</div>")
 
         html_content = "\n".join(html_parts)
 
-        text_only = html_content.replace('<div class="pdf-page-text">', '').replace('</div>', '').strip()
+        text_only = (
+            html_content.replace('<div class="pdf-page-text">', "").replace("</div>", "").strip()
+        )
         if not text_only:
             return '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>'
 
@@ -535,10 +546,12 @@ class PDFParser:
                 except Exception:
                     pass
 
-                insertions.append((
-                    y_pos,
-                    f'<figure class="pdf-image"><img src="{url}" alt="Page image" loading="lazy" /></figure>'
-                ))
+                insertions.append(
+                    (
+                        y_pos,
+                        f'<figure class="pdf-image"><img src="{url}" alt="Page image" loading="lazy" /></figure>',
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"Failed to extract images from page: {e}")
@@ -599,10 +612,7 @@ class PDFParser:
             doc.close()
             return count
         except Exception as e:
-            raise EbookParsingError(
-                f"Failed to count pages: {str(e)}",
-                {"path": pdf_path}
-            ) from e
+            raise EbookParsingError(f"Failed to count pages: {str(e)}", {"path": pdf_path}) from e
 
     async def get_smart_chapters(self, pdf_path: str) -> list[tuple[int, str, str]]:
         """Group PDF pages into logical chapters using outlines or font heuristics.
@@ -632,15 +642,13 @@ class PDFParser:
 
             doc.close()
             logger.info(
-                f"Smart-grouped PDF into {len(chapters)} chapters "
-                f"(from {total_pages} pages)"
+                f"Smart-grouped PDF into {len(chapters)} chapters (from {total_pages} pages)"
             )
             return chapters
 
         except Exception as e:
             raise EbookParsingError(
-                f"Failed to smart-group PDF: {str(e)}",
-                {"path": pdf_path}
+                f"Failed to smart-group PDF: {str(e)}", {"path": pdf_path}
             ) from e
 
     def _group_by_outline(
@@ -683,9 +691,7 @@ class PDFParser:
             page_htmls: list[str] = []
             for pg in range(start, end):
                 try:
-                    html = self._render_page_to_html(
-                        doc[pg], pg, doc=doc, pdf_path=pdf_path
-                    )
+                    html = self._render_page_to_html(doc[pg], pg, doc=doc, pdf_path=pdf_path)
                     page_htmls.append(html)
                 except Exception as e:
                     logger.warning(f"Failed to render page {pg}: {e}")
@@ -755,9 +761,7 @@ class PDFParser:
             page_htmls: list[str] = []
             for pg in range(start_pg, end_pg):
                 try:
-                    html = self._render_page_to_html(
-                        doc[pg], pg, doc=doc, pdf_path=pdf_path
-                    )
+                    html = self._render_page_to_html(doc[pg], pg, doc=doc, pdf_path=pdf_path)
                     page_htmls.append(html)
                 except Exception as e:
                     logger.warning(f"Failed to render page {pg}: {e}")
@@ -847,9 +851,13 @@ class PDFParser:
 
             # Fall back to page list
             chapters = await self.get_chapters(pdf_path)
-            return [{"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)]
+            return [
+                {"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)
+            ]
 
         except Exception:
             # Fall back to basic chapter list on error
             chapters = await self.get_chapters(pdf_path)
-            return [{"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)]
+            return [
+                {"index": i, "title": title, "level": 1} for i, (_, title, _) in enumerate(chapters)
+            ]

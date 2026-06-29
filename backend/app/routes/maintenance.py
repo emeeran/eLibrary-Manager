@@ -3,6 +3,7 @@
 import asyncio
 import json
 import uuid
+from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -170,9 +171,7 @@ async def dedup_books(
                         message=f"Deduplicating: {processed}/{total}",
                     )
 
-                result = await service.dedup_books(
-                    dry_run=False, progress_callback=progress_cb
-                )
+                result = await service.dedup_books(dry_run=False, progress_callback=progress_cb)
                 scan_store.update(
                     task_id,
                     status="completed",
@@ -241,7 +240,9 @@ async def vacuum_database() -> VacuumResult:
 
 @router.post("/reoptimize-covers")
 async def reoptimize_covers(
-    threshold_kb: int = Query(100, ge=10, le=2000, description="Re-encode covers larger than this many KB"),
+    threshold_kb: int = Query(
+        100, ge=10, le=2000, description="Re-encode covers larger than this many KB"
+    ),
 ) -> dict:
     """Re-encode oversized cover images to the standard 600x900 / q85.
 
@@ -299,7 +300,7 @@ async def reoptimize_covers(
 async def maintenance_progress(task_id: str) -> StreamingResponse:
     """Stream background task progress via Server-Sent Events."""
 
-    async def event_generator():
+    async def event_generator() -> AsyncGenerator[str, None]:
         while True:
             progress = scan_store.get(task_id)
             if not progress:

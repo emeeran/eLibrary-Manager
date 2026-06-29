@@ -361,15 +361,6 @@ function uploadCover(bookId) {
                 const err = await res.json();
                 throw new Error(err.detail || 'Upload failed');
             }
-            const data = await res.json();
-            // Update the card image immediately
-            const card = document.querySelector(`.book-card[onclick*="${bookId}"]`);
-            if (card) {
-                const img = card.querySelector('.book-card-cover img');
-                if (img) {
-                    img.src = `/covers/${data.cover_path}?t=${Date.now()}`;
-                }
-            }
             showNotification('Cover updated!', 'success');
         } catch (e) {
             showNotification('Failed to upload cover: ' + e.message, 'error');
@@ -810,32 +801,6 @@ function setButtonLoading(button, isLoading) {
 }
 
 /**
- * Initialize form validation
- */
-function initializeFormValidation(form) {
-    const inputs = form.querySelectorAll('input[required], textarea[required], select[required]');
-
-    inputs.forEach(input => {
-        // Add blur event for validation
-        input.addEventListener('blur', () => {
-            if (input.hasAttribute('required')) {
-                validateRequired(input, 'This field is required');
-            }
-        });
-
-        // Clear error on input
-        input.addEventListener('input', () => {
-            input.classList.remove('error');
-            const formGroup = input.closest('.form-group');
-            const errorElement = formGroup?.querySelector('.form-error');
-            if (errorElement) {
-                errorElement.classList.remove('show');
-            }
-        });
-    });
-}
-
-/**
  * Delete book with confirmation
  */
 async function deleteBook(bookId, event) {
@@ -1134,7 +1099,7 @@ function switchAddMethod(method) {
     const fileInput = document.getElementById('file-input');
     const pathInput = document.getElementById('file-path-input');
     const tabs = document.querySelectorAll('.add-method-tab');
-    
+
     // Update tabs
     tabs.forEach(tab => {
         if (tab.dataset.method === method) {
@@ -1143,7 +1108,7 @@ function switchAddMethod(method) {
             tab.classList.remove('active');
         }
     });
-    
+
     if (method === 'upload') {
         uploadGroup.classList.remove('hidden');
         pathGroup.classList.add('hidden');
@@ -1170,7 +1135,7 @@ async function handleUpload(event) {
 
     try {
         let response;
-        
+
         if (method === 'upload') {
             // Upload file
             const formData = new FormData(form);
@@ -1862,19 +1827,6 @@ function navigateGrid(direction) {
 
     cards[newIndex]?.focus();
 }
-
-/**
- * Handle Enter/Space on book cards with keyboard
- */
-document.addEventListener('keydown', (e) => {
-    // Handle Enter/Space on book cards
-    if ((e.key === 'Enter' || e.key === ' ') &&
-        document.activeElement.classList.contains('book-card')) {
-        // Let the default click handler work
-        // The click will be triggered by the Enter/Space key
-        return;
-    }
-});
 
 // ============================================
 // KEYBOARD SHORTCUTS (Icecream-style)

@@ -30,6 +30,7 @@ def _check_cancel(scan_id: str | None) -> None:
     if ScanProgressStore.is_cancelled(scan_id):
         raise ScanCancelledError()
 
+
 # Module-level TTL cache for library stats (avoids re-querying on every list request)
 _stats_cache: tuple[dict, float] | None = None
 _STATS_TTL = 10.0  # seconds
@@ -103,7 +104,13 @@ class LibraryService:
                 )
             else:
                 logger.warning(f"NAS not available: {health['details']}")
-                nas_stats = {"imported": 0, "skipped": 0, "errors": 0, "total": 0, "unavailable": True}
+                nas_stats = {
+                    "imported": 0,
+                    "skipped": 0,
+                    "errors": 0,
+                    "total": 0,
+                    "unavailable": True,
+                }
 
         result = {"local": local_stats}
         if nas_stats is not None:
@@ -151,6 +158,7 @@ class LibraryService:
 
         if scan_id:
             from app.scan_progress import scan_store
+
             scan_store.update(
                 scan_id,
                 phase="importing",
@@ -162,6 +170,7 @@ class LibraryService:
         from sqlalchemy import select
 
         from app.models import Book as BookModel
+
         result = await self.session.execute(select(BookModel.path))
         existing_paths = {row[0] for row in result.all()}
         logger.info(f"Found {len(existing_paths)} existing books in DB")
@@ -218,8 +227,11 @@ class LibraryService:
         if batch_count > 0:
             if scan_id:
                 from app.scan_progress import scan_store
+
                 scan_store.update(
-                    scan_id, phase="committing", message="Committing imported books...",
+                    scan_id,
+                    phase="committing",
+                    message="Committing imported books...",
                 )
             await self.session.commit()
 
@@ -239,8 +251,10 @@ class LibraryService:
         if nas_cfg["nas_enabled"] and nas_cfg["nas_mount_path"]:
             if scan_id:
                 from app.scan_progress import scan_store
+
                 scan_store.update(
-                    scan_id, phase="checking_nas",
+                    scan_id,
+                    phase="checking_nas",
                     message=f"Checking NAS at {nas_cfg['nas_host']}...",
                 )
             nas_storage = get_storage_backend(
@@ -252,7 +266,9 @@ class LibraryService:
             if health["healthy"]:
                 if scan_id:
                     scan_store.update(
-                        scan_id, phase="scanning_nas", message="Indexing NAS...",
+                        scan_id,
+                        phase="scanning_nas",
+                        message="Indexing NAS...",
                     )
                 nas_scanner = LibraryScanner(
                     storage=nas_storage,
@@ -265,7 +281,13 @@ class LibraryService:
                 )
             else:
                 logger.warning(f"NAS not available for fast index: {health['details']}")
-                nas_stats = {"imported": 0, "skipped": 0, "errors": 0, "total": 0, "unavailable": True}
+                nas_stats = {
+                    "imported": 0,
+                    "skipped": 0,
+                    "errors": 0,
+                    "total": 0,
+                    "unavailable": True,
+                }
 
         result: dict = {"local": local_stats}
         if nas_stats is not None:
@@ -292,8 +314,11 @@ class LibraryService:
 
         if scan_id:
             from app.scan_progress import scan_store
+
             scan_store.update(
-                scan_id, phase="importing", total_found=len(books_data),
+                scan_id,
+                phase="importing",
+                total_found=len(books_data),
                 message=f"Importing {len(books_data)} files...",
             )
 
@@ -332,15 +357,13 @@ class LibraryService:
                     current_file=book_data.path.split("/")[-1] if book_data.path else "",
                 )
 
-        logger.info(
-            f"Import complete: {imported} added, {skipped} skipped, {errors} errors"
-        )
+        logger.info(f"Import complete: {imported} added, {skipped} skipped, {errors} errors")
 
         return {
             "imported": imported,
             "skipped": skipped,
             "errors": errors,
-            "total": len(books_data)
+            "total": len(books_data),
         }
 
     async def _fast_index_source(
@@ -369,8 +392,11 @@ class LibraryService:
             async def progress_cb(count: int, filename: str) -> None:
                 _check_cancel(scan_id)
                 scan_store.update(
-                    scan_id, phase="scanning_nas", processed=count,
-                    current_file=filename, message=f"Scanning NAS: {count} files",
+                    scan_id,
+                    phase="scanning_nas",
+                    processed=count,
+                    current_file=filename,
+                    message=f"Scanning NAS: {count} files",
                 )
 
         books_data = await scanner.fast_index_directory(directory, progress_callback=progress_cb)
@@ -378,6 +404,7 @@ class LibraryService:
         from sqlalchemy import select
 
         from app.models import Book as BookModel
+
         result = await self.session.execute(select(BookModel.path))
         existing_paths = {row[0] for row in result.all()}
 
@@ -385,10 +412,12 @@ class LibraryService:
         # reflects the combined local+NAS workload instead of stalling past 100%.
         if scan_id:
             from app.scan_progress import scan_store
+
             cur = scan_store.get(scan_id)
             base_total = cur.total_found if cur else 0
             scan_store.update(
-                scan_id, phase="scanning_nas",
+                scan_id,
+                phase="scanning_nas",
                 total_found=base_total + len(books_data),
                 message=f"Importing {len(books_data)} NAS files...",
             )
@@ -433,10 +462,12 @@ class LibraryService:
             # the UI never freezes between discovery and completion.
             if scan_id and i % 25 == 0:
                 from app.scan_progress import scan_store
+
                 cur2 = scan_store.get(scan_id)
                 base_proc = (cur2.total_found - len(books_data)) if cur2 else 0
                 scan_store.update(
-                    scan_id, phase="scanning_nas",
+                    scan_id,
+                    phase="scanning_nas",
                     processed=base_proc + i + 1,
                     imported=(cur2.imported if cur2 else 0) + imported,
                     skipped=(cur2.skipped if cur2 else 0) + skipped,
@@ -485,8 +516,9 @@ class LibraryService:
         logger.info(f"Imported book: {book.title}")
 
         # Auto-categorize if subjects extracted
-        if hasattr(book_data, 'subjects') and book_data.subjects:
+        if hasattr(book_data, "subjects") and book_data.subjects:
             from app.services.categorization_service import CategorizationService
+
             cat_service = CategorizationService(self.session)
             await cat_service.rule_based_categorize(book, book_data.subjects)
 
@@ -602,7 +634,9 @@ class LibraryService:
             "recent": stats.get("recent_books", 0),
             "favorites": stats.get("favorite_books", 0),
             "reading": stats.get("reading_books", 0),
-            "deleted": deleted_override if deleted_override is not None else stats.get("deleted_books", 0),
+            "deleted": deleted_override
+            if deleted_override is not None
+            else stats.get("deleted_books", 0),
             "hidden": stats.get("hidden_books", 0),
         }
 
@@ -625,7 +659,7 @@ class LibraryService:
         batch_size = 100
         semaphore = asyncio.Semaphore(5)
 
-        async def _extract_cover(book):
+        async def _extract_cover(book: Book) -> None:
             nonlocal updated, skipped
             if book.cover_path and not force:
                 skipped += 1
@@ -652,9 +686,4 @@ class LibraryService:
             await self.session.flush()
             offset += batch_size
 
-        return {
-            "updated": updated,
-            "skipped": skipped,
-            "errors": errors,
-            "total": total
-        }
+        return {"updated": updated, "skipped": skipped, "errors": errors, "total": total}

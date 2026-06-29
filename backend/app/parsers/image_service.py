@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 from app.logging_config import get_logger
+from app.utils import hash_path
 
 logger = get_logger(__name__)
 
@@ -86,7 +87,7 @@ class BookImageService:
         Returns:
             Path to ``{book_images_path}/{sha256_hash[:32]}/``.
         """
-        path_hash = hashlib.sha256(book_path.encode()).hexdigest()[:32]
+        path_hash = hash_path(book_path)
         img_dir = self._base_path / path_hash
         img_dir.mkdir(parents=True, exist_ok=True)
         return img_dir
@@ -101,7 +102,7 @@ class BookImageService:
         Returns:
             URL string like ``/book-images/{hash}/{filename}``.
         """
-        path_hash = hashlib.sha256(book_path.encode()).hexdigest()[:32]
+        path_hash = hash_path(book_path)
         return f"/book-images/{path_hash}/{filename}"
 
     # ------------------------------------------------------------------
@@ -196,26 +197,3 @@ class BookImageService:
                     filepath.write_bytes(content)
 
         return safe_name
-
-    # ------------------------------------------------------------------
-    # Cleanup
-    # ------------------------------------------------------------------
-
-    def cleanup_book_images(self, book_path: str) -> int:
-        """Remove all extracted images for a book.
-
-        Args:
-            book_path: Absolute path to the ebook file.
-
-        Returns:
-            Number of files removed.
-        """
-        img_dir = self.get_image_dir(book_path)
-        count = 0
-        for f in img_dir.iterdir():
-            if f.is_file():
-                f.unlink()
-                count += 1
-        if count:
-            logger.debug(f"Cleaned up {count} images for {book_path}")
-        return count

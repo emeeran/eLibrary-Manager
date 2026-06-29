@@ -1,72 +1,6 @@
 /**
- * Reader: top-bar menus, navigation actions, fullscreen, printing, help modal,
- * and the Escape-to-close behaviour for panels/menus.
+ * Reader: navigation actions, fullscreen, printing, and the help modal.
  */
-
-/**
- * Toggle layout menu
- */
-function toggleLayoutMenu() {
-    const menu = document.getElementById('ic-layout-menu');
-    hideOtherMenus('ic-layout-menu');
-
-    if (menu) {
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-    }
-}
-
-/**
- * Toggle font size menu
- */
-function toggleFontSizeMenu() {
-    const menu = document.getElementById('ic-font-size-menu');
-    hideOtherMenus('ic-font-size-menu');
-
-    if (menu) {
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-
-        const slider = document.getElementById('ic-font-size-slider');
-        if (slider) {
-            slider.value = IcecreamReader.fontSize;
-        }
-    }
-}
-
-/**
- * Toggle zoom menu
- */
-function toggleZoomMenu() {
-    const menu = document.getElementById('ic-zoom-menu');
-    hideOtherMenus('ic-zoom-menu');
-
-    if (menu) {
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-
-        const slider = document.getElementById('ic-zoom-slider');
-        if (slider) {
-            slider.value = IcecreamReader.zoomLevel;
-        }
-    }
-}
-
-/**
- * Toggle speed menu
- */
-function toggleSpeedMenu() {
-    const menu = document.getElementById('ic-speed-menu');
-    hideOtherMenus('ic-speed-menu');
-
-    if (menu) {
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-    }
-}
-
-/**
- * Toggle settings menu
- */
-function toggleSettings() {
-    toggleSettingsPanel();
-}
 
 /**
  * Hide other menus
@@ -177,29 +111,8 @@ function printChapter() {
 }
 
 /**
- * Show book info
- */
-function showBookInfo() {
-    toggleBookInfoPanel();
-}
-
-/**
- * Toggle volume
- */
-function toggleVolume() {
-    toggleVolumeControl();
-}
-
-/**
  * Show help
  */
 function showHelp() {
     toggleHelpModal();
-}
-
-/**
- * Print book
- */
-function printBook() {
-    window.print();
 }

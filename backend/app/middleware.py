@@ -5,10 +5,12 @@ import os
 import time
 from collections import defaultdict
 from collections.abc import Callable
+from typing import Any
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
+from starlette.types import ASGIApp
 
 from app.logging_config import get_logger
 
@@ -45,7 +47,7 @@ CACHE_RULES: dict[str, str] = {
 class ProductionMiddleware(BaseHTTPMiddleware):
     """Combined logging, cache-control, and rate-limiting middleware."""
 
-    def __init__(self, app, **kwargs):
+    def __init__(self, app: ASGIApp, **kwargs: Any) -> None:
         super().__init__(app, **kwargs)
         self._requests: dict[str, dict[str, list[float]]] = defaultdict(lambda: defaultdict(list))
         self._lock = asyncio.Lock()
@@ -98,7 +100,11 @@ class ProductionMiddleware(BaseHTTPMiddleware):
             for prefix, config in RATE_LIMITS.items():
                 # Suffix-style keys (e.g. "/hide") match any path ending with them
                 # but only when the prefix itself isn't a path-like key.
-                if prefix.startswith("/") and not prefix.startswith("/api") and path.endswith(prefix):
+                if (
+                    prefix.startswith("/")
+                    and not prefix.startswith("/api")
+                    and path.endswith(prefix)
+                ):
                     limit_config = config
                     break
 
@@ -111,9 +117,7 @@ class ProductionMiddleware(BaseHTTPMiddleware):
 
         now = time.time()
         async with self._lock:
-            self._requests[key][path] = [
-                t for t in self._requests[key][path] if now - t < period
-            ]
+            self._requests[key][path] = [t for t in self._requests[key][path] if now - t < period]
 
             if len(self._requests[key][path]) >= max_requests:
                 logger.warning(f"Rate limit exceeded: {key} ({max_requests}/{period}s)")
@@ -121,9 +125,9 @@ class ProductionMiddleware(BaseHTTPMiddleware):
                     status_code=429,
                     content={
                         "error": "Rate Limit Exceeded",
-                        "message": f"Maximum {max_requests} requests per {period}s for this endpoint"
+                        "message": f"Maximum {max_requests} requests per {period}s for this endpoint",
                     },
-                    headers={"Retry-After": str(period)}
+                    headers={"Retry-After": str(period)},
                 )
 
             self._requests[key][path].append(now)
@@ -131,8 +135,7 @@ class ProductionMiddleware(BaseHTTPMiddleware):
         # Periodic cleanup of stale entries (every ~100 requests)
         if len(self._requests) > 100:
             stale_keys = [
-                k for k, paths in self._requests.items()
-                if all(not ts for ts in paths.values())
+                k for k, paths in self._requests.items() if all(not ts for ts in paths.values())
             ]
             for k in stale_keys:
                 del self._requests[k]

@@ -16,8 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_config
 from app.database import get_db
-from app.edgetts_service import EdgeTTSError, get_edgetts_service
-from app.gtts_service import GTTSError, get_gtts_service
+from app.edgetts_service import get_edgetts_service
+from app.exceptions import TTSError
+from app.gtts_service import get_gtts_service
 from app.logging_config import get_logger
 from app.services import ReaderService
 
@@ -35,6 +36,7 @@ ENGINE_GTTS = "gtts"
 # AI PROVIDER ENDPOINTS
 # ============================================
 
+
 @router.get("/ai/providers")
 async def list_ai_providers(db: AsyncSession = Depends(get_db)) -> dict:
     """List AI providers and their status.
@@ -49,7 +51,7 @@ async def list_ai_providers(db: AsyncSession = Depends(get_db)) -> dict:
     return {
         "providers": providers,
         "active_provider": active,
-        "default_provider": config.ai_default_provider
+        "default_provider": config.ai_default_provider,
     }
 
 
@@ -63,16 +65,11 @@ async def get_active_provider(db: AsyncSession = Depends(get_db)) -> dict:
     service = ReaderService(db)
     active = await service.get_active_ai_provider()
 
-    return {
-        "active_provider": active
-    }
+    return {"active_provider": active}
 
 
 @router.post("/ai/providers/switch")
-async def switch_ai_provider(
-    provider_name: str,
-    db: AsyncSession = Depends(get_db)
-) -> dict:
+async def switch_ai_provider(provider_name: str, db: AsyncSession = Depends(get_db)) -> dict:
     """Manually switch AI provider.
 
     Args:
@@ -92,6 +89,7 @@ async def switch_ai_provider(
 # TEXT-TO-SPEECH ENDPOINTS
 # ============================================
 
+
 @router.get("/tts/engines")
 async def get_tts_engines() -> dict:
     """Get available TTS engines with their status.
@@ -105,23 +103,23 @@ async def get_tts_engines() -> dict:
                 "id": ENGINE_EDGETTS,
                 "name": "EdgeTTS (Neural)",
                 "description": "High-quality neural voices from Microsoft Edge",
-                "is_server": True
+                "is_server": True,
             },
             {
                 "id": ENGINE_BROWSER,
                 "name": "Browser Speech",
                 "description": "Built-in browser text-to-speech",
-                "is_server": False
+                "is_server": False,
             },
             {
                 "id": ENGINE_GTTS,
                 "name": "Google TTS",
                 "description": "Basic text-to-speech from Google",
-                "is_server": True
-            }
+                "is_server": True,
+            },
         ],
         "default_engine": ENGINE_EDGETTS,
-        "fallback_order": [ENGINE_EDGETTS, ENGINE_BROWSER, ENGINE_GTTS]
+        "fallback_order": [ENGINE_EDGETTS, ENGINE_BROWSER, ENGINE_GTTS],
     }
 
 
@@ -141,7 +139,7 @@ async def get_tts_voices(engine: str = ENGINE_EDGETTS) -> dict:
         return {
             "engine": ENGINE_EDGETTS,
             "voices": voices,
-            "default_voice": edgetts_service.get_default_voice()
+            "default_voice": edgetts_service.get_default_voice(),
         }
     elif engine == ENGINE_GTTS:
         gtts_service = get_gtts_service()
@@ -149,7 +147,7 @@ async def get_tts_voices(engine: str = ENGINE_EDGETTS) -> dict:
         return {
             "engine": ENGINE_GTTS,
             "voices": voices,
-            "default_voice": gtts_service.get_default_voice()
+            "default_voice": gtts_service.get_default_voice(),
         }
     else:
         # Browser voices are loaded client-side
@@ -157,7 +155,7 @@ async def get_tts_voices(engine: str = ENGINE_EDGETTS) -> dict:
             "engine": ENGINE_BROWSER,
             "voices": [],
             "default_voice": None,
-            "note": "Browser voices are loaded client-side"
+            "note": "Browser voices are loaded client-side",
         }
 
 
@@ -232,9 +230,7 @@ async def stream_speech(request: Request) -> StreamingResponse:
 
 
 @router.post("/tts/synthesize")
-async def synthesize_speech(
-    request: Request
-) -> Response:
+async def synthesize_speech(request: Request) -> Response:
     """Synthesize speech from text using the specified engine with fallback.
 
     Expects JSON body:
@@ -260,15 +256,12 @@ async def synthesize_speech(
         engine = body.get("engine", ENGINE_EDGETTS)
 
         if not text:
-            raise HTTPException(
-                status_code=400,
-                detail="text field is required"
-            )
+            raise HTTPException(status_code=400, detail="text field is required")
 
         if len(text) > MAX_TTS_TEXT_LENGTH:
             raise HTTPException(
                 status_code=400,
-                detail=f"Text too long ({len(text)} chars). Maximum is {MAX_TTS_TEXT_LENGTH} characters."
+                detail=f"Text too long ({len(text)} chars). Maximum is {MAX_TTS_TEXT_LENGTH} characters.",
             )
 
         # Normalize rate to float
@@ -284,29 +277,25 @@ async def synthesize_speech(
                 try:
                     edgetts_service = get_edgetts_service()
                     audio_data = await edgetts_service.generate_audio(
-                        text=text,
-                        voice=voice,
-                        rate=rate,
-                        pitch=pitch
+                        text=text, voice=voice, rate=rate, pitch=pitch
                     )
                     return _audio_response(audio_data, ENGINE_EDGETTS)
-                except EdgeTTSError as e:
+                except TTSError as e:
                     logger.warning(f"EdgeTTS failed, falling back to gTTS: {e}")
                     # Fall through to gTTS
                 except Exception as e:
-                    logger.warning(f"EdgeTTS failed with unexpected error, falling back to gTTS: {e}")
+                    logger.warning(
+                        f"EdgeTTS failed with unexpected error, falling back to gTTS: {e}"
+                    )
 
             # Try gTTS (either requested or as fallback)
             try:
                 gtts_service = get_gtts_service()
                 audio_data = await gtts_service.text_to_speech(
-                    text=text,
-                    voice=voice,
-                    rate=str(rate),
-                    pitch=pitch
+                    text=text, voice=voice, rate=str(rate), pitch=pitch
                 )
                 return _audio_response(audio_data, ENGINE_GTTS)
-            except GTTSError as e:
+            except TTSError as e:
                 logger.error(f"gTTS synthesis failed: {e}")
                 raise
             except Exception as e:
@@ -317,32 +306,22 @@ async def synthesize_speech(
             # Browser TTS is handled client-side, return error
             raise HTTPException(
                 status_code=400,
-                detail="Browser TTS is handled client-side. Use Web Speech API directly."
+                detail="Browser TTS is handled client-side. Use Web Speech API directly.",
             )
         else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unknown engine: {engine}"
-            )
+            raise HTTPException(status_code=400, detail=f"Unknown engine: {engine}")
 
-    except (EdgeTTSError, GTTSError) as e:
+    except TTSError as e:
         logger.error(f"TTS synthesis error: {e}")
         raise HTTPException(
             status_code=500,
-            detail={
-                "error": "Synthesis failed",
-                "message": e.message,
-                "details": e.details
-            }
+            detail={"error": "Synthesis failed", "message": e.message, "details": e.details},
         ) from e
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"TTS endpoint error: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Synthesis failed: {str(e)}"
-        ) from e
+        raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}") from e
 
 
 def _audio_response(audio_data: bytes, engine: str) -> Response:
@@ -353,6 +332,6 @@ def _audio_response(audio_data: bytes, engine: str) -> Response:
         headers={
             "Content-Disposition": f"attachment; filename=speech_{engine}.mp3",
             "Cache-Control": "no-cache",
-            "X-TTS-Engine": engine
-        }
+            "X-TTS-Engine": engine,
+        },
     )

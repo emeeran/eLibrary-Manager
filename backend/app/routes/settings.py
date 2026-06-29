@@ -24,6 +24,7 @@ def _reinit_nas_backend(app: object, nas_enabled: bool, mount_path: str, host: s
     old_monitor = getattr(app.state, "nas_monitor", None)
     if old_monitor:
         import asyncio
+
         try:
             asyncio.get_event_loop().create_task(old_monitor.stop())
         except RuntimeError:
@@ -34,8 +35,10 @@ def _reinit_nas_backend(app: object, nas_enabled: bool, mount_path: str, host: s
         app.state.nas_backend = backend
 
         from app.nas_health import NASHealthMonitor
+
         monitor = NASHealthMonitor(backend=backend, check_interval=60)
         import asyncio
+
         try:
             loop = asyncio.get_event_loop()
             loop.create_task(monitor.start())
@@ -127,7 +130,9 @@ def _build_response(stored: dict[str, str]) -> SettingsResponse:
     return SettingsResponse(
         library_path=_str("library_path") or cfg.library_path,
         auto_scan=_bool("auto_scan") if _str("auto_scan") is not None else defaults["auto_scan"],
-        watch_changes=_bool("watch_changes") if _str("watch_changes") is not None else defaults["watch_changes"],
+        watch_changes=_bool("watch_changes")
+        if _str("watch_changes") is not None
+        else defaults["watch_changes"],
         page_layout=_str("page_layout") or defaults["page_layout"],
         text_align=_str("text_align") or defaults["text_align"],
         font_size=_int("font_size") or defaults["font_size"],
@@ -141,14 +146,20 @@ def _build_response(stored: dict[str, str]) -> SettingsResponse:
         auto_flip=_bool("auto_flip") if _str("auto_flip") is not None else defaults["auto_flip"],
         flip_interval=_int("flip_interval") or defaults["flip_interval"],
         summary_length=_str("summary_length") or defaults["summary_length"],
-        auto_summary=_bool("auto_summary") if _str("auto_summary") is not None else defaults["auto_summary"],
-        nas_enabled=_bool("nas_enabled") if _str("nas_enabled") is not None else defaults["nas_enabled"],
+        auto_summary=_bool("auto_summary")
+        if _str("auto_summary") is not None
+        else defaults["auto_summary"],
+        nas_enabled=_bool("nas_enabled")
+        if _str("nas_enabled") is not None
+        else defaults["nas_enabled"],
         nas_host=_str("nas_host") or defaults["nas_host"],
         nas_share=_str("nas_share") or defaults["nas_share"],
         nas_mount_path=_str("nas_mount_path") or defaults["nas_mount_path"],
         nas_protocol=_str("nas_protocol") or defaults["nas_protocol"],
         nas_username=_str("nas_username") or defaults["nas_username"],
-        nas_auto_mount=_bool("nas_auto_mount") if _str("nas_auto_mount") is not None else defaults["nas_auto_mount"],
+        nas_auto_mount=_bool("nas_auto_mount")
+        if _str("nas_auto_mount") is not None
+        else defaults["nas_auto_mount"],
     )
 
 
@@ -162,9 +173,7 @@ async def get_settings(db: AsyncSession = Depends(get_db)) -> SettingsResponse:
 
 @router.post("/settings")
 async def save_settings(
-    request: Request,
-    settings: SettingsCreate,
-    db: AsyncSession = Depends(get_db)
+    request: Request, settings: SettingsCreate, db: AsyncSession = Depends(get_db)
 ) -> SettingsResponse:
     """Save application settings to database."""
     repo = SettingsRepository(db)
@@ -182,6 +191,7 @@ async def save_settings(
     nas_password = data.pop("nas_password", None)
     if nas_password:
         from app.security import encrypt_value
+
         data["nas_password_encrypted"] = encrypt_value(nas_password)
 
     await repo.set_many(data)
@@ -222,8 +232,7 @@ async def test_ai_connection(request: AIConnectionTest) -> dict:
     except Exception as e:
         logger.error(f"AI connection test failed: {e}")
         raise HTTPException(
-            status_code=400,
-            detail={"error": "Connection failed", "message": str(e)}
+            status_code=400, detail={"error": "Connection failed", "message": str(e)}
         ) from e
 
 
@@ -254,7 +263,10 @@ async def test_nas_connection(request: Request) -> dict:
     if not nas_backend:
         raise HTTPException(
             status_code=400,
-            detail={"error": "NAS not configured", "message": "Enable NAS and set mount path first"},
+            detail={
+                "error": "NAS not configured",
+                "message": "Enable NAS and set mount path first",
+            },
         )
 
     result = await nas_backend.health_check()

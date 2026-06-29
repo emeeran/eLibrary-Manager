@@ -43,6 +43,7 @@ def _hmac_hash(password: str, secret: bytes) -> str:
 def _get_secret_key() -> bytes:
     """Get the app secret key bytes for HMAC operations."""
     from app.config import get_config
+
     config = get_config()
     return (config.secret_key or config.database_url).encode("utf-8")
 
@@ -51,6 +52,7 @@ def _bcrypt_available() -> bool:
     """Check if bcrypt library is available."""
     try:
         import bcrypt  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -63,6 +65,7 @@ def encrypt_password(password: str) -> str:
     """
     if _bcrypt_available():
         import bcrypt
+
         pwd_bytes = password.encode("utf-8")[:72]
         salt = bcrypt.gensalt()
         return bcrypt.hashpw(pwd_bytes, salt).decode("utf-8")
@@ -78,6 +81,7 @@ def verify_password(password: str, stored: str) -> bool:
     if stored.startswith("$2"):
         try:
             import bcrypt
+
             pwd_bytes = password.encode("utf-8")[:72]
             return bcrypt.checkpw(pwd_bytes, stored.encode("utf-8"))
         except Exception:

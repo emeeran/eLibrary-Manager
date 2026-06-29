@@ -19,6 +19,7 @@ logger = get_logger(__name__)
 @dataclass
 class CachedChapter:
     """Cached chapter data."""
+
     content: str
     title: str
     total_chapters: int
@@ -53,10 +54,7 @@ class ChapterCache:
         return f"v{self.CONTENT_VERSION}:{book_path}:{chapter_index}"
 
     async def get(
-        self,
-        book_path: str,
-        chapter_index: int,
-        file_mtime: float | None = None
+        self, book_path: str, chapter_index: int, file_mtime: float | None = None
     ) -> CachedChapter | None:
         """Get cached chapter if available and valid.
 
@@ -97,7 +95,7 @@ class ChapterCache:
         content: str,
         title: str,
         total_chapters: int,
-        file_mtime: float
+        file_mtime: float,
     ) -> None:
         """Store chapter in cache.
 
@@ -123,7 +121,7 @@ class ChapterCache:
                 title=title,
                 total_chapters=total_chapters,
                 cached_at=datetime.now(UTC),
-                file_mtime=file_mtime
+                file_mtime=file_mtime,
             )
 
     async def invalidate_book(self, book_path: str) -> int:
@@ -164,7 +162,7 @@ class ChapterCache:
             "max_size": self._max_size,
             "hits": self._hits,
             "misses": self._misses,
-            "hit_rate": f"{hit_rate:.1f}%"
+            "hit_rate": f"{hit_rate:.1f}%",
         }
 
 

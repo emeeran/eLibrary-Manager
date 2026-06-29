@@ -29,6 +29,7 @@ class StorageBackend(ABC):
         Returns:
             List of (dirpath, filenames) tuples.
         """
+
         def _walk() -> list[tuple[str, list[str]]]:
             result: list[tuple[str, list[str]]] = []
             try:
@@ -37,6 +38,7 @@ class StorageBackend(ABC):
             except OSError:
                 pass
             return result
+
         return await asyncio.to_thread(_walk)
 
     async def file_exists(self, path: str) -> bool:

@@ -1,10 +1,10 @@
 """FastAPI application entry point."""
 
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -68,7 +68,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         "/api/auth/",
     )
 
-    async def dispatch(self, request: StarletteRequest, call_next):
+    async def dispatch(self, request: StarletteRequest, call_next: Callable) -> Response:
         # Skip auth in testing mode
         if os.environ.get("APP_ENV") == "testing":
             return await call_next(request)
@@ -126,13 +126,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         db_url = db_url.replace("+aiosqlite:", ":")
     alembic_cfg.set_main_option("sqlalchemy.url", db_url)
 
-    def _run_alembic():
+    def _run_alembic() -> None:
         from alembic.script import ScriptDirectory
+
         script = ScriptDirectory.from_config(alembic_cfg)
         head = script.get_current_head()
         # Inspect existing schema state to decide stamp vs upgrade.
         from sqlalchemy import create_engine
         from sqlalchemy import inspect as sa_inspect
+
         engine = create_engine(db_url)
         inspector = sa_inspect(engine)
         tables = inspector.get_table_names()
@@ -155,6 +157,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Start NAS health monitor if enabled (from DB settings, fallback to env)
     from app.repositories import SettingsRepository
+
     async with db_manager.session_factory() as db_session:
         settings_repo = SettingsRepository(db_session)
         all_settings = await settings_repo.get_all()
@@ -189,7 +192,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await nas_monitor.start()
         app.state.nas_monitor = nas_monitor
         app.state.nas_backend = nas_backend
-        logger.info(f"NAS health monitor initialized from env: {config.nas_host}:{config.nas_mount_path}")
+        logger.info(
+            f"NAS health monitor initialized from env: {config.nas_host}:{config.nas_mount_path}"
+        )
     else:
         app.state.nas_monitor = None
         app.state.nas_backend = None
@@ -208,16 +213,16 @@ app = FastAPI(
     title="eLibrary Manager",
     description="Lightweight ebook manager with AI summarization",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Add middleware (order matters: outermost first in add_middleware = innermost at runtime)
 # Runtime order: ProductionMiddleware -> SecurityHeaders -> AuthMiddleware -> GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
-app.add_middleware(AuthMiddleware)                     # Session-based auth
-app.add_middleware(CSRFMiddleware)                     # Same-origin check for mutating requests
-app.add_middleware(SecurityHeadersMiddleware)          # CSP + browser security headers
-app.add_middleware(ProductionMiddleware)               # Logging + caching + rate limiting (outermost)
+app.add_middleware(AuthMiddleware)  # Session-based auth
+app.add_middleware(CSRFMiddleware)  # Same-origin check for mutating requests
+app.add_middleware(SecurityHeadersMiddleware)  # CSP + browser security headers
+app.add_middleware(ProductionMiddleware)  # Logging + caching + rate limiting (outermost)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
@@ -244,27 +249,19 @@ async def health_check() -> dict:
     """Health check endpoint for Docker and monitoring."""
     return {"status": "ok"}
 
+
 # Exception handlers (specific before generic)
 @app.exception_handler(ResourceNotFoundError)
-async def not_found_handler(
-    request: Request,
-    exc: ResourceNotFoundError
-) -> JSONResponse:
+async def not_found_handler(request: Request, exc: ResourceNotFoundError) -> JSONResponse:
     """Handle resource not found errors."""
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
-        content={
-            "error": "Not Found",
-            "message": exc.message
-        }
+        content={"error": "Not Found", "message": exc.message},
     )
 
 
 @app.exception_handler(EbookParsingError)
-async def parsing_exception_handler(
-    request: Request,
-    exc: EbookParsingError
-) -> JSONResponse:
+async def parsing_exception_handler(request: Request, exc: EbookParsingError) -> JSONResponse:
     """Handle ebook parsing errors — file missing, corrupted, DRM, etc."""
     msg = exc.message.lower()
     if "no such file" in msg or "not found" in msg or "does not exist" in msg:
@@ -272,66 +269,48 @@ async def parsing_exception_handler(
             status_code=status.HTTP_404_NOT_FOUND,
             content={
                 "error": "File Not Found",
-                "message": "The book file could not be found. It may have been moved or deleted."
-            }
+                "message": "The book file could not be found. It may have been moved or deleted.",
+            },
         )
     if config.debug:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "error": type(exc).__name__,
-                "message": exc.message,
-                "details": exc.details
-            }
+            content={"error": type(exc).__name__, "message": exc.message, "details": exc.details},
         )
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={"error": "Parsing Error", "message": "Failed to process the ebook file"}
+        content={"error": "Parsing Error", "message": "Failed to process the ebook file"},
     )
 
 
 @app.exception_handler(RateLimitError)
-async def rate_limit_handler(
-    request: Request,
-    exc: RateLimitError
-) -> JSONResponse:
+async def rate_limit_handler(request: Request, exc: RateLimitError) -> JSONResponse:
     """Handle rate limit errors."""
     return JSONResponse(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        content={
-            "error": "Rate Limit Exceeded",
-            "message": exc.message
-        }
+        content={"error": "Rate Limit Exceeded", "message": exc.message},
     )
 
 
 @app.exception_handler(DawnstarError)
-async def dawnstar_exception_handler(
-    request: Request,
-    exc: DawnstarError
-) -> JSONResponse:
+async def dawnstar_exception_handler(request: Request, exc: DawnstarError) -> JSONResponse:
     """Handle all other Dawnstar-specific exceptions."""
     logger.error(f"{type(exc).__name__}: {exc.message} — {exc.details}")
     if config.debug:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "error": type(exc).__name__,
-                "message": exc.message,
-                "details": exc.details
-            }
+            content={"error": type(exc).__name__, "message": exc.message, "details": exc.details},
         )
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={"error": "Request Failed", "message": "An error occurred processing your request"}
+        content={"error": "Request Failed", "message": "An error occurred processing your request"},
     )
+
+
 @app.get("/", response_class=HTMLResponse)
 async def library_home(request: Request) -> HTMLResponse:
     """Render library home page."""
-    return templates.TemplateResponse(
-        "library.html",
-        {"request": request}
-    )
+    return templates.TemplateResponse("library.html", {"request": request})
 
 
 @app.get("/reader/{book_id}", response_class=HTMLResponse)
@@ -342,10 +321,7 @@ async def reader_page(book_id: int, request: Request) -> HTMLResponse:
         book_id: Book primary key
         request: FastAPI request
     """
-    return templates.TemplateResponse(
-        "reader.html",
-        {"request": request, "book_id": book_id}
-    )
+    return templates.TemplateResponse("reader.html", {"request": request, "book_id": book_id})
 
 
 @app.get("/settings", response_class=HTMLResponse)
@@ -355,27 +331,16 @@ async def settings_page(request: Request) -> HTMLResponse:
     Args:
         request: FastAPI request
     """
-    return templates.TemplateResponse(
-        "settings.html",
-        {"request": request}
-    )
+    return templates.TemplateResponse("settings.html", {"request": request})
 
 
 @app.get("/maintenance", response_class=HTMLResponse)
 async def maintenance_page(request: Request) -> HTMLResponse:
     """Render maintenance page."""
-    return templates.TemplateResponse(
-        "maintenance.html",
-        {"request": request}
-    )
+    return templates.TemplateResponse("maintenance.html", {"request": request})
 
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "app.main:app",
-        host=config.app_host,
-        port=config.app_port,
-        reload=config.debug
-    )
+    uvicorn.run("app.main:app", host=config.app_host, port=config.app_port, reload=config.debug)

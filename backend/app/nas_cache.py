@@ -4,12 +4,12 @@ Enables offline reading by caching recently-accessed books locally.
 Uses LRU eviction when the cache exceeds a configurable size limit.
 """
 
-import hashlib
 import shutil
 from pathlib import Path
 from typing import Optional
 
 from app.logging_config import get_logger
+from app.utils import hash_path
 
 logger = get_logger(__name__)
 
@@ -38,7 +38,7 @@ class NASFileCache:
     @staticmethod
     def _path_hash(nas_path: str) -> str:
         """Generate a deterministic hash for a NAS path."""
-        return hashlib.sha256(nas_path.encode("utf-8")).hexdigest()[:32]
+        return hash_path(nas_path)
 
     def _cached_path(self, nas_path: str) -> Path:
         """Return the local cache path for a NAS file."""
@@ -191,12 +191,14 @@ class NASFileCache:
             if f.is_file() and not f.suffix == ".meta":
                 meta_path = f.with_suffix(".meta")
                 nas_path = meta_path.read_text() if meta_path.exists() else "unknown"
-                result.append({
-                    "path_hash": f.stem,
-                    "nas_path": nas_path,
-                    "cached_path": str(f),
-                    "size_bytes": f.stat().st_size,
-                })
+                result.append(
+                    {
+                        "path_hash": f.stem,
+                        "nas_path": nas_path,
+                        "cached_path": str(f),
+                        "size_bytes": f.stat().st_size,
+                    }
+                )
         return result
 
 
@@ -211,6 +213,7 @@ def get_nas_cache() -> NASFileCache | None:
         return _instance
 
     from app.config import get_config
+
     config = get_config()
 
     if not config.nas_enabled or not config.nas_cache_dir:

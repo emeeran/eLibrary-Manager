@@ -53,16 +53,21 @@ class NASStorageBackend(StorageBackend):
                     os.stat(self.mount_path)
                     os.listdir(self.mount_path)
                     return True
+
                 return await run_in_threadpool(_blocking)
 
             try:
-                ok = await asyncio.wait_for(_probe(), timeout=float(
-                    os.environ.get("NAS_HEALTH_TIMEOUT", "5")))
+                ok = await asyncio.wait_for(
+                    _probe(), timeout=float(os.environ.get("NAS_HEALTH_TIMEOUT", "5"))
+                )
             except TimeoutError:
                 self._healthy = False
                 self._last_check = datetime.now(UTC)
                 logger.warning("NAS health check timed out (mount stale?): %s", self.mount_path)
-                return {"healthy": False, "details": f"NAS unreachable (timeout): {self.mount_path}"}
+                return {
+                    "healthy": False,
+                    "details": f"NAS unreachable (timeout): {self.mount_path}",
+                }
 
             if not ok:
                 self._healthy = False

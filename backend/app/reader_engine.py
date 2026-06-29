@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 
 from app.chapter_cache import get_chapter_cache
@@ -33,19 +32,8 @@ class ReaderEngine:
         except OSError:
             return None
 
-    def _get_file_fingerprint(self, path: str) -> str | None:
-        """Get a content fingerprint (first 1KB hash) for secondary cache validation."""
-        try:
-            with open(path, "rb") as f:
-                head = f.read(1024)
-            return hashlib.md5(head).hexdigest()
-        except OSError:
-            return None
-
     async def get_chapter_content(
-        self,
-        ebook_path: str,
-        chapter_index: int
+        self, ebook_path: str, chapter_index: int
     ) -> tuple[str, str, int]:
         """Get content for a specific chapter with caching.
 
@@ -71,29 +59,13 @@ class ReaderEngine:
         logger.debug(f"Cache MISS for {ebook_path} ch{chapter_index}")
 
         # Extract only the requested chapter (avoids full-book parse)
-        content, title, total = await self.scanner.get_single_chapter(
-            ebook_path, chapter_index
-        )
+        content, title, total = await self.scanner.get_single_chapter(ebook_path, chapter_index)
 
         # Store in cache
         if file_mtime:
-            await self._cache.put(
-                ebook_path, chapter_index,
-                content, title, total, file_mtime
-            )
+            await self._cache.put(ebook_path, chapter_index, content, title, total, file_mtime)
 
         return content, title, total
-
-    async def get_total_chapters(self, ebook_path: str) -> int:
-        """Get the total number of chapters in an ebook.
-
-        Args:
-            ebook_path: Path to ebook file
-
-        Returns:
-            Total number of chapters
-        """
-        return await self.scanner.count_chapters(ebook_path)
 
     @staticmethod
     def estimate_chapter_pages(content: str) -> int:
@@ -109,45 +81,6 @@ class ReaderEngine:
             Estimated page count (minimum 1).
         """
         return max(1, len(content) // 1800)
-
-    async def get_all_chapters(self, ebook_path: str) -> list[tuple[int, str, str]]:
-        """Get all chapters from an ebook.
-
-        Args:
-            ebook_path: Path to ebook file
-
-        Returns:
-            List of tuples: (chapter_index, chapter_title, chapter_content)
-        """
-        return await self.scanner.get_chapters(ebook_path)
-
-    async def get_text_for_summary(
-        self,
-        ebook_path: str,
-        chapter_index: int,
-        max_chars: int = 15000
-    ) -> str:
-        """Get chapter text optimized for AI summarization.
-
-        Args:
-            ebook_path: Path to ebook file
-            chapter_index: Zero-based chapter index
-            max_chars: Maximum characters to return (for token limits)
-
-        Returns:
-            Text content truncated to max_chars if needed
-
-        Raises:
-            ResourceNotFoundError: If chapter not found
-            EbookParsingError: If parsing fails
-        """
-        content, _, _ = await self.get_chapter_content(ebook_path, chapter_index)
-
-        if len(content) > max_chars:
-            content = content[:max_chars]
-            logger.debug(f"Truncated content to {max_chars} chars for summarization")
-
-        return content
 
     async def get_table_of_contents(self, ebook_path: str) -> list[dict]:
         """Get table of contents for an ebook.

@@ -257,14 +257,3 @@ async def destroy_session(token: str) -> None:
         await _bump_epoch()
     except Exception:
         logger.exception("Failed to bump session epoch on logout")
-
-
-# Re-export for tests / callers that previously imported these names.
-invalidate_all_sessions = _bump_epoch
-
-
-# Kept for backwards compatibility with older imports — no longer needed but
-# avoids breaking any out-of-tree callers.
-def _cleanup_expired_sessions() -> None:  # pragma: no cover - stateless store
-    """No-op retained for API compatibility (sessions are stateless now)."""
-    return None
