@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eLibrary Manager</title>
-    <link rel="stylesheet" href="/static/css/main.css?v=12">
+    <link rel="stylesheet" href="/static/css/main.css?v=14">
     <!-- Using SVG icons inline, no external font dependency -->
 </head>
 
@@ -550,16 +550,17 @@
         <div style="display: flex; flex-direction: column; align-items: center;">
             <div class="loading-spinner"></div>
             <p class="loading-text" id="loading-text">Loading...</p>
-            <div id="scan-progress-info" style="display:none; text-align:center; margin-top:8px;">
+            <div id="scan-progress-info" style="display:none; text-align:center; margin-top:14px; min-width:340px;">
                 <p id="scan-progress-text" style="font-size:13px; color:#666; margin:4px 0;">Scanning: 0 files...</p>
-                <div style="width:240px; height:6px; background:#e0e0e0; border-radius:3px; overflow:hidden;">
-                    <div id="scan-progress-fill" style="height:100%; background:var(--accent-blue, #4285f4); border-radius:3px; width:0%; transition:width 0.3s ease;"></div>
+                <div style="width:320px; height:8px; background:#e0e0e0; border-radius:4px; overflow:hidden; margin:6px auto;">
+                    <div id="scan-progress-fill" style="height:100%; background:var(--accent-blue, #4285f4); border-radius:4px; width:0%; transition:width 0.3s ease;"></div>
                 </div>
+                <button id="scan-cancel-btn" type="button" class="scan-cancel-btn" style="display:none; margin-top:12px;">Cancel scan</button>
             </div>
         </div>
     </div>
 
-    <script src="/static/js/library.js?v=18" defer></script>
+    <script src="/static/js/library.js?v=20" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {

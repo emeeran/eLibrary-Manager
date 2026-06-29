@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_config
 from app.database import get_db
 from app.repositories import BookRepository
-from app.scan_progress import scan_store
+from app.scan_progress import ScanCancelledError, scan_store
 from app.schemas import (
     BookListResponse,
     BookResponse,
@@ -120,7 +120,15 @@ async def _run_background_scan(
                     combined = results
                 scan_store.update(
                     scan_id,
+                    phase="finalizing",
+                    message="Finalizing...",
+                )
+                from app.services.library_service import invalidate_stats_cache
+                invalidate_stats_cache()
+                scan_store.update(
+                    scan_id,
                     status="completed",
+                    phase="done",
                     imported=combined.get("imported", 0),
                     skipped=combined.get("skipped", 0),
                     errors=combined.get("errors", 0),
@@ -128,10 +136,21 @@ async def _run_background_scan(
                     processed=combined.get("total", 0),
                     message=complete_message,
                 )
+            except ScanCancelledError:
+                # Cooperative cancellation. Roll back any uncommitted batch and
+                # mark the scan cancelled so the SSE client gets a final event.
+                try:
+                    await db.rollback()
+                except Exception:
+                    pass
                 from app.services.library_service import invalidate_stats_cache
                 invalidate_stats_cache()
+                scan_store.update(
+                    scan_id, status="cancelled", phase="cancelled",
+                    message="Scan cancelled by user",
+                )
             except Exception as e:
-                scan_store.update(scan_id, status="failed", message=str(e))
+                scan_store.update(scan_id, status="failed", phase="failed", message=str(e))
     finally:
         _active_scans.discard(scan_id)
 
@@ -181,7 +200,7 @@ async def scan_progress_stream(scan_id: str) -> StreamingResponse:
 
             yield f"data: {json.dumps(scan_store.to_dict(progress))}\n\n"
 
-            if progress.status in ("completed", "failed"):
+            if progress.status in ("completed", "failed", "cancelled"):
                 break
             await asyncio.sleep(0.5)
 
@@ -194,6 +213,23 @@ async def scan_progress_stream(scan_id: str) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/library/scan-cancel/{scan_id}")
+async def cancel_scan(scan_id: str) -> dict:
+    """Request cooperative cancellation of a running scan.
+
+    Sets a flag that the scan loops check between files; the scan stops at
+    the next batch boundary, rolls back its current uncommitted batch, and the
+    SSE stream delivers a final ``status == "cancelled"`` event.
+    """
+    ok = scan_store.request_cancel(scan_id)
+    if not ok:
+        raise HTTPException(
+            status_code=404,
+            detail="Scan not found or already finished.",
+        )
+    return {"scan_id": scan_id, "status": "cancelling"}
 
 
 @router.post("/library/import-dir")

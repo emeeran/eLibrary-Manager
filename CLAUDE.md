@@ -65,8 +65,9 @@ eLibrary-Manager/
 **Frontend:**
 - Jinja2 templating
 - Tailwind-inspired utility CSS (no build step currently)
-- Vanilla JavaScript (ES2015+) — `reader-icecream.js`, `library.js`, `tts.js`
-  (see *Frontend modernization roadmap* below)
+- Vanilla JavaScript (ES2015+) — modularized into `static/js/reader/*.js`
+  (state, chapters, panels, settings, search, annotations, summary, tts-bridge, ui, init, globals)
+  plus `library.js` and `tts.js` (see *Frontend modernization roadmap* below)
 
 **Processing:**
 - ebooklib (EPUB parsing)
@@ -188,7 +189,11 @@ incremental plan (tracked in `docs/frontend-modernization.md`):
 
 1. Introduce a bundler (esbuild) + ESLint flat config (no behavior change).
 2. Extract pure-logic helpers (DOM, fetch, storage) into `frontend/static/js/lib/`.
-3. Split `reader-icecream.js` by concern: TOC, summary, bookmarks, annotations, TTS bridge.
+3. Split the reader by concern into ES modules under `static/js/reader/`:
+   `state.js`, `chapters.js`, `panels.js`, `settings.js`, `search.js`,
+   `annotations.js`, `summary.js`, `tts-bridge.js`, `ui.js`, `init.js`,
+   `globals.js`. **DONE** (classic-script split preserving the inline-handler
+   contract; see `docs/frontend-modernization.md`).
 4. Add Vitest unit tests for extracted modules.
 5. Adopt the same pattern for `library.js` and `tts.js`.
 
@@ -236,7 +241,9 @@ The PRD (`Gemini-Dawnstar eBook Manager PRD.md`) contains the original product r
 ## 4. JAVASCRIPT/TYPESCRIPT RULES (Frontend)
 
 > **Current reality:** the frontend is **vanilla JS + Jinja2 templates** (no
-> React/Next.js). The files `reader-icecream.js` (~3.4k LOC), `library.js`
+> React/Next.js). The reader has been split into focused modules under
+> `frontend/static/js/reader/` (~3.4k LOC decomposed); `library.js` (~2.6k LOC)
+> and `tts.js` (~1.2k LOC)
 > (~2.6k LOC) and `tts.js` (~1.2k LOC) are large monoliths. New work should
 > extract focused ES modules and migrate toward a small bundler (see the
 > *Frontend modernization roadmap* in `docs/`).

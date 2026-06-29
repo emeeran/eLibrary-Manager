@@ -137,7 +137,7 @@ eLibrary-Manager/
 │       └── js/
 │           ├── library.js        # Library page interactions
 │           ├── reader.js         # Reader core logic
-│           ├── reader-icecream.js # Icecream UI behaviors
+│           ├── reader/             # modularized reader (state/chapters/panels/...)
 │           ├── settings.js       # Settings page logic
 │           ├── theme.js          # Theme switching
 │           ├── tts.js            # Text-to-speech controls

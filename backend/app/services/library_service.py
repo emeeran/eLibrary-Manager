@@ -13,10 +13,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.logging_config import get_logger
 from app.models import Book
 from app.repositories import BookRepository
+from app.scan_progress import ScanCancelledError, ScanProgressStore
 from app.scanner import LibraryScanner
 from app.storage.factory import get_nas_config_from_db, get_storage_backend
 
 logger = get_logger(__name__)
+
+
+def _check_cancel(scan_id: str | None) -> None:
+    """Raise :class:`ScanCancelledError` if the user requested cancellation.
+
+    A single cooperative check point invoked at the top of each scan loop
+    iteration. Keeping it in one place makes the cancellation contract obvious
+    and easy to audit.
+    """
+    if ScanProgressStore.is_cancelled(scan_id):
+        raise ScanCancelledError()
 
 # Module-level TTL cache for library stats (avoids re-querying on every list request)
 _stats_cache: tuple[dict, float] | None = None
@@ -125,11 +137,13 @@ class LibraryService:
             from app.scan_progress import scan_store
 
             async def progress_cb(count: int, filename: str) -> None:
+                _check_cancel(scan_id)
                 scan_store.update(
                     scan_id,
+                    phase="discovering",
                     processed=count,
                     current_file=filename,
-                    message=f"Scanning: {count} files found",
+                    message=f"Discovering files: {count} found",
                 )
 
         scanner = self.scanner
@@ -137,7 +151,12 @@ class LibraryService:
 
         if scan_id:
             from app.scan_progress import scan_store
-            scan_store.update(scan_id, total_found=len(books_data))
+            scan_store.update(
+                scan_id,
+                phase="importing",
+                total_found=len(books_data),
+                message=f"Importing {len(books_data)} files...",
+            )
 
         # Load all existing paths in one query for O(1) lookup
         from sqlalchemy import select
@@ -153,6 +172,7 @@ class LibraryService:
         batch_count = 0
 
         for i, book_data in enumerate(books_data):
+            _check_cancel(scan_id)
             try:
                 if book_data.path in existing_paths:
                     skipped += 1
@@ -184,7 +204,7 @@ class LibraryService:
                 errors += 1
                 logger.error(f"Failed to index {book_data.path}: {e}")
 
-            if scan_id and i % 50 == 0:
+            if scan_id and i % 10 == 0:
                 scan_store.update(
                     scan_id,
                     processed=i + 1,
@@ -196,6 +216,11 @@ class LibraryService:
 
         # Final commit
         if batch_count > 0:
+            if scan_id:
+                from app.scan_progress import scan_store
+                scan_store.update(
+                    scan_id, phase="committing", message="Committing imported books...",
+                )
             await self.session.commit()
 
         local_stats = {
@@ -212,6 +237,12 @@ class LibraryService:
         nas_stats: dict | None = None
         nas_cfg = await get_nas_config_from_db(self.session)
         if nas_cfg["nas_enabled"] and nas_cfg["nas_mount_path"]:
+            if scan_id:
+                from app.scan_progress import scan_store
+                scan_store.update(
+                    scan_id, phase="checking_nas",
+                    message=f"Checking NAS at {nas_cfg['nas_host']}...",
+                )
             nas_storage = get_storage_backend(
                 "nas",
                 mount_path=nas_cfg["nas_mount_path"],
@@ -219,6 +250,10 @@ class LibraryService:
             )
             health = await nas_storage.health_check()
             if health["healthy"]:
+                if scan_id:
+                    scan_store.update(
+                        scan_id, phase="scanning_nas", message="Indexing NAS...",
+                    )
                 nas_scanner = LibraryScanner(
                     storage=nas_storage,
                     storage_type="nas",
@@ -257,13 +292,17 @@ class LibraryService:
 
         if scan_id:
             from app.scan_progress import scan_store
-            scan_store.update(scan_id, total_found=len(books_data))
+            scan_store.update(
+                scan_id, phase="importing", total_found=len(books_data),
+                message=f"Importing {len(books_data)} files...",
+            )
 
         imported = 0
         skipped = 0
         errors = 0
 
         for i, book_data in enumerate(books_data):
+            _check_cancel(scan_id)
             try:
                 existing = await self.book_repo.get_by_path(book_data.path)
                 if existing:
@@ -322,7 +361,19 @@ class LibraryService:
         """
         import asyncio
 
-        books_data = await scanner.fast_index_directory(directory)
+        # Progress callback so the NAS discovery phase reports live counts too.
+        progress_cb = None
+        if scan_id:
+            from app.scan_progress import scan_store
+
+            async def progress_cb(count: int, filename: str) -> None:
+                _check_cancel(scan_id)
+                scan_store.update(
+                    scan_id, phase="scanning_nas", processed=count,
+                    current_file=filename, message=f"Scanning NAS: {count} files",
+                )
+
+        books_data = await scanner.fast_index_directory(directory, progress_callback=progress_cb)
 
         from sqlalchemy import select
 
@@ -330,12 +381,25 @@ class LibraryService:
         result = await self.session.execute(select(BookModel.path))
         existing_paths = {row[0] for row in result.all()}
 
+        # Accumulate NAS file count into the scan total so the progress bar
+        # reflects the combined local+NAS workload instead of stalling past 100%.
+        if scan_id:
+            from app.scan_progress import scan_store
+            cur = scan_store.get(scan_id)
+            base_total = cur.total_found if cur else 0
+            scan_store.update(
+                scan_id, phase="scanning_nas",
+                total_found=base_total + len(books_data),
+                message=f"Importing {len(books_data)} NAS files...",
+            )
+
         imported = 0
         skipped = 0
         errors = 0
         batch_count = 0
 
-        for book_data in books_data:
+        for i, book_data in enumerate(books_data):
+            _check_cancel(scan_id)
             try:
                 if book_data.path in existing_paths:
                     skipped += 1
@@ -364,6 +428,21 @@ class LibraryService:
             except Exception as e:
                 errors += 1
                 logger.error(f"Failed to index {book_data.path}: {e}")
+
+            # Live progress during the (slow, cover-extracting) NAS import so
+            # the UI never freezes between discovery and completion.
+            if scan_id and i % 25 == 0:
+                from app.scan_progress import scan_store
+                cur2 = scan_store.get(scan_id)
+                base_proc = (cur2.total_found - len(books_data)) if cur2 else 0
+                scan_store.update(
+                    scan_id, phase="scanning_nas",
+                    processed=base_proc + i + 1,
+                    imported=(cur2.imported if cur2 else 0) + imported,
+                    skipped=(cur2.skipped if cur2 else 0) + skipped,
+                    errors=(cur2.errors if cur2 else 0) + errors,
+                    current_file=book_data.path.split("/")[-1] if book_data.path else "",
+                )
 
         if batch_count > 0:
             await self.session.commit()

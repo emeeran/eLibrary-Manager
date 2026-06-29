@@ -1,7 +1,10 @@
 """NAS storage backend via SMB/NFS mount."""
 
+import asyncio
 import os
 from datetime import UTC, datetime
+
+from fastapi.concurrency import run_in_threadpool
 
 from app.logging_config import get_logger
 from app.storage import StorageBackend
@@ -32,23 +35,42 @@ class NASStorageBackend(StorageBackend):
     async def health_check(self) -> dict:
         """Check if the NAS mount is accessible.
 
-        Tests by stat-ing the mount root directory with a timeout-safe approach.
+        The filesystem probes (``os.stat`` / ``os.listdir``) run in the
+        threadpool with a hard timeout. A stale or offline SMB/NFS mount can
+        otherwise block inside the kernel for the full RPC timeout (often
+        60s+), which freezes the event loop and freezes every concurrent
+        SSE progress stream. We bound that to a few seconds instead.
         """
         try:
             if not self.mount_path:
                 self._healthy = False
                 return {"healthy": False, "details": "Mount path not configured"}
 
-            if not os.path.ismount(self.mount_path) and not os.path.isdir(self.mount_path):
+            async def _probe() -> bool:
+                def _blocking() -> bool:
+                    if not os.path.ismount(self.mount_path) and not os.path.isdir(self.mount_path):
+                        return False
+                    os.stat(self.mount_path)
+                    os.listdir(self.mount_path)
+                    return True
+                return await run_in_threadpool(_blocking)
+
+            try:
+                ok = await asyncio.wait_for(_probe(), timeout=float(
+                    os.environ.get("NAS_HEALTH_TIMEOUT", "5")))
+            except TimeoutError:
+                self._healthy = False
+                self._last_check = datetime.now(UTC)
+                logger.warning("NAS health check timed out (mount stale?): %s", self.mount_path)
+                return {"healthy": False, "details": f"NAS unreachable (timeout): {self.mount_path}"}
+
+            if not ok:
                 self._healthy = False
                 self._last_check = datetime.now(UTC)
                 return {
                     "healthy": False,
                     "details": f"Path does not exist or is not mounted: {self.mount_path}",
                 }
-
-            os.stat(self.mount_path)
-            os.listdir(self.mount_path)
 
             self._healthy = True
             self._last_check = datetime.now(UTC)

@@ -794,6 +794,7 @@ async function deleteBookConfirmed(bookId, button = null, originalContent = '') 
  */
 async function scanLibrary() {
     showLoading('Scanning library...');
+    document.getElementById('loading-overlay')?.classList.add('scanning');
 
     try {
         const response = await fetch('/api/library/scan', { method: 'POST' });
@@ -818,50 +819,185 @@ function trackScanProgress(scanId) {
     const progressText = document.getElementById('scan-progress-text');
     const progressFill = document.getElementById('scan-progress-fill');
     const loadingText = document.getElementById('loading-text');
+    const cancelBtn = document.getElementById('scan-cancel-btn');
+
+    // Lazily build the richer live-stats block (phase, percentage, current file, rate/eta).
+    // Kept inside the existing overlay so no template churn is required.
+    let phaseEl = document.getElementById('scan-progress-phase');
+    let pctEl = document.getElementById('scan-progress-pct');
+    let fileEl = document.getElementById('scan-progress-file');
+    let statsEl = document.getElementById('scan-progress-stats');
+    if (progressInfo && !phaseEl) {
+        // Big phase label
+        phaseEl = document.createElement('div');
+        phaseEl.id = 'scan-progress-phase';
+        phaseEl.style.cssText = 'font-size:13px;font-weight:700;color:var(--accent-blue,#4285f4);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em;';
+        progressInfo.insertBefore(phaseEl, progressText);
+        // Large percentage readout
+        pctEl = document.createElement('div');
+        pctEl.id = 'scan-progress-pct';
+        pctEl.style.cssText = 'font-size:28px;font-weight:700;color:var(--text-primary,#222);line-height:1;margin:6px 0;';
+        progressInfo.insertBefore(pctEl, progressText);
+        fileEl = document.createElement('div');
+        fileEl.id = 'scan-progress-file';
+        fileEl.style.cssText = 'font-size:11px;color:#999;max-width:320px;margin:4px auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        progressInfo.insertBefore(fileEl, progressText.nextSibling);
+        statsEl = document.createElement('div');
+        statsEl.id = 'scan-progress-stats';
+        statsEl.style.cssText = 'font-size:12px;color:#666;margin-top:6px;font-variant-numeric:tabular-nums;';
+        progressInfo.appendChild(statsEl);
+    }
 
     if (progressInfo) progressInfo.style.display = 'block';
-    if (loadingText) loadingText.textContent = 'Scanning...';
+    if (loadingText) loadingText.textContent = 'Scanning library...';
+
+    const PHASE_LABELS = {
+        discovering: 'Discovering files',
+        importing: 'Importing books',
+        checking_nas: 'Checking NAS',
+        scanning_nas: 'Scanning NAS',
+        committing: 'Committing',
+        finalizing: 'Finalizing',
+        done: 'Done',
+        failed: 'Failed',
+        cancelled: 'Cancelled',
+    };
+
+    function fmtEta(sec) {
+        if (!sec || sec <= 0 || !isFinite(sec)) return '';
+        if (sec < 60) return Math.ceil(sec) + 's left';
+        return Math.ceil(sec / 60) + 'm left';
+    }
+    function fmtNum(n) {
+        return Number(n).toLocaleString();
+    }
+
+    // ---- Cancel button wiring --------------------------------------------
+    let cancelling = false;
+    if (cancelBtn) {
+        cancelBtn.style.display = 'inline-block';
+        cancelBtn.classList.remove('disabled');
+        cancelBtn.textContent = 'Cancel scan';
+        cancelBtn.onclick = async () => {
+            if (cancelling) return;
+            cancelling = true;
+            cancelBtn.classList.add('disabled');
+            cancelBtn.textContent = 'Cancelling...';
+            try {
+                const res = await fetch(`/api/library/scan-cancel/${scanId}`, { method: 'POST' });
+                if (!res.ok) {
+                    cancelling = false;
+                    cancelBtn.classList.remove('disabled');
+                    cancelBtn.textContent = 'Cancel scan';
+                    showNotification('Could not cancel scan', 'error');
+                }
+            } catch (e) {
+                cancelling = false;
+                cancelBtn.classList.remove('disabled');
+                cancelBtn.textContent = 'Cancel scan';
+            }
+        };
+    }
 
     const evtSource = new EventSource(`/api/library/scan-progress/${scanId}`);
 
     evtSource.onmessage = (event) => {
         try {
             const p = JSON.parse(event.data);
+            const phase = p.phase || '';
+            const known = p.total_found > 0;
 
-            if (progressText && p.total_found > 0) {
-                const pct = Math.round((p.processed / p.total_found) * 100);
-                progressText.textContent = `${p.processed} / ${p.total_found} files — ${p.imported} added, ${p.skipped} skipped`;
-                if (progressFill) progressFill.style.width = pct + '%';
-            } else if (progressText) {
-                progressText.textContent = `Found ${p.processed} files...`;
+            if (phaseEl) phaseEl.textContent = PHASE_LABELS[phase] || (phase || 'Scanning');
+
+            let pct = 0;
+            if (known) {
+                pct = Math.min(100, Math.round((p.processed / p.total_found) * 100));
+                progressText.textContent = `${fmtNum(p.processed)} / ${fmtNum(p.total_found)} files — ${fmtNum(p.imported)} added, ${fmtNum(p.skipped)} skipped`;
+                if (progressFill) {
+                    progressFill.style.width = pct + '%';
+                    progressFill.classList.remove('indeterminate');
+                }
+            } else {
+                progressText.textContent = `Found ${fmtNum(p.processed)} files...`;
+                pct = null; // unknown — show shimmer instead of a fake number
+                if (progressFill) {
+                    progressFill.style.width = '100%';
+                    progressFill.classList.add('indeterminate');
+                }
+            }
+            if (pctEl) pctEl.textContent = (pct === null) ? '…' : (pct + '%');
+
+            if (fileEl) {
+                fileEl.textContent = p.current_file ? `📄 ${p.current_file}` : '';
+                fileEl.title = p.current_file || '';
+            }
+            if (statsEl) {
+                const bits = [];
+                if (p.elapsed) bits.push(`${Number(p.elapsed).toFixed(0)}s`);
+                if (p.rate) bits.push(`${p.rate}/s`);
+                if (known && p.eta) bits.push(fmtEta(p.eta));
+                if (p.errors) bits.push(`${p.errors} err`);
+                statsEl.textContent = bits.join('  ·  ');
+            }
+
+            // Reflect backend cancel acknowledgement in the button.
+            if (cancelBtn && p.cancel_requested && p.status === 'running') {
+                cancelBtn.classList.add('disabled');
+                cancelBtn.textContent = 'Cancelling...';
             }
 
             if (p.status === 'completed') {
                 evtSource.close();
+                _resetScanOverlay();
                 if (progressInfo) progressInfo.style.display = 'none';
                 hideLoading();
                 showNotification(
-                    `Scan complete: ${p.imported} added, ${p.skipped} skipped, ${p.errors} errors`,
+                    `Scan complete: ${fmtNum(p.imported)} added, ${fmtNum(p.skipped)} skipped, ${p.errors} errors`,
                     'success'
                 );
                 loadBooks();
             } else if (p.status === 'failed') {
                 evtSource.close();
+                _resetScanOverlay();
                 if (progressInfo) progressInfo.style.display = 'none';
                 hideLoading();
                 showError(`Scan failed: ${p.message}`);
+            } else if (p.status === 'cancelled') {
+                evtSource.close();
+                _resetScanOverlay();
+                if (progressInfo) progressInfo.style.display = 'none';
+                hideLoading();
+                showNotification(
+                    `Scan cancelled — ${fmtNum(p.imported)} added before cancel, ${fmtNum(p.skipped)} skipped`,
+                    'info'
+                );
+                loadBooks();
             }
         } catch (e) {
             console.warn('Failed to parse SSE event:', e);
         }
     };
 
+    let erroredOnce = false;
     evtSource.onerror = () => {
+        // EventSource auto-reconnects; only give up after a real failure to avoid
+        // abandoning a live scan on a transient blip.
+        if (!erroredOnce) {
+            erroredOnce = true;
+            return;
+        }
         evtSource.close();
+        _resetScanOverlay();
         if (progressInfo) progressInfo.style.display = 'none';
         hideLoading();
         loadBooks();
     };
+}
+
+function _resetScanOverlay() {
+    document.getElementById('loading-overlay')?.classList.remove('scanning');
+    const cancelBtn = document.getElementById('scan-cancel-btn');
+    if (cancelBtn) { cancelBtn.style.display = 'none'; cancelBtn.classList.remove('disabled'); }
 }
 
 /**

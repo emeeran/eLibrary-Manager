@@ -578,9 +578,19 @@
 
     </div>
 
-    <!-- Reader JavaScript -->
+    <!-- Reader JavaScript (modularized; loaded in dependency order) -->
     <script src="/static/js/tts.js"></script>
-    <script src="/static/js/reader-icecream.js?v=36"></script>
+    <script src="/static/js/reader/state.js?v=38"></script>
+    <script src="/static/js/reader/ui.js?v=37"></script>
+    <script src="/static/js/reader/settings.js?v=37"></script>
+    <script src="/static/js/reader/chapters.js?v=38"></script>
+    <script src="/static/js/reader/search.js?v=37"></script>
+    <script src="/static/js/reader/annotations.js?v=37"></script>
+    <script src="/static/js/reader/panels.js?v=38"></script>
+    <script src="/static/js/reader/summary.js?v=37"></script>
+    <script src="/static/js/reader/tts-bridge.js?v=37"></script>
+    <script src="/static/js/reader/init.js?v=38"></script>
+    <script src="/static/js/reader/globals.js?v=37"></script>
     <script src="/static/js/resize-sidebar.js"></script>
     <script>
         // Left sidebar (TOC)
