@@ -53,8 +53,9 @@ class Book(Base):
     total_pages: Mapped[int] = mapped_column(Integer, default=0)
     storage_type: Mapped[str] = mapped_column(String(10), default="local")
     rating: Mapped[int] = mapped_column(Integer, default=0)  # 0=unrated, 1-5 stars
-    # Per-book Fernet-encrypted password protecting unhide (approach A: each
-    # hidden book has its own password; no global hidden-books password).
+    # Per-book password protecting unhide (approach A: each hidden book has
+    # its own password). Stored as a one-way bcrypt hash ("$2b$..."), never
+    # reversible. See specs/010-hidden-books.md.
     hidden_password: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
     # Relationships

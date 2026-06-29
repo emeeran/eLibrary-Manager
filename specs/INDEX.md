@@ -13,6 +13,7 @@
 | 007 | [Settings](007-settings.md) | Active | 1.0.0 | 2026-04-15 | `app/routes/settings.py` |
 | 008 | [File Parsers](008-file-parsers.md) | Active | 1.0.0 | 2026-04-15 | `app/parsers/`, `app/scanner.py` |
 | 009 | [NAS Integration](009-nas-integration.md) | Active | 1.0.0 | 2026-04-16 | `app/storage/`, `app/nas_health.py`, `app/nas_cache.py` |
+| 010 | [Hidden Books](010-hidden-books.md) | Active | 1.0.0 | 2026-06-29 | `app/routes/hidden.py`, `app/models.py` (Book.hidden_password) |
 
 ## Dependency Graph
 

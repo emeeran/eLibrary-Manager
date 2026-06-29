@@ -20,10 +20,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Add the per-book hidden_password column."""
+    """Add the per-book hidden_password column and normalize any legacy values."""
     op.add_column(
         "books",
         sa.Column("hidden_password", sa.String(length=1000), nullable=True),
+    )
+    # The column previously held Fernet (reversible) ciphertext in an earlier
+    # iteration of this feature. bcrypt hashes start with "$2"; any other value
+    # is legacy/unverifiable, so clear it and unhide the book to avoid leaving
+    # books locked behind passwords we deliberately no longer store that way.
+    op.execute(
+        "UPDATE books SET hidden_password = NULL, is_hidden = 0 "
+        "WHERE hidden_password IS NOT NULL AND hidden_password NOT LIKE '$2%'"
     )
 
 

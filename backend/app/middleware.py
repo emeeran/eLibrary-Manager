@@ -23,6 +23,10 @@ RATE_LIMITS: dict[str, tuple[int, int]] = {
     "/api/settings/test-ai": (5, 60),
     "/api/settings/backup": (3, 60),
     "/api/auth/login": (10, 60),
+    # Per-book hide/unhide run bcrypt verification — cap hard to throttle brute
+    # force. Matched by exact-path suffix below so they don't affect reads.
+    "/hide": (20, 60),
+    "/unhide": (20, 60),
 }
 
 # Maximum period across all rate limits (for stale entry cleanup)
@@ -83,10 +87,18 @@ class ProductionMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         limit_config = None
-        for prefix, config in RATE_LIMITS.items():
-            if path.startswith(prefix):
-                limit_config = config
-                break
+        # Prefer exact matches over prefix matches so a broad prefix never
+        # accidentally throttles unrelated sub-paths (e.g. "/hide" must not
+        # limit "/api/books/{id}/chapter/...").
+        if path in RATE_LIMITS:
+            limit_config = RATE_LIMITS[path]
+        else:
+            for prefix, config in RATE_LIMITS.items():
+                # Suffix-style keys (e.g. "/hide") match any path ending with them
+                # but only when the prefix itself isn't a path-like key.
+                if prefix.startswith("/") and not prefix.startswith("/api") and path.endswith(prefix):
+                    limit_config = config
+                    break
 
         if not limit_config:
             return None

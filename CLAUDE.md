@@ -182,6 +182,13 @@ prior tokens. `SecurityHeadersMiddleware` emits CSP + browser hardening headers;
 `CSRFMiddleware` enforces same-origin on `POST/PUT/PATCH/DELETE` (layered on the
 `SameSite=Lax` session cookie). Rate limiting lives in `ProductionMiddleware`.
 
+**Hidden books** (per-book passwords, see spec 010): each hidden book is
+protected by its own password stored as a **one-way bcrypt hash** on
+`Book.hidden_password` (never reversible — Fernet is used only for settings
+secrets, not passwords). `/api/books/{id}/hide` sets a new hash; `/unhide`
+verifies it and is rate-limited + locked out after 5 failed attempts. The
+admin can bulk-reset via `/api/hidden/unhide-all`.
+
 ## Frontend modernization roadmap
 
 The vanilla-JS monoliths are the largest maintainability debt. The agreed
