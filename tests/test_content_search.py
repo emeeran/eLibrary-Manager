@@ -164,7 +164,7 @@ async def test_backfill_indexes_and_enables_search(content_fts, tmp_path: Path) 
     )
     await content_fts.commit()
 
-    stats = await run_content_backfill(content_fts)
+    stats = await run_content_backfill(content_fts, max_workers=1)
     await content_fts.commit()
 
     assert stats["extracted"] >= 1
@@ -175,6 +175,29 @@ async def test_backfill_indexes_and_enables_search(content_fts, tmp_path: Path) 
     books, total = await repo.list_with_count(search="bandersnatch")
     assert total == 1
     assert books[0].id == book.id
+
+
+async def test_backfill_parallel_extraction(content_fts, tmp_path: Path) -> None:
+    """The ProcessPool path (max_workers>1) indexes books too."""
+    from app.repositories import BookRepository
+    from app.schemas import BookCreate
+    from app.services.content_backfill_service import run_content_backfill
+
+    epub = tmp_path / "par.epub"
+    _make_text_epub(epub, "whiffling tulgey borogove")
+
+    repo = BookRepository(content_fts)
+    await repo.create(
+        BookCreate(title="Jabber", author="Carroll", path=str(epub), file_size=10, format="EPUB")
+    )
+    await content_fts.commit()
+
+    stats = await run_content_backfill(content_fts, max_workers=2)
+    await content_fts.commit()
+
+    assert stats["extracted"] >= 1
+    books, total = await repo.list_with_count(search="borogove")
+    assert total == 1
 
 
 async def test_search_returns_content_snippet(content_fts) -> None:

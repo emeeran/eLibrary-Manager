@@ -113,10 +113,9 @@ fixture because the in-memory test DB runs no migrations):
 
 - **More facets** — date range (needs a normalized pubdate column),
   identifier/ISBN, tag/category multi-select beyond the single `category_id`.
-- **Parallel extraction** — move `extract_text` to a `ProcessPoolExecutor` in the
-  backfill for very large libraries (the function is already picklable).
 - **Lazy extraction** — extract on first reader open as a gradual alternative to
   the bulk backfill.
 
 > v1.0: content search + snippets. v1.1: series/rating facets, `field:term`
-> syntax, jump-to-match. Search input already debounces at 300ms.
+> syntax, jump-to-match, **parallel (ProcessPool) backfill**. Search input
+> already debounces at 300ms.
