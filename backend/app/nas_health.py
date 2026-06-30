@@ -49,14 +49,24 @@ class NASHealthMonitor:
         logger.info("NAS health monitor stopped")
 
     async def _run_loop(self) -> None:
-        """Main health check loop."""
+        """Main health check loop.
+
+        Logs on state *transitions* only — WARNING when the NAS first goes
+        unhealthy, INFO when it recovers — so a persistently-unreachable NAS
+        doesn't spam the journal once a minute.
+        """
+        last_healthy: bool | None = None
         while True:
             try:
                 result = await self.backend.health_check()
-                if not result["healthy"]:
-                    logger.warning(f"NAS health check: {result['details']}")
+                healthy = bool(result["healthy"])
+                if not healthy and last_healthy is not False:
+                    logger.warning("NAS health check: %s", result.get("details"))
+                elif healthy and last_healthy is False:
+                    logger.info("NAS health check recovered: %s", result.get("details"))
+                last_healthy = healthy
             except Exception as e:
-                logger.error(f"NAS health check exception: {e}")
+                logger.error("NAS health check exception: %s", e)
             await asyncio.sleep(self.check_interval)
 
     @property
