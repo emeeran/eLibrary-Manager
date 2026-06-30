@@ -197,3 +197,100 @@ async def test_search_returns_content_snippet(content_fts) -> None:
     )
     assert book.id in snips
     assert "sandworm" in snips[book.id].lower()
+
+
+# --------------------------------------------------------------------- #
+# Faceted filters + advanced search syntax (spec 012)
+# --------------------------------------------------------------------- #
+
+
+async def test_faceted_series_filter(db_session) -> None:
+    """series_filter (multi-select) narrows to the chosen series."""
+    from app.repositories import BookRepository
+    from app.schemas import BookCreate
+
+    repo = BookRepository(db_session)
+    await repo.create(
+        BookCreate(title="Foundation", author="Asimov", path="/tmp/f.epub", file_size=10, series="Foundation")
+    )
+    await repo.create(
+        BookCreate(title="Dune", author="Herbert", path="/tmp/d.epub", file_size=10, series="Dune")
+    )
+    await db_session.commit()
+
+    books, total = await repo.list_with_count(series_filter=["Foundation"])
+    assert total == 1
+    assert books[0].title == "Foundation"
+
+
+async def test_faceted_rating_filter(db_session) -> None:
+    """rating_min keeps only books at or above the threshold."""
+    from app.repositories import BookRepository
+    from app.schemas import BookCreate
+
+    repo = BookRepository(db_session)
+    low = await repo.create(BookCreate(title="Low", author="X", path="/tmp/low.epub", file_size=10))
+    low.rating = 2
+    high = await repo.create(BookCreate(title="High", author="Y", path="/tmp/high.epub", file_size=10))
+    high.rating = 5
+    await db_session.commit()
+
+    books, total = await repo.list_with_count(rating_min=4)
+    assert total == 1
+    assert books[0].title == "High"
+
+
+async def test_advanced_search_field_term(db_session) -> None:
+    """``author:term`` is an ANDed ilike predicate (no FTS needed)."""
+    from app.repositories import BookRepository
+    from app.schemas import BookCreate
+
+    repo = BookRepository(db_session)
+    await repo.create(BookCreate(title="Rings", author="Tolkien", path="/tmp/r.epub", file_size=10))
+    await repo.create(BookCreate(title="Others", author="Smith", path="/tmp/o.epub", file_size=10))
+    await db_session.commit()
+
+    books, total = await repo.list_with_count(search="author:tolkien")
+    assert total == 1
+    assert books[0].author == "Tolkien"
+
+
+async def test_advanced_search_field_plus_bare(content_fts) -> None:
+    """A field term ANDs with a bare term's ilike/FTS match."""
+    from app.repositories import BookRepository
+    from app.schemas import BookCreate
+
+    repo = BookRepository(content_fts)
+    await repo.create(
+        BookCreate(title="Hobbit", author="Tolkien", path="/tmp/h.epub", file_size=10)
+    )
+    await repo.create(
+        BookCreate(title="Rings", author="Tolkien", path="/tmp/rg.epub", file_size=10)
+    )
+    await content_fts.commit()
+
+    # author:tolkien AND title contains "hobbit"
+    books, total = await repo.list_with_count(search="author:tolkien hobbit")
+    assert total == 1
+    assert books[0].title == "Hobbit"
+
+
+async def test_series_endpoint(client, db_session) -> None:
+    """GET /api/books/series returns distinct series with counts."""
+    from app.repositories import BookRepository
+    from app.schemas import BookCreate
+
+    repo = BookRepository(db_session)
+    await repo.create(
+        BookCreate(title="Foundation", author="Asimov", path="/tmp/f.epub", file_size=10, series="Foundation")
+    )
+    await repo.create(
+        BookCreate(title="Foundation 2", author="Asimov", path="/tmp/f2.epub", file_size=10, series="Foundation")
+    )
+    await db_session.commit()
+
+    resp = await client.get("/api/books/series")
+    assert resp.status_code == 200
+    foundation = next((s for s in resp.json() if s["name"] == "Foundation"), None)
+    assert foundation is not None
+    assert foundation["count"] == 2

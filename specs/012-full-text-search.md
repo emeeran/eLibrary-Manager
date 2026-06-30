@@ -1,7 +1,7 @@
 # 012 — Full-Text Content Search
 
 **Status:** Active  
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Last Updated:** 2026-06-30  
 **Depends on:** `001-library-management.md` (search/list), `008-file-parsers.md` (extraction)  
 **Key Files:** `app/services/content_extractor.py`, `app/services/content_backfill_service.py`, `app/repositories.py` (`BookContentRepository`, search predicate), `app/routes/library.py`, `app/models.py` (`BookContent`)
@@ -60,6 +60,21 @@ Makes the library search box match book **CONTENT** (body text), not just title/
   escapes the whole snippet and restores only the `<mark>` delimiters so book
   content can never inject markup.
 
+### Faceted filters & advanced syntax (v1.1)
+
+- **AC-13:** `list_with_count` accepts `series_filter: list[str]` (multi-select,
+  `Book.series.in_(…)`) and `rating_min: int` (`Book.rating >= …`), threaded
+  through `LibraryService.list_books` and the `/api/books` route (`series`
+  comma-separated, `rating_min`). Both are included in the response-cache key.
+- **AC-14:** `GET /api/books/series` returns distinct series with book counts
+  (excluding hidden), for the series facet UI.
+- **AC-15:** Advanced search syntax: `author:/title:/series:/isbn:` tokens in the
+  search box become ANDed `ilike` predicates (`_parse_search`); remaining bare
+  tokens drive the normal ilike + FTS path.
+- **AC-16:** "Jump to match" — clicking a content snippet opens
+  `/reader/{id}?q=<bare_term>`; the reader seeds its in-book search from `?q=`
+  after the first chapter loads.
+
 ## Data Model
 
 ```python
@@ -96,15 +111,12 @@ fixture because the in-memory test DB runs no migrations):
 
 ## Open Items / Future Work (M3b + later)
 
-- **Faceted search** — multi-select series/tags, rating range, date range,
-  identifier/ISBN filters in `_build_list_query` + the library UI.
-- **Advanced query syntax** — `field:term` (`author:`, `series:`, `tag:`,
-  `isbn:`), boolean `AND/OR/NOT`, phrases, in `_build_fts_query`.
-- **"Jump to match"** — open `/reader/{id}?q=<term>` at the first hit (the reader
-  already has in-chapter search).
+- **More facets** — date range (needs a normalized pubdate column),
+  identifier/ISBN, tag/category multi-select beyond the single `category_id`.
 - **Parallel extraction** — move `extract_text` to a `ProcessPoolExecutor` in the
   backfill for very large libraries (the function is already picklable).
 - **Lazy extraction** — extract on first reader open as a gradual alternative to
   the bulk backfill.
 
-> Snippets (AC-12) shipped in v1.0; the search input already debounces at 300ms.
+> v1.0: content search + snippets. v1.1: series/rating facets, `field:term`
+> syntax, jump-to-match. Search input already debounces at 300ms.

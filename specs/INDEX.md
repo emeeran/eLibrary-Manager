@@ -15,7 +15,7 @@
 | 009 | [NAS Integration](009-nas-integration.md) | Active | 1.0.0 | 2026-04-16 | `app/storage/`, `app/nas_health.py`, `app/nas_cache.py` |
 | 010 | [Hidden Books](010-hidden-books.md) | Active | 1.0.0 | 2026-06-29 | `app/routes/hidden.py`, `app/models.py` (Book.hidden_password) |
 | 011 | [Calibre Integration](011-calibre-integration.md) | Active | 1.1.0 | 2026-06-30 | `app/services/calibre_importer.py`, `app/routes/calibre.py` |
-| 012 | [Full-Text Content Search](012-full-text-search.md) | Active | 1.0.0 | 2026-06-30 | `app/services/content_extractor.py`, `app/services/content_backfill_service.py`, `app/repositories.py` |
+| 012 | [Full-Text Content Search](012-full-text-search.md) | Active | 1.1.0 | 2026-06-30 | `app/services/content_extractor.py`, `app/services/content_backfill_service.py`, `app/repositories.py` |
 | 013 | [Calibre-Web → eLM Reader Deep Link](013-calibre-reader-deeplink.md) | Active | 1.0.0 | 2026-06-30 | `app/routes/calibre.py` (`GET /calibre/launch`) |
 
 ## Dependency Graph

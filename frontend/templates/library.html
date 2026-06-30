@@ -102,6 +102,36 @@
                         <div id="format-list"></div>
                     </div>
 
+                    <!-- Refine: series + rating facets (spec 012) -->
+                    <div class="nav-item" onclick="toggleRefineSection()" role="button" tabindex="0">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Refine</span>
+                        <svg class="nav-item-expand" id="refine-expand-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                        </svg>
+                    </div>
+                    <div class="nav-subitems hidden" id="refine-subitems">
+                        <div style="padding:6px 12px;">
+                            <div style="font-size:11px;color:var(--sidebar-text-muted,#6B6B6B);margin-bottom:2px;">Series</div>
+                            <select id="series-filter" onchange="applySeriesFilter(this.value)" style="width:100%;margin-bottom:8px;padding:4px 6px;border-radius:4px;background:var(--sidebar-bg,#2a2a2a);color:var(--sidebar-text,#eee);border:1px solid var(--sidebar-border,#444);font-size:12px;">
+                                <option value="">All series</option>
+                            </select>
+                            <div style="font-size:11px;color:var(--sidebar-text-muted,#6B6B6B);margin-bottom:2px;">Min rating</div>
+                            <select id="rating-filter" onchange="applyRatingFilter(this.value)" style="width:100%;padding:4px 6px;border-radius:4px;background:var(--sidebar-bg,#2a2a2a);color:var(--sidebar-text,#eee);border:1px solid var(--sidebar-border,#444);font-size:12px;">
+                                <option value="">Any rating</option>
+                                <option value="1">★ 1+</option>
+                                <option value="2">★ 2+</option>
+                                <option value="3">★ 3+</option>
+                                <option value="4">★ 4+</option>
+                                <option value="5">★ 5+</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="nav-item" onclick="filterByCategory('reading', event)">
                         <div class="nav-item-icon">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

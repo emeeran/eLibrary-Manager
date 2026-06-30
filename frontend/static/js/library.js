@@ -41,6 +41,19 @@ function renderSnippet(raw) {
 }
 
 /**
+ * Open a book's reader at the current search term (jump to match, spec 012).
+ * Strips ``field:term`` tokens so only the bare search term is passed to the
+ * reader's in-book search.
+ */
+function jumpToMatch(bookId, event) {
+    if (event) event.stopPropagation();
+    const raw = currentFilters.search || '';
+    const bare = raw.replace(/\b(author|title|series|isbn):\S+/gi, '').trim();
+    if (!bare) return;
+    window.location.href = `/reader/${bookId}?q=${encodeURIComponent(bare)}`;
+}
+
+/**
  * Generate a colored placeholder cover for books without a cover image.
  * The hue is derived deterministically from the title+author so the same
  * book always gets the same color (stable across renders/reloads).
@@ -311,7 +324,7 @@ function renderGridView(books, append = false) {
                         ${yearInfo ? `<span class="book-card-year">${yearInfo}</span>` : ''}
                     </div>
                     ${book.categories && book.categories.length ? `<div class="book-card-categories"><span class="category-pill">${escapeHtml(book.categories[0])}</span>${book.categories.length > 1 ? `<span class="category-pill category-pill-more">+${book.categories.length - 1}</span>` : ''}</div>` : ''}
-                    ${contentSnippets && contentSnippets[String(book.id)] ? `<div class="book-card-snippet" title="Matched in book content">${renderSnippet(contentSnippets[String(book.id)])}</div>` : ''}
+                    ${contentSnippets && contentSnippets[String(book.id)] ? `<div class="book-card-snippet" title="Open at this match" onclick="jumpToMatch(${book.id}, event)">${renderSnippet(contentSnippets[String(book.id)])}</div>` : ''}
                 </div>
             </div>
             <div class="book-card-actions">
@@ -609,6 +622,57 @@ function toggleFormatSection() {
 
     subitems.classList.toggle('hidden');
     expandIcon.classList.toggle('expanded');
+}
+
+/**
+ * Refine facet section (series + rating, spec 012).
+ */
+function toggleRefineSection() {
+    const subitems = document.getElementById('refine-subitems');
+    const expandIcon = document.getElementById('refine-expand-icon');
+    subitems.classList.toggle('hidden');
+    if (expandIcon) expandIcon.classList.toggle('expanded');
+}
+
+async function loadSeries() {
+    try {
+        const res = await fetch('/api/books/series');
+        if (!res.ok) return;
+        const series = await res.json();
+        const select = document.getElementById('series-filter');
+        if (!select) return;
+        const current = currentFilters.series || '';
+        select.innerHTML =
+            '<option value="">All series</option>' +
+            series
+                .map(
+                    s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)} (${s.count})</option>`
+                )
+                .join('');
+        select.value = current;
+    } catch (e) {
+        console.error('Failed to load series:', e);
+    }
+}
+
+function applySeriesFilter(value) {
+    if (value) {
+        currentFilters.series = value;
+    } else {
+        delete currentFilters.series;
+    }
+    currentPage = 1;
+    loadBooks();
+}
+
+function applyRatingFilter(value) {
+    if (value) {
+        currentFilters.rating_min = value;
+    } else {
+        delete currentFilters.rating_min;
+    }
+    currentPage = 1;
+    loadBooks();
 }
 
 /**
@@ -2013,6 +2077,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadCategories();
     loadDirectories();
     loadFormats();
+    loadSeries();
     initHiddenBooks();
 
     // Infinite scroll

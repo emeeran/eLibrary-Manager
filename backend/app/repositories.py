@@ -40,6 +40,44 @@ def _build_fts_query(search: str) -> str | None:
     return " ".join(f'"{t.replace(chr(34), "")}"*' for t in tokens)
 
 
+# Advanced search syntax (spec 012): ``field:term`` tokens map to a Book column
+# and become an ANDed ilike predicate; the remaining bare tokens go through the
+# normal ilike + FTS path. ``tag:`` is handled by the existing category facet.
+_FIELD_SEARCH_RE = re.compile(r"^(author|title|series|isbn):(.+)$", re.IGNORECASE)
+
+
+def _parse_search(search: str | None) -> tuple[str | None, list]:
+    """Split ``search`` into ``(bare_terms, field_predicates)``.
+
+    ``author:/title:/series:/isbn:`` tokens become ``ilike('%value%')``
+    predicates on the matching column (ANDed into the query). Remaining tokens
+    are returned as a whitespace-joined string for the ilike + FTS path. Phrases
+    aren't specially handled (consistent with ``_build_fts_query``).
+    """
+    if not search:
+        return None, []
+    field_columns = {
+        "author": Book.author,
+        "title": Book.title,
+        "series": Book.series,
+        "isbn": Book.isbn,
+    }
+    bare: list[str] = []
+    preds: list = []
+    for tok in re.split(r"\s+", search.strip()):
+        if not tok:
+            continue
+        m = _FIELD_SEARCH_RE.match(tok)
+        if m:
+            col = field_columns.get(m.group(1).lower())
+            value = m.group(2)
+            if col is not None and value:
+                preds.append(col.ilike(f"%{value}%"))
+            continue
+        bare.append(tok)
+    return (" ".join(bare) if bare else None), preds
+
+
 class BookRepository:
     """Repository for Book database operations.
 
@@ -187,6 +225,8 @@ class BookRepository:
         hidden_only: bool = False,
         show_hidden: bool = False,
         directory_filter: str | None = None,
+        series_filter: list[str] | None = None,
+        rating_min: int | None = None,
     ) -> tuple:
         """Build base query conditions for book listing.
 
@@ -205,6 +245,11 @@ class BookRepository:
             conditions.append(Book.progress > 0)
         if format_filter:
             conditions.append(Book.format == format_filter.upper())
+        if series_filter:
+            # Multi-select series facet (spec 012).
+            conditions.append(Book.series.in_(series_filter))
+        if rating_min:
+            conditions.append(Book.rating >= rating_min)
         if source_filter:
             conditions.append(Book.storage_type == source_filter)
         if directory_filter:
@@ -254,6 +299,8 @@ class BookRepository:
         hidden_only: bool = False,
         show_hidden: bool = False,
         directory_filter: str | None = None,
+        series_filter: list[str] | None = None,
+        rating_min: int | None = None,
     ) -> tuple[list[Book], int]:
         """List books with optional filters and sorting, returning total count.
 
@@ -263,24 +310,31 @@ class BookRepository:
         Returns:
             Tuple of (books_list, total_count)
         """
+        # Parse advanced ``field:term`` syntax (spec 012): field tokens become
+        # ANDed ilike predicates; bare terms drive the ilike + FTS path.
+        bare_search, field_preds = _parse_search(search)
         query, search_ilike = self._build_list_query(
             favorite_only=favorite_only,
             recent_only=recent_only,
             reading_only=reading_only,
-            search=search,
+            search=bare_search,
             format_filter=format_filter,
             source_filter=source_filter,
             category_id=category_id,
             hidden_only=hidden_only,
             show_hidden=show_hidden,
             directory_filter=directory_filter,
+            series_filter=series_filter,
+            rating_min=rating_min,
         )
+        for pred in field_preds:
+            query = query.where(pred)
         # Build the search predicate: (title/author ilike) OR (metadata FTS) OR
         # (content FTS). Content-only hits (body text) must still surface the
         # book, so FTS is OR'd with — not AND'd against — the ilike clause.
         search_predicate = search_ilike
-        if search:
-            fts_match = _build_fts_query(search)
+        if bare_search:
+            fts_match = _build_fts_query(bare_search)
             if fts_match is not None and await self._fts_available():
                 content_available = await self._content_fts_available()
                 fts_pred = self._build_fts_predicate(fts_match, content_available)
@@ -302,6 +356,8 @@ class BookRepository:
             hidden_only=hidden_only,
             show_hidden=show_hidden,
             directory_filter=directory_filter,
+            series_filter=series_filter,
+            rating_min=rating_min,
         )
 
         # Apply sorting and pagination (case-insensitive for text columns)
@@ -336,9 +392,15 @@ class BookRepository:
         hidden_only: bool = False,
         show_hidden: bool = False,
         directory_filter: str | None = None,
+        series_filter: list[str] | None = None,
+        rating_min: int | None = None,
     ) -> int:
         """Count books matching filters, with short-lived cache for pagination."""
-        cache_key = f"{favorite_only}|{recent_only}|{reading_only}|{search}|{format_filter}|{source_filter}|{category_id}|{hidden_only}|{show_hidden}|{directory_filter}"
+        cache_key = (
+            f"{favorite_only}|{recent_only}|{reading_only}|{search}|{format_filter}|"
+            f"{source_filter}|{category_id}|{hidden_only}|{show_hidden}|"
+            f"{directory_filter}|{series_filter}|{rating_min}"
+        )
 
         now = time.time()
         if cache_key in self._count_cache:
@@ -346,22 +408,27 @@ class BookRepository:
             if now - cached_time < _COUNT_CACHE_TTL:
                 return cached_count
 
+        bare_search, field_preds = _parse_search(search)
         query, search_ilike = self._build_list_query(
             favorite_only=favorite_only,
             recent_only=recent_only,
             reading_only=reading_only,
-            search=search,
+            search=bare_search,
             format_filter=format_filter,
             source_filter=source_filter,
             category_id=category_id,
             hidden_only=hidden_only,
             show_hidden=show_hidden,
             directory_filter=directory_filter,
+            series_filter=series_filter,
+            rating_min=rating_min,
         )
+        for pred in field_preds:
+            query = query.where(pred)
         # Mirror list_with_count's search predicate so the count matches exactly.
         search_predicate = search_ilike
-        if search:
-            fts_match = _build_fts_query(search)
+        if bare_search:
+            fts_match = _build_fts_query(bare_search)
             if fts_match is not None and await self._fts_available():
                 content_available = await self._content_fts_available()
                 fts_pred = self._build_fts_predicate(fts_match, content_available)

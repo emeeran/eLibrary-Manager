@@ -146,6 +146,18 @@ async function initReader(bookId) {
         const startChapter = book.current_chapter || 0;
         await loadChapter(startChapter);
 
+        // "Jump to match" (spec 012): arriving via ?q=<term> seeds the in-book
+        // search so the user lands on the matching passage.
+        const jumpQuery = new URLSearchParams(window.location.search).get('q');
+        if (jumpQuery) {
+            const input = document.getElementById('ic-search-input');
+            if (input) {
+                input.value = jumpQuery;
+                if (typeof showSearchPanel === 'function') showSearchPanel();
+                if (typeof handleSearch === 'function') handleSearch();
+            }
+        }
+
     } catch (error) {
         console.error('Failed to initialize reader:', error);
         const contentArea = document.getElementById('ic-chapter-text');

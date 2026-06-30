@@ -605,6 +605,24 @@ async def refresh_covers(force: bool = False, db: AsyncSession = Depends(get_db)
     return results
 
 
+@router.get("/books/series")
+async def list_series(db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """Distinct series with book counts, for the series facet (spec 012)."""
+    from sqlalchemy import func, select
+
+    from app.models import Book
+
+    rows = (
+        await db.execute(
+            select(Book.series, func.count(Book.id))
+            .where(Book.series.isnot(None), Book.is_hidden.is_(False))
+            .group_by(Book.series)
+            .order_by(func.count(Book.id).desc())
+        )
+    ).all()
+    return [{"name": r[0], "count": int(r[1])} for r in rows]
+
+
 @router.get("/books", response_model=BookListResponse)
 async def list_books(
     request: Request,
@@ -623,6 +641,8 @@ async def list_books(
     hidden_only: bool = False,
     show_hidden: bool = False,
     directory_filter: str | None = None,
+    series: str | None = None,
+    rating_min: int | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> BookListResponse:
     """List books with pagination, filters, and sorting.
@@ -647,6 +667,12 @@ async def list_books(
     # Enforce pagination limits
     page = max(1, page)
     page_size = max(1, min(page_size, 100))
+
+    # Series facet: comma-separated names → list (spec 012).
+    series_filter = (
+        [s.strip() for s in series.split(",") if s.strip()] if series else None
+    )
+    rating_min = rating_min if (rating_min and 1 <= rating_min <= 5) else None
 
     service = LibraryService(db)
 
@@ -687,7 +713,7 @@ async def list_books(
 
     session_token = request.cookies.get(_SCN, "")
     user_hash = hashlib.sha256(session_token.encode()).hexdigest()[:8] if session_token else "anon"
-    cache_key = f"{user_hash}|{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}"
+    cache_key = f"{user_hash}|{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}|{series_filter}|{rating_min}"
     if cache_key in _search_cache:
         return _search_cache[cache_key]
 
@@ -706,6 +732,8 @@ async def list_books(
         hidden_only=hidden_only,
         show_hidden=show_hidden,
         directory_filter=directory_filter,
+        series_filter=series_filter,
+        rating_min=rating_min,
     )
 
     # Batch-fetch categories for all books in a single query
