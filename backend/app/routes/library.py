@@ -676,33 +676,27 @@ async def list_books(
 
     service = LibraryService(db)
 
-    # Handle deleted_only: find books with missing files (bypasses cache)
+    # Handle deleted_only: soft-deleted (pruned from Calibre) books OR books with
+    # missing files. Bypasses the response cache.
     if deleted_only:
+        from sqlalchemy import or_, select
+
         from app.models import Book
 
         stale_ids = await BookRepository(db).get_stale_book_ids()
 
-        if not stale_ids:
-            return BookListResponse(
-                books=[],
-                total=0,
-                page=page,
-                page_size=page_size,
-                counts=None,
-            )
-
-        from sqlalchemy import select
-
-        result = await db.execute(select(Book).where(Book.id.in_(stale_ids)))
+        conds = [Book.is_deleted.is_(True)]
+        if stale_ids:
+            conds.append(Book.id.in_(stale_ids))
+        result = await db.execute(select(Book).where(or_(*conds)))
         books = result.scalars().all()
 
-        # Batch-fetch categories for stale books
-        stale_book_ids = [b.id for b in books]
-        categories_map = await service.book_repo.get_categories_for_books(stale_book_ids)
+        deleted_book_ids = [b.id for b in books]
+        categories_map = await service.book_repo.get_categories_for_books(deleted_book_ids)
 
         return BookListResponse(
             books=[book_to_response(b, categories=categories_map.get(b.id, [])) for b in books],
-            total=len(stale_ids),
+            total=len(books),
             page=page,
             page_size=page_size,
             counts=None,
@@ -798,6 +792,26 @@ async def update_book(
     repo = BookRepository(db)
     book = await repo.update(book_id, update_data)
     return book_to_response(book)
+
+
+@router.post("/books/{book_id}/restore")
+async def restore_book(book_id: int, db: AsyncSession = Depends(get_db)) -> dict:
+    """Restore a soft-deleted book (clear its ``is_deleted`` flag). Spec 011 v1.2."""
+    from sqlalchemy import update
+
+    from app.models import Book
+
+    result = await db.execute(
+        update(Book).where(Book.id == book_id).values(is_deleted=False)
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Book not found")
+    await db.commit()
+    invalidate_book_list_cache()
+    from app.services.library_service import invalidate_stats_cache
+
+    invalidate_stats_cache()
+    return {"restored": True, "book_id": book_id}
 
 
 @router.post("/books/{book_id}/cover")

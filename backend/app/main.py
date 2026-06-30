@@ -200,11 +200,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         app.state.nas_monitor = None
         app.state.nas_backend = None
 
+    # Calibre auto-sync monitor (spec 011 v1.2): runs only if both a saved
+    # library path and a non-zero interval are configured.
+    calibre_path_db = all_settings.get("calibre_library_path", "")
+    calibre_interval_db = 0
+    try:
+        calibre_interval_db = int(all_settings.get("calibre_auto_sync_interval_minutes", "0") or "0")
+    except (TypeError, ValueError):
+        calibre_interval_db = 0
+    if calibre_interval_db > 0 and calibre_path_db:
+        from app.services.calibre_sync_monitor import CalibreSyncMonitor
+
+        calibre_monitor = CalibreSyncMonitor(interval_minutes=calibre_interval_db)
+        await calibre_monitor.start()
+        app.state.calibre_sync_monitor = calibre_monitor
+        logger.info("Calibre auto-sync monitor initialized: %s", calibre_path_db)
+    else:
+        app.state.calibre_sync_monitor = None
+
     yield
 
     # Shutdown
     if hasattr(app.state, "nas_monitor") and app.state.nas_monitor:
         await app.state.nas_monitor.stop()
+    if getattr(app.state, "calibre_sync_monitor", None):
+        await app.state.calibre_sync_monitor.stop()
     logger.info("Shutting down eBook Manager")
     await db_manager.close()
 

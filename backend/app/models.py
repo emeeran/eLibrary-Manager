@@ -2,6 +2,7 @@
 
 from datetime import UTC, datetime
 
+import sqlalchemy as sa
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +34,11 @@ class Book(Base):
     is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     is_recent: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # Soft-delete: a Calibre volume that vanished from the linked library is
+    # marked deleted (excluded from normal views) but kept for recovery.
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa.false(), index=True
+    )
 
     # Metadata
     file_size: Mapped[int] = mapped_column(Integer, default=0)

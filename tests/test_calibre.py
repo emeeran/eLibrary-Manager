@@ -689,3 +689,63 @@ async def test_import_library_incremental_update(
         assert updated[0][1] == "Dune"
     finally:
         config_module.get_config().covers_path = orig_covers
+
+
+# --------------------------------------------------------------------- #
+# Sync service: prune + restore (spec 011 v1.2)
+# --------------------------------------------------------------------- #
+
+
+async def test_sync_library_prunes_missing(
+    calibre_library: dict, db_session, tmp_path: Path
+) -> None:
+    """A volume removed from Calibre is soft-deleted on the next sync."""
+    import app.config as config_module
+    from app.repositories import BookRepository
+    from app.services.calibre_sync_service import sync_library
+
+    orig = config_module.get_config().covers_path
+    covers = tmp_path / "covers"
+    covers.mkdir()
+    config_module.get_config().covers_path = str(covers)
+    try:
+        await sync_library(db_session, calibre_library["root"], prune_missing=True)
+        await db_session.commit()
+
+        repo = BookRepository(db_session)
+        _, total = await repo.list_with_count()
+        assert total == 2  # Dune (1) + Pragmatic Programmer (2)
+
+        # Remove Dune from the Calibre catalog.
+        conn = sqlite3.connect(calibre_library["root"] / "metadata.db")
+        conn.execute("DELETE FROM books WHERE id = 1")
+        conn.commit()
+        conn.close()
+
+        await sync_library(db_session, calibre_library["root"], prune_missing=True)
+        await db_session.commit()
+
+        # Fresh repo (per-instance count cache would otherwise serve the
+        # pre-prune count; production uses a new repo per request).
+        _, total = await BookRepository(db_session).list_with_count()
+        assert total == 1  # Dune soft-deleted → excluded from the normal view
+    finally:
+        config_module.get_config().covers_path = orig
+
+
+async def test_restore_book_route(client, db_session) -> None:
+    """POST /api/books/{id}/restore clears the soft-delete flag."""
+    from app.repositories import BookRepository
+    from app.schemas import BookCreate
+
+    repo = BookRepository(db_session)
+    book = await repo.create(BookCreate(title="X", author="A", path="/tmp/x.epub", file_size=10))
+    book.is_deleted = True
+    await db_session.commit()
+
+    resp = await client.post(f"/api/books/{book.id}/restore")
+    assert resp.status_code == 200
+    assert resp.json()["restored"] is True
+
+    refreshed = await repo.get_by_id(book.id)
+    assert refreshed.is_deleted is False

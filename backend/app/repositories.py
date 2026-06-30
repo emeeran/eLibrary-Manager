@@ -227,6 +227,7 @@ class BookRepository:
         directory_filter: str | None = None,
         series_filter: list[str] | None = None,
         rating_min: int | None = None,
+        show_deleted: bool = False,
     ) -> tuple:
         """Build base query conditions for book listing.
 
@@ -268,6 +269,11 @@ class BookRepository:
             conditions.append(Book.is_hidden)
         elif not show_hidden:
             conditions.append(Book.is_hidden.is_(False))
+
+        # Soft-deleted books (pruned from a linked Calibre library) are excluded
+        # from normal views unless explicitly requested (spec 011 v1.2).
+        if not show_deleted:
+            conditions.append(Book.is_deleted.is_(False))
 
         if conditions:
             query = query.where(and_(*conditions))

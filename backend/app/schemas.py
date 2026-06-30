@@ -327,6 +327,12 @@ class SettingsCreate(BaseModel):
     calibre_web_url: str | None = Field(
         None, max_length=500, description="Base URL of a Calibre-Web instance"
     )
+    calibre_library_path: str | None = Field(
+        None, max_length=1000, description="Saved Calibre library root for auto-sync"
+    )
+    calibre_auto_sync_interval_minutes: int | None = Field(
+        None, ge=0, description="Auto-sync interval in minutes (0 = off)"
+    )
 
 
 class SettingsResponse(BaseModel):
@@ -361,6 +367,8 @@ class SettingsResponse(BaseModel):
 
     # Calibre integration
     calibre_web_url: str = ""
+    calibre_library_path: str = ""
+    calibre_auto_sync_interval_minutes: int = 0
 
 
 class AIConnectionTest(BaseModel):

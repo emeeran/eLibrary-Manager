@@ -1,9 +1,9 @@
 # 011 — Calibre Integration
 
 **Status:** Active  
-**Version:** 1.1.0  
+**Version:** 1.2.0  
 **Last Updated:** 2026-06-30  
-**Key Files:** `app/services/calibre_importer.py`, `app/routes/calibre.py`, `app/models.py` (Book.calibre_id/calibre_uuid/calibre_last_modified/series/series_index)
+**Key Files:** `app/services/calibre_sync_service.py`, `app/services/calibre_sync_monitor.py`, `app/routes/calibre.py`, `app/models.py`
 
 ## Overview
 
@@ -111,6 +111,26 @@ always lives on the local filesystem.
 - **AC-24:** The completion message and progress payload report
   `imported / updated / unchanged`.
 
+### Sync completeness (v1.2)
+
+- **AC-25:** The sync logic lives in a reusable `sync_library(session, root,
+  prune_missing=False)` (`app/services/calibre_sync_service.py`) used by both the
+  manual import route and the auto-scheduler. `update_one` re-categorizes from
+  Calibre tags (idempotent) and clears `is_deleted` if a pruned volume reappeared.
+- **AC-26:** With `prune_missing=True`, eLM books whose `calibre_id` is absent
+  from the catalog are soft-deleted (`is_deleted=True`, migration
+  `g4b5c6d7e8f9`), never hard-deleted.
+- **AC-27:** Soft-deleted books are excluded from the normal list/count views
+  (`_build_list_query` default `show_deleted=False`) and from `total_books` in
+  stats; they appear in the "Deleted" view (alongside stale-file books) and are
+  counted as `deleted_books`.
+- **AC-28:** `POST /api/books/{id}/restore` clears `is_deleted` (404 if missing).
+- **AC-29:** An auto-sync monitor (`CalibreSyncMonitor`) runs in the lifespan
+  when both `calibre_library_path` and a non-zero
+  `calibre_auto_sync_interval_minutes` are set, calling `sync_library` on each
+  interval. It shares `_active_scans` (skips if a scan is running) and swallows
+  per-run errors so the loop survives a bad run.
+
 ## Data Model
 
 ```python
@@ -166,16 +186,13 @@ so the importer exercises actual file resolution and cover copying.
 
 ## Open Items / Future Work
 
-- **Series import** — done in v1.1 (`series` + `series_index`).
-- **Incremental re-sync** — done in v1.1 (`lookup_check` / `update_one` via
-  `last_modified`).
-- **Pruning deleted volumes** — books removed from Calibre are not yet reflected
-  in eLM. Needs a soft-delete (`is_deleted`) design unified with the existing
-  "Deleted = stale files" view + a restore UX.
-- **Auto-scheduling** — a background incremental-sync task (e.g. a
-  `calibre_sync_monitor` driven by a `calibre_auto_sync_interval_minutes`
-  setting). Currently sync is manual (re-run Import).
-- **Re-categorize on tag change** — `update_one` refreshes scalar metadata only.
+- **Series import** — done in v1.1.
+- **Incremental re-sync** — done in v1.1.
+- **Pruning deleted volumes** — done in v1.2 (soft-delete + Deleted view + restore).
+- **Auto-scheduling** — done in v1.2 (`CalibreSyncMonitor`).
+- **Re-categorize on tag change** — done in v1.2 (`update_one` re-categorizes).
 - **Custom columns** — generic Calibre `custom_columns` import (series shipped
   first as the 80/20).
 - OPDS feed consumption as an alternative to a local `metadata.db`.
+- **Restore UI** — a button on the Deleted view to restore pruned books (the
+  `POST /api/books/{id}/restore` endpoint exists; the UI is a follow-up).

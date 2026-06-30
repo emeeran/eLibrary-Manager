@@ -602,12 +602,13 @@ class LibraryService:
 
         result = await self.session.execute(
             select(
-                func.count(Book.id),
-                func.count().filter(Book.is_favorite),
-                func.count().filter(Book.is_recent),
-                func.count().filter(Book.progress > 0),
-                func.coalesce(func.sum(Book.file_size), 0),
-                func.count().filter(Book.is_hidden),
+                func.count(Book.id).filter(Book.is_deleted.is_(False)),
+                func.count().filter(Book.is_favorite, Book.is_deleted.is_(False)),
+                func.count().filter(Book.is_recent, Book.is_deleted.is_(False)),
+                func.count().filter(Book.progress > 0, Book.is_deleted.is_(False)),
+                func.coalesce(func.sum(Book.file_size).filter(Book.is_deleted.is_(False)), 0),
+                func.count().filter(Book.is_hidden, Book.is_deleted.is_(False)),
+                func.count().filter(Book.is_deleted),
             )
         )
         row = result.one()
@@ -618,7 +619,7 @@ class LibraryService:
             "recent_books": row[2] or 0,
             "reading_books": row[3] or 0,
             "total_size_bytes": row[4] or 0,
-            "deleted_books": 0,  # Use /api/maintenance/stale-books for stale file detection
+            "deleted_books": row[6] or 0,  # soft-deleted (pruned from Calibre)
             "hidden_books": row[5] or 0,
         }
         _stats_cache = (stats, time.time())

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from typing import Any
 from urllib.parse import urljoin
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -112,108 +111,13 @@ async def import_calibre_library(
     _active_scans.add(scan_id)
 
     async def _run() -> None:
+        from app.services.calibre_sync_service import sync_library
+
         try:
             async with db_manager.get_session() as session:
-                book_repo = BookRepository(session)
-
-                # Load existing state in one query so the per-volume resolution
-                # (new / changed / unchanged) is O(1) and doesn't hit the DB.
-                rows = (
-                    await session.execute(
-                        select(
-                            Book.path,
-                            Book.calibre_id,
-                            Book.id,
-                            Book.calibre_last_modified,
-                        )
-                    )
-                ).all()
-                existing_paths = {r[0] for r in rows if r[0]}
-                # calibre_id -> (book_id, stored last_modified) for change detection.
-                calibre_state: dict[int, tuple[int, str | None]] = {
-                    r[1]: (r[2], r[3]) for r in rows if r[1] is not None
-                }
-
                 scan_store.update(
-                    scan_id,
-                    phase="discovering",
-                    message="Reading Calibre catalog...",
+                    scan_id, phase="discovering", message="Reading Calibre catalog..."
                 )
-
-                importer_instance = CalibreImporter(request.path)
-
-                def _lookup(volume: Any) -> str:  # noqa: ANN401
-                    """Resolve a volume to 'new' | 'changed' | 'unchanged'.
-
-                    Changed = Calibre's last_modified differs from what we stored
-                    last sync (or we have no record of it → first incremental run
-                    after the column was added, so refresh once).
-                    """
-                    if (
-                        volume.calibre_id is not None
-                        and volume.calibre_id in calibre_state
-                    ):
-                        _, stored_lm = calibre_state[volume.calibre_id]
-                        if stored_lm is None or (
-                            volume.last_modified is not None
-                            and volume.last_modified != stored_lm
-                        ):
-                            return "changed"
-                        return "unchanged"
-                    if volume.file_path in existing_paths:
-                        # Present by path (e.g. a non-Calibre import at the same
-                        # path) — don't duplicate it.
-                        return "unchanged"
-                    return "new"
-
-                async def _commit_one(volume: Any, book_data: Any) -> None:  # noqa: ANN401
-                    # Auto-categorize from Calibre tags, same as the scanner.
-                    book = await book_repo.create(book_data)
-                    book.calibre_last_modified = volume.last_modified
-                    if getattr(book_data, "subjects", None):
-                        from app.services.categorization_service import (
-                            CategorizationService,
-                        )
-
-                        cat_service = CategorizationService(session)
-                        await cat_service.rule_based_categorize(book, book_data.subjects)
-                    existing_paths.add(book_data.path)
-                    if volume.calibre_id is not None:
-                        calibre_state[volume.calibre_id] = (book.id, volume.last_modified)
-
-                async def _update_one(volume: Any, book_data: Any) -> None:  # noqa: ANN401
-                    """Apply changed Calibre metadata to an existing book.
-
-                    Note: re-categorization on tag changes is deferred — only the
-                    scalar metadata (+ series) is refreshed here.
-                    """
-                    state = (
-                        calibre_state.get(volume.calibre_id)
-                        if volume.calibre_id is not None
-                        else None
-                    )
-                    if state is None:
-                        await _commit_one(volume, book_data)  # vanished — insert
-                        return
-                    book_id, _ = state
-                    book = await book_repo.get_by_id(book_id)
-                    if book is None:
-                        await _commit_one(volume, book_data)
-                        return
-                    book.title = book_data.title
-                    book.author = book_data.author
-                    book.publisher = book_data.publisher
-                    book.publish_date = book_data.publish_date
-                    book.description = book_data.description
-                    book.language = book_data.language
-                    book.isbn = book_data.isbn
-                    book.rating = book_data.rating
-                    book.series = book_data.series
-                    book.series_index = book_data.series_index
-                    if book_data.cover_path:
-                        book.cover_path = book_data.cover_path
-                    book.calibre_last_modified = volume.last_modified
-                    calibre_state[volume.calibre_id] = (book_id, volume.last_modified)
 
                 async def _progress(processed: int, total: int, title: str) -> None:
                     if scan_store.is_cancelled(scan_id):
@@ -232,12 +136,12 @@ async def import_calibre_library(
                         raise ScanCancelledError()
 
                 try:
-                    summary = await importer_instance.import_library(
+                    summary = await sync_library(
+                        session,
+                        request.path,
                         progress_callback=_progress,
                         cancel_check=_cancel,
-                        lookup_check=_lookup,
-                        commit_one=_commit_one,
-                        update_one=_update_one,
+                        prune_missing=True,
                     )
 
                     # Commit in batches is handled inside the loop via flush;
