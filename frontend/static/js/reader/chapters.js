@@ -194,9 +194,12 @@ async function loadChapter(chapterIndex) {
     contentArea.innerHTML = '<div class="ic-loading ic-loading-fast"><div class="ic-spinner"></div></div>';
 
     try {
+        // Rely on the backend's ETag + Cache-Control (1h) for conditional GETs.
+        // "no-cache" forces a full revalidation round-trip on every primary
+        // load; omitting it lets the browser serve a 304 (or the cached body)
+        // when the chapter hasn't changed.
         const response = await fetchRetry(
-            `/api/books/${IcecreamReader.bookId}/chapter/${chapterIndex}`,
-            { cache: 'no-cache' }
+            `/api/books/${IcecreamReader.bookId}/chapter/${chapterIndex}`
         );
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
@@ -300,29 +303,28 @@ function renderChapterData(chapterIndex, data, formattedHtml, isCached = false) 
 }
 
 /**
- * Prefetch adjacent chapters for instant navigation
+ * Prefetch adjacent chapters for instant navigation.
+ *
+ * The NEXT chapter is the most likely navigation target, so it is fetched
+ * eagerly (not deferred to idle time) to maximize the cache hit on a forward
+ * read. The PREVIOUS chapter is fetched during idle time as a nice-to-have.
  */
 function prefetchAdjacentChapters(currentIndex) {
-    const chaptersToFetch = [];
-
     const nextIndex = currentIndex + 1;
-    if (nextIndex < IcecreamReader.totalChapters && !IcecreamReader.chapterCache.has(nextIndex)) {
-        chaptersToFetch.push(nextIndex);
-    }
-
     const prevIndex = currentIndex - 1;
-    if (prevIndex >= 0 && !IcecreamReader.chapterCache.has(prevIndex)) {
-        chaptersToFetch.push(prevIndex);
+
+    // Eagerly prefetch the next chapter — forward reading is by far the most
+    // common path, and having it warm in the cache makes "next" feel instant.
+    if (nextIndex < IcecreamReader.totalChapters && !IcecreamReader.chapterCache.has(nextIndex)) {
+        prefetchChapter(nextIndex);
     }
 
-    if (chaptersToFetch.length === 0) return;
+    if (prevIndex < 0 || IcecreamReader.chapterCache.has(prevIndex)) return;
 
     const scheduleWork = window.requestIdleCallback || ((cb) => setTimeout(cb, 100));
 
     scheduleWork(() => {
-        chaptersToFetch.forEach((chapterIndex, i) => {
-            setTimeout(() => prefetchChapter(chapterIndex), i * 200);
-        });
+        prefetchChapter(prevIndex);
     }, { timeout: 2000 });
 }
 
@@ -483,11 +485,18 @@ function goToChapter(index) {
  * Update reading progress with real page numbers
  */
 function updateProgress() {
-    const progress = ((IcecreamReader.currentChapter + 1) / IcecreamReader.totalChapters) * 100;
+    const total = IcecreamReader.totalChapters;
+    const progress = total > 0 ? ((IcecreamReader.currentChapter + 1) / total) * 100 : 0;
 
     const progressSlider = document.getElementById('ic-progress-slider');
     if (progressSlider) {
         progressSlider.value = progress;
+    }
+
+    // Live percentage readout next to the slider.
+    const percentEl = document.getElementById('ic-progress-percent');
+    if (percentEl) {
+        percentEl.textContent = (Number.isFinite(progress) ? Math.round(progress) : 0) + '%';
     }
 
     const pageNumberEl = document.getElementById('ic-page-number');
@@ -533,6 +542,24 @@ function updateNavButtons() {
     }
     if (navInfo) {
         navInfo.textContent = `${IcecreamReader.currentChapter + 1} / ${IcecreamReader.totalChapters}`;
+    }
+
+    // Rich tooltips on the nav buttons: show the title of the chapter they
+    // will jump to, so the user knows where they're going before clicking.
+    const chapterTitle = (i) => {
+        if (i < 0 || i >= IcecreamReader.chapters.length) return '';
+        const c = IcecreamReader.chapters[i];
+        const t = (c && (c.title || c.name)) || '';
+        const isGeneric = !t || /^Page \d+$/i.test(t) || t === 'Untitled Chapter';
+        return isGeneric ? '' : t;
+    };
+    if (prevBtn) {
+        const pt = chapterTitle(IcecreamReader.currentChapter - 1);
+        prevBtn.title = pt ? `Previous: ${pt}` : 'Previous chapter';
+    }
+    if (nextBtn) {
+        const nt = chapterTitle(IcecreamReader.currentChapter + 1);
+        nextBtn.title = nt ? `Next: ${nt}` : 'Next chapter';
     }
 }
 

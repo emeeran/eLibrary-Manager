@@ -34,13 +34,21 @@ RATE_LIMITS: dict[str, tuple[int, int]] = {
 # Maximum period across all rate limits (for stale entry cleanup)
 _MAX_PERIOD = max(period for _, period in RATE_LIMITS.values()) if RATE_LIMITS else 300
 
-# Cache-Control rules for static assets
+# Cache-Control rules for static assets.
+#
+# We deliberately do NOT use the ``immutable`` directive: while it's safe in
+# principle (assets are cache-busted via ``?v=N`` query strings), it tells the
+# browser to *never even revalidate* a cached subresource — including on hard
+# refresh. If a version bump is ever missed (content changes, same ``?v=N``),
+# the browser is permanently stuck serving stale JS with no escape hatch,
+# which previously turned a simple settings.js change into an un-diagnosable
+# "Request Failed" error. A long ``max-age`` without ``immutable`` keeps the
+# speed benefit while still allowing Ctrl+Shift+R / conditional revalidation
+# to recover from a stale entry.
 CACHE_RULES: dict[str, str] = {
-    # Assets are cache-busted via ?v=N query strings, so they're effectively
-    # immutable; a 1-year TTL maximizes repeat-visit speed without staleness.
-    "/static/": "public, max-age=31536000, immutable",
-    "/covers/": "public, max-age=31536000, immutable",
-    "/book-images/": "public, max-age=31536000, immutable",
+    "/static/": "public, max-age=31536000",
+    "/covers/": "public, max-age=31536000",
+    "/book-images/": "public, max-age=31536000",
 }
 
 

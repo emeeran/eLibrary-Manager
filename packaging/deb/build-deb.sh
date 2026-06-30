@@ -15,6 +15,11 @@ PKG_DESCRIPTION="Lightweight ebook collection manager with AI-powered chapter su
  Reads EPUB, PDF, and MOBI files. Provides a web-based reader with
  bookmarking, note-taking, and text-to-speech support."
 PKG_DEPENDS="python3.12, libgl1, libglib2.0-0, xdg-utils"
+# Service runs as this user. Set ELIBRARY_RUN_USER (e.g. =em) at build time for
+# personal installs that must read a user-owned library under /home; the build
+# then runs the service as that user with ProtectHome off. Default is the
+# sandboxed 'elibrary' system user.
+RUN_USER="${ELIBRARY_RUN_USER:-elibrary}"
 PKG_SECTION="web"
 PKG_PRIORITY="optional"
 
@@ -161,11 +166,25 @@ cp "$SCRIPT_DIR/postrm" "$PKG_DIR/DEBIAN/postrm"
 # Service
 cp "$SCRIPT_DIR/elibrary-manager.service" "$PKG_DIR/usr/lib/systemd/system/"
 
+# Port-aware launcher (reads ELIBRARY_PORT from config.env)
+cp "$SCRIPT_DIR/run-server.sh" "$INSTALL_ROOT/run-server.sh"
+
 # Desktop entry
 cp "$SCRIPT_DIR/elibrary-manager.desktop" "$PKG_DIR/usr/share/applications/"
 
 # Icon
 cp "$SCRIPT_DIR/elibrary-manager.svg" "$PKG_DIR/usr/share/icons/hicolor/scalable/apps/"
+
+# Repoint the service to a real user when ELIBRARY_RUN_USER is set (personal
+# installs that must read a user-owned library under /home). Default keeps the
+# sandboxed 'elibrary' system user.
+if [ "$RUN_USER" != "elibrary" ]; then
+    RUN_GROUP="$(id -gn "$RUN_USER" 2>/dev/null || echo "$RUN_USER")"
+    sed -i "s/^User=elibrary/User=${RUN_USER}/; s/^Group=elibrary/Group=${RUN_GROUP}/; s/^ProtectHome=true/ProtectHome=false/" \
+        "$PKG_DIR/usr/lib/systemd/system/elibrary-manager.service"
+    sed -i "s/elibrary:elibrary/${RUN_USER}:${RUN_GROUP}/g; s/root:elibrary/root:${RUN_GROUP}/g" \
+        "$PKG_DIR/DEBIAN/postinst"
+fi
 
 # --- Step 12: Set permissions ---
 echo "[12/12] Setting permissions..."
@@ -174,6 +193,9 @@ chmod 755 "$PKG_DIR/DEBIAN/preinst"
 chmod 755 "$PKG_DIR/DEBIAN/postinst"
 chmod 755 "$PKG_DIR/DEBIAN/prerm"
 chmod 755 "$PKG_DIR/DEBIAN/postrm"
+
+# Launcher must be executable
+chmod 755 "$INSTALL_ROOT/run-server.sh"
 
 # Application files: root:root (only if running as root; --root-owner-group
 # handles ownership mapping for non-root builds)

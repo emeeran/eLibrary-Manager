@@ -60,6 +60,56 @@ if [ -f "$CONFIG_FILE" ] && ! grep -qE '^[[:space:]]*SECRET_KEY[[:space:]]*=[[:s
     chown root:elibrary "$CONFIG_FILE"
 fi
 
+# Choose an available port (first free from 8000) unless the operator set one.
+# Stored as ELIBRARY_PORT in config.env; the launcher (run-server.sh) reads it.
+if ! grep -qE '^[[:space:]]*ELIBRARY_PORT[[:space:]]*=[[:space:]]*[0-9]+' "$CONFIG_FILE"; then
+    CHOSEN_PORT=$(python3 - <<'PY'
+import socket
+
+for port in range(8000, 8100):
+    s = socket.socket()
+    try:
+        s.bind(("", port))
+        print(port)
+        break
+    except OSError:
+        continue
+    finally:
+        s.close()
+PY
+)
+    [ -n "${CHOSEN_PORT:-}" ] || CHOSEN_PORT=8000
+    echo "ELIBRARY_PORT=${CHOSEN_PORT}" >> "$CONFIG_FILE"
+else
+    CHOSEN_PORT=$(grep -E '^[[:space:]]*ELIBRARY_PORT[[:space:]]*=' "$CONFIG_FILE" \
+        | tail -1 | sed -E 's/^[^=]+=//; s/[^0-9].*$//' | tr -dc '0-9')
+fi
+# Point the desktop launcher at the chosen port so the menu entry opens the right URL.
+if [ -n "${CHOSEN_PORT:-}" ] && [ -f /usr/share/applications/elibrary-manager.desktop ]; then
+    sed -i -E "s#http://localhost:[0-9]+#http://localhost:${CHOSEN_PORT}#g" \
+        /usr/share/applications/elibrary-manager.desktop
+fi
+
+# Ensure an admin login exists. If neither ADMIN_PASSWORD nor
+# ADMIN_PASSWORD_HASH is active, generate a strong password so the operator can
+# actually sign in (it is printed in the banner below). Preserves any existing
+# password/hash on upgrade.
+if ! grep -qE '^[[:space:]]*ADMIN_PASSWORD(_HASH)?[[:space:]]*=[[:space:]]*[^[:space:]#]' "$CONFIG_FILE"; then
+    ADMIN_PASS=$(python3 -c 'import secrets, string; a = string.ascii_letters + string.digits; print("".join(secrets.choice(a) for _ in range(18)))' 2>/dev/null \
+        || tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 18)
+    [ -n "${ADMIN_PASS:-}" ] || ADMIN_PASS="changeme-now"
+    sed -i -E '/^[[:space:]]*#?[[:space:]]*ADMIN_PASSWORD=/d; /^[[:space:]]*#?[[:space:]]*ADMIN_USERNAME=/d' "$CONFIG_FILE"
+    printf 'ADMIN_USERNAME=admin\nADMIN_PASSWORD=%s\n' "$ADMIN_PASS" >> "$CONFIG_FILE"
+    chmod 640 "$CONFIG_FILE"
+    chown root:elibrary "$CONFIG_FILE"
+    GENERATED_ADMIN_PASS="$ADMIN_PASS"
+fi
+
+# Ensure the service user can read config.env regardless of which conditional
+# blocks ran above (ownership can be stale from an earlier install/user).
+chown root:elibrary "$CONFIG_FILE" 2>/dev/null || true
+chmod 640 "$CONFIG_FILE"
+
 # Fix venv python symlinks to point to system python3.12
 VENV_BIN="/opt/elibrary-manager/.venv/bin"
 if [ -d "$VENV_BIN" ]; then
@@ -72,9 +122,10 @@ if [ -d "$VENV_BIN" ]; then
     done
 fi
 
-# Reload systemd, enable and start service
+# Reload systemd, enable and (re)start service
 systemctl daemon-reload >/dev/null 2>&1 || true
 systemctl enable elibrary-manager >/dev/null 2>&1 || true
+systemctl restart elibrary-manager >/dev/null 2>&1 || true
 
 # Update desktop database and icon cache
 if command -v update-desktop-database > /dev/null 2>&1; then
@@ -87,13 +138,19 @@ fi
 echo ""
 echo "=== eLibrary Manager installed successfully ==="
 echo ""
+if [ -n "${GENERATED_ADMIN_PASS:-}" ]; then
+    echo "Admin login (generated — change in config.env to reset):"
+    echo "  URL      : http://localhost:${CHOSEN_PORT:-8000}/login"
+    echo "  Username : admin"
+    echo "  Password : ${GENERATED_ADMIN_PASS}"
+    echo ""
+fi
 echo "Next steps:"
-echo "  1. Edit config:  sudo nano /etc/elibrary-manager/config.env"
-echo "  2. Add ebooks:   cp ~/Books/*.epub /var/lib/elibrary-manager/library/"
-echo "  3. Start app:    sudo systemctl start elibrary-manager"
-echo "  4. Open in browser: http://localhost:8000"
-echo "  5. Check status: systemctl status elibrary-manager"
-echo "  6. View logs:    journalctl -u elibrary-manager -f"
+echo "  Add ebooks:        cp ~/Books/*.epub /var/lib/elibrary-manager/library/"
+echo "  Open in browser:   http://localhost:${CHOSEN_PORT:-8000}"
+echo "  Check status:      systemctl status elibrary-manager"
+echo "  View logs:         journalctl -u elibrary-manager -f"
+echo "  Edit config:       sudo nano /etc/elibrary-manager/config.env"
 echo ""
 
 #DEBHELPER#

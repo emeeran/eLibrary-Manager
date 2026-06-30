@@ -37,7 +37,10 @@ _active_scans: set[str] = set()
 # Search result cache — TTLCache handles expiration and size limits automatically
 from cachetools import TTLCache
 
-_search_cache: TTLCache = TTLCache(maxsize=50, ttl=30)
+# Cross-request cache for list/search results. Sized for a large library where
+# many distinct filter/sort/page combinations recur within the TTL. The repo's
+# per-instance _count_cache doesn't span requests, so this is the real cache.
+_search_cache: TTLCache = TTLCache(maxsize=256, ttl=60)
 
 
 def invalidate_book_list_cache() -> None:
@@ -212,6 +215,101 @@ async def scan_library(
 
     asyncio.create_task(_run_background_scan(scan_id, _scan_coro, "Scan complete"))
     return {"scan_id": scan_id, "status": "started"}
+
+
+@router.post("/library/backfill-content")
+async def backfill_content() -> dict:
+    """Build the full-text CONTENT index as a background task (spec 012).
+
+    Extracts every book's text into ``books_content_fts`` so the library search
+    box matches book content, not just title/author. Returns a ``scan_id`` for
+    the shared SSE progress stream. Mutually exclusive with any running
+    scan/import (shares ``_active_scans``).
+    """
+    if _active_scans:
+        raise HTTPException(
+            status_code=409,
+            detail="A scan or import is already in progress. Please wait for it to complete.",
+        )
+
+    scan_id = uuid.uuid4().hex[:8]
+    scan_store.create(scan_id)
+    _active_scans.add(scan_id)
+
+    async def _run() -> None:
+        from app.database import db_manager as _db_manager
+        from app.services.content_backfill_service import run_content_backfill
+        from app.services.library_service import invalidate_stats_cache
+
+        try:
+            async with _db_manager.get_session() as session:
+
+                def _cancel() -> None:
+                    if scan_store.is_cancelled(scan_id):
+                        raise ScanCancelledError()
+
+                async def _progress(processed: int, total: int, current: str) -> None:
+                    if scan_store.is_cancelled(scan_id):
+                        raise ScanCancelledError()
+                    scan_store.update(
+                        scan_id,
+                        phase="indexing",
+                        processed=processed,
+                        total_found=total,
+                        current_file=current,
+                        message=f"Indexing content: {processed}/{total}",
+                    )
+
+                try:
+                    stats = await run_content_backfill(
+                        session, progress_callback=_progress, cancel_check=_cancel
+                    )
+                    await session.commit()
+                    invalidate_stats_cache()
+                    scan_store.update(
+                        scan_id,
+                        status="completed",
+                        phase="done",
+                        message=(
+                            f"Content index complete: {stats['extracted']} indexed, "
+                            f"{stats['empty']} empty, {stats['failed']} failed"
+                        ),
+                    )
+                except ScanCancelledError:
+                    try:
+                        await session.rollback()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    invalidate_stats_cache()
+                    scan_store.update(
+                        scan_id,
+                        status="cancelled",
+                        phase="cancelled",
+                        message="Content indexing cancelled by user",
+                    )
+        except Exception as e:  # noqa: BLE001
+            scan_store.update(scan_id, status="failed", phase="failed", message=str(e))
+        finally:
+            _active_scans.discard(scan_id)
+
+    asyncio.create_task(_run())
+    return {"scan_id": scan_id, "status": "started"}
+
+
+@router.get("/library/content-index-status")
+async def content_index_status(db: AsyncSession = Depends(get_db)) -> dict:
+    """Report content-index coverage (extracted / pending / empty / failed)."""
+    from app.repositories import BookContentRepository
+
+    counts = await BookContentRepository(db).status_counts()
+    total = await BookRepository(db).count()
+    return {
+        "total": total,
+        "indexed": counts.get("extracted", 0),
+        "pending": counts.get("pending", 0),
+        "empty": counts.get("empty", 0),
+        "failed": counts.get("failed", 0),
+    }
 
 
 @router.get("/library/scan-progress/{scan_id}")
@@ -614,6 +712,16 @@ async def list_books(
     book_ids = [book.id for book in books]
     categories_map = await service.book_repo.get_categories_for_books(book_ids)
 
+    # When searching, surface a content snippet for any book that matched by body
+    # text (spec 012). No-op when not searching or no content index.
+    content_snippets = None
+    if search:
+        from app.repositories import BookContentRepository, _build_fts_query
+
+        fts_match = _build_fts_query(search)
+        if fts_match:
+            content_snippets = await BookContentRepository(db).snippets_for(book_ids, fts_match)
+
     result = BookListResponse(
         books=[
             book_to_response(book, categories=categories_map.get(book.id, [])) for book in books
@@ -622,6 +730,7 @@ async def list_books(
         page=page,
         page_size=page_size,
         counts=None,  # Fetched independently via /api/stats/sidebar
+        content_snippets=content_snippets,
     )
 
     _search_cache[cache_key] = result

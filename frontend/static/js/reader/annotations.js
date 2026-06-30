@@ -182,10 +182,28 @@ function copySelection() {
 }
 
 /**
- * Load annotations from API for current chapter and re-apply highlights
+ * Is the Notes & Annotations panel currently visible?
+ *
+ * The notes list fetch is book-wide (two requests) and only matters when the
+ * user is actually looking at it, so we skip it during background chapter
+ * loads to keep navigation fast.
+ */
+function notesPanelIsVisible() {
+    const panel = document.getElementById('ic-notes-sidebar');
+    return !!panel && !panel.classList.contains('collapsed');
+}
+
+/**
+ * Load annotations from API for current chapter and re-apply highlights.
+ *
+ * The per-chapter highlight re-application always runs (cheap, 1 filtered
+ * request). The book-wide notes panel refresh is skipped unless the panel is
+ * open — see notesPanelIsVisible().
  */
 async function loadAnnotations() {
-    renderNotes();
+    if (notesPanelIsVisible()) {
+        renderNotes();
+    }
 
     try {
         const response = await fetch(
@@ -343,6 +361,103 @@ async function deleteNote(noteId) {
 }
 
 /* Bookmarks ---------------------------------------------------------- */
+
+/**
+ * Maximum length of selected text used as an auto-generated bookmark title.
+ * Keeps the bookmarks list readable while still identifying the passage.
+ */
+const BOOKMARK_TITLE_MAX = 120;
+
+/**
+ * Resolve the current text selection to a (range, offsets, text) triple.
+ *
+ * Used by both the selection-bubble "bookmark" button and the Ctrl+Shift+B
+ * keyboard shortcut. Falls back to the last captured selection range when the
+ * live selection has already been cleared (e.g. focus shifted to the menu).
+ *
+ * Returns null when there is nothing usable to bookmark.
+ */
+function resolveSelectionForBookmark() {
+    const liveSel = window.getSelection();
+    let liveText = liveSel ? liveSel.toString().trim() : '';
+    let range = null;
+
+    if (liveText.length > 2 && liveSel.rangeCount) {
+        range = liveSel.getRangeAt(0);
+        currentSelectionRange = range.cloneRange();
+    } else if (currentSelectionRange) {
+        // Use the last captured selection (e.g. bubble button clicked).
+        liveText = currentSelectionRange.toString().trim();
+        range = currentSelectionRange;
+    }
+
+    if (!range || liveText.length <= 2) return null;
+
+    // Offsets must be computed against the chapter content area; temporarily
+    // point getSelectionOffsets at the resolved range.
+    const saved = currentSelectionRange;
+    currentSelectionRange = range;
+    const offsets = getSelectionOffsets();
+    currentSelectionRange = saved;
+
+    return { text: liveText, start: offsets.start };
+}
+
+/**
+ * Bookmark the current text selection.
+ *
+ * Creates a bookmark at the selection's character offset, using the selected
+ * text (truncated) as the title. Invoked by:
+ *   - the "+" button in the selection bubble
+ *   - the Ctrl+Shift+B keyboard shortcut
+ *
+ * When no text is selected, falls back to bookmarking the whole chapter
+ * (same behavior as the existing addBookmark()).
+ */
+async function bookmarkSelection() {
+    const sel = resolveSelectionForBookmark();
+
+    // No usable selection → bookmark whole chapter at position 0.
+    if (!sel) {
+        await addBookmark();
+        return;
+    }
+
+    const title = sel.text.length > BOOKMARK_TITLE_MAX
+        ? sel.text.slice(0, BOOKMARK_TITLE_MAX - 1).trimEnd() + '…'
+        : sel.text;
+
+    try {
+        const response = await fetch(`/api/books/${IcecreamReader.bookId}/bookmarks`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                chapter_index: IcecreamReader.currentChapter,
+                position_in_chapter: sel.start,
+                title: title
+            })
+        });
+
+        if (response.status === 409) {
+            showToast('Already bookmarked');
+        } else if (!response.ok) {
+            throw new Error('Failed to add bookmark');
+        } else {
+            showToast('Selection bookmarked');
+        }
+
+        // Clear the selection + hide the bubble.
+        window.getSelection().removeAllRanges();
+        const menu = document.getElementById('ic-selection-menu');
+        if (menu) menu.style.display = 'none';
+        currentSelectionRange = null;
+
+        renderBookmarks();
+    } catch (e) {
+        console.error('Failed to bookmark selection:', e);
+        showToast('Failed to add bookmark');
+    }
+}
 
 /**
  * Add bookmark via API

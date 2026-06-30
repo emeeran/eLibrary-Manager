@@ -2327,10 +2327,23 @@ html[data-theme="night"] .ic-ai-ollama-section {
 .ic-footer-center {
     flex: 1;
     display: flex;
+    align-items: center;
     justify-content: center;
+    gap: 10px;
     padding: 0 16px;
     max-width: 600px;
     position: relative;
+}
+
+/* Live percentage readout left of the progress slider. */
+.ic-progress-percent {
+    flex: 0 0 auto;
+    min-width: 34px;
+    text-align: right;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ic-text-secondary, #888);
+    user-select: none;
 }
 
 /* Progress slider tooltip */

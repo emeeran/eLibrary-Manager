@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eLibrary Manager - Settings</title>
-    <link rel="stylesheet" href="/static/css/main.css?v=4">
+    <link rel="stylesheet" href="/static/css/main.css?v=5">
 </head>
 <body>
     <div class="settings-container">
@@ -87,6 +87,15 @@
                         </svg>
                     </div>
                     <span class="nav-item-text">NAS Storage</span>
+                </div>
+
+                <div class="settings-nav-item" data-tab="calibre" onclick="switchTab('calibre')">
+                    <div class="nav-item-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
+                        </svg>
+                    </div>
+                    <span class="nav-item-text">Calibre</span>
                 </div>
 
                 <div class="settings-nav-item" data-tab="about" onclick="switchTab('about')">
@@ -719,6 +728,66 @@
                     </div>
                 </div>
 
+                <!-- Calibre Integration Panel -->
+                <div class="settings-panel" id="panel-calibre">
+                    <h2 class="panel-title">Calibre Integration</h2>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Library Import</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Import a Calibre library</div>
+                                <div class="setting-description">
+                                    Reads Calibre's <code>metadata.db</code> and imports every volume's
+                                    real EPUB/PDF/MOBI file (with covers, ratings, tags, descriptions) into
+                                    this reader. Imported books are tagged with their Calibre id for deep-linking.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-info" style="flex: 1;">
+                                <div class="setting-label">Calibre library path</div>
+                                <div class="setting-description">Absolute path to the Calibre library root (the folder containing <code>metadata.db</code>).</div>
+                            </div>
+                            <div class="setting-control" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                <input type="text" id="calibre-library-path" class="settings-input" placeholder="/path/to/Calibre Library" style="min-width: 300px;">
+                                <button class="settings-btn settings-btn-secondary" onclick="calibreCheckStatus(event)">Check</button>
+                                <button class="settings-btn settings-btn-primary" onclick="calibreImport(event)">Import</button>
+                            </div>
+                        </div>
+                        <div id="calibre-status" style="margin-top: 12px; display: none;">
+                            <div style="padding: 12px; border-radius: 6px; background: var(--bg-secondary, #f5f5f5);">
+                                <span id="calibre-status-text">Checking...</span>
+                            </div>
+                        </div>
+                        <div id="calibre-import-progress" style="margin-top: 12px; display: none;">
+                            <div style="padding: 12px; border-radius: 6px; background: var(--bg-secondary, #f5f5f5);">
+                                <div id="calibre-progress-text" style="margin-bottom: 8px;">Starting...</div>
+                                <div style="height: 6px; border-radius: 3px; background: var(--bg-tertiary, #e0e0e0); overflow: hidden;">
+                                    <div id="calibre-progress-bar" style="height: 100%; width: 0%; background: #4CAF50; transition: width 0.3s;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-group">
+                        <h3 class="group-title">Calibre-Web</h3>
+                        <div class="setting-row">
+                            <div class="setting-info" style="flex: 1;">
+                                <div class="setting-label">Calibre-Web base URL</div>
+                                <div class="setting-description">If you run a separate Calibre-Web instance, set its URL here. A &quot;Open in Calibre-Web&quot; button will appear on imported books.</div>
+                            </div>
+                            <div class="setting-control">
+                                <input type="text" id="calibre-web-url" class="settings-input" placeholder="http://localhost:8083" style="min-width: 300px;">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="settings-btn settings-btn-secondary" onclick="saveSettings(event)">Save Settings</button>
+                    </div>
+                </div>
+
                 <!-- About Panel -->
                 <div class="settings-panel" id="panel-about">
                     <h2 class="panel-title">About eLibrary Manager</h2>
@@ -785,6 +854,6 @@
         </main>
     </div>
 
-    <script src="/static/js/settings.js?v=2"></script>
+    <script src="/static/js/settings.js?v=3"></script>
 </body>
 </html>

@@ -58,6 +58,9 @@ function toggleTOCPanel() {
  */
 function showNotesPanel() {
     showLeftPanel('ic-notes-sidebar', 'ic-tab-notes');
+    // The background chapter load skips the book-wide notes fetch when the
+    // panel is closed, so refresh now that it's visible.
+    renderNotes();
 }
 
 /**

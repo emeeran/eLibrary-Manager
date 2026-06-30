@@ -33,6 +33,53 @@ function goToLibrary() {
 }
 
 /**
+ * Open the current book in a configured Calibre-Web instance.
+ *
+ * Mirrors the library page's deep-link button: asks the backend for the
+ * validated Calibre-Web URL (which checks both that the book is
+ * Calibre-imported and that Calibre-Web is configured) and opens it in a
+ * new tab. The tab itself is only made visible after init when the backend
+ * confirms the book has a calibre_id.
+ */
+async function openReaderInCalibreWeb() {
+    if (!IcecreamReader.bookId) return;
+    try {
+        const res = await fetch(`/api/books/${IcecreamReader.bookId}/calibre-web-url`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.url) {
+            showToast(data.reason === 'calibre_web_url not configured'
+                ? 'Calibre-Web not configured'
+                : 'Not a Calibre book');
+            return;
+        }
+        window.open(data.url, '_blank', 'noopener');
+    } catch (e) {
+        showToast('Could not open Calibre-Web link');
+    }
+}
+
+/**
+ * Reveal the &quot;Open in Calibre-Web&quot; toolbar tab if the current book is a
+ * Calibre-imported volume. Called once after the book metadata loads.
+ */
+async function maybeShowCalibreWebTab() {
+    const tab = document.getElementById('ic-calibre-web-tab');
+    if (!tab || !IcecreamReader.bookId) return;
+    try {
+        const res = await fetch(`/api/books/${IcecreamReader.bookId}/calibre-web-url`);
+        if (!res.ok) return;
+        const data = await res.json();
+        // Show the tab whenever a link COULD be built (book is Calibre-imported).
+        // It's only clickable when calibre_web_url is also configured; clicking
+        // without configuration shows a toast via openReaderInCalibreWeb.
+        tab.style.display = data.calibre_id ? '' : 'none';
+    } catch {
+        tab.style.display = 'none';
+    }
+}
+
+/**
  * Toggle fullscreen
  */
 function toggleFullscreen() {

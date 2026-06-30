@@ -58,6 +58,22 @@ class Book(Base):
     # reversible. See specs/010-hidden-books.md.
     hidden_password: Mapped[str | None] = mapped_column(String(1000), nullable=True)
 
+    # Calibre linkage for volumes imported from a Calibre library.
+    # ``calibre_id``  → the numeric book id in Calibre's metadata.db.
+    # ``calibre_uuid`` → the stable UUID Calibre assigns to each record.
+    # Both nullable so non-Calibre books are unaffected. Used to deep-link into
+    # Calibre-Web and to detect re-syncs. See specs/011-calibre-integration.md.
+    calibre_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    calibre_uuid: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Raw Calibre ``books.last_modified`` timestamp string captured at the last
+    # sync. Compared by exact equality on re-import to detect metadata changes
+    # without date parsing. See specs/011-calibre-integration.md (v1.1).
+    calibre_last_modified: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Calibre series membership (name + position within the series). Nullable so
+    # non-series / non-Calibre books are unaffected.
+    series: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    series_index: Mapped[float | None] = mapped_column(Float, nullable=True)
+
     # Relationships
     summaries: Mapped[list["ChapterSummary"]] = relationship(
         "ChapterSummary",
@@ -127,6 +143,42 @@ class ChapterSummary(Base):
             f"<ChapterSummary(id={self.id}, book_id={self.book_id}, "
             f"chapter_index={self.chapter_index}, provider='{self.provider}')>"
         )
+
+
+class BookContent(Base):
+    """Per-book content-extraction status (spec 012).
+
+    Tracks whether a book's full text has been extracted for full-text search.
+    The extracted text itself lives in the ``books_content_fts`` FTS5 virtual
+    table (not here) — this table is a lightweight status/checkpoint tracker so
+    the background backfill job is resumable.
+
+    Attributes:
+        book_id: FK to Book (cascade delete).
+        extract_status: "pending" | "extracted" | "empty" | "failed".
+        char_count: Length of the extracted text (0 until extracted).
+        source_mtime: File mtime captured at extraction (for future re-extract).
+        extracted_at: When extraction last completed.
+    """
+
+    __tablename__ = "book_contents"
+
+    book_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("books.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    extract_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending", server_default="pending"
+    )
+    char_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    source_mtime: Mapped[float | None] = mapped_column(Float, nullable=True)
+    extracted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<BookContent(book_id={self.book_id}, status='{self.extract_status}')>"
 
 
 class BookSummary(Base):

@@ -33,7 +33,8 @@ def _check_cancel(scan_id: str | None) -> None:
 
 # Module-level TTL cache for library stats (avoids re-querying on every list request)
 _stats_cache: tuple[dict, float] | None = None
-_STATS_TTL = 10.0  # seconds
+_STATS_TTL = 60.0  # seconds — safe to cache longer because invalidate_stats_cache()
+# is called on every mutation (import/delete/scan/hidden-toggle).
 
 
 def invalidate_stats_cache() -> None:

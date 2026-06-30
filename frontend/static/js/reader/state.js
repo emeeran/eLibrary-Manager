@@ -36,7 +36,7 @@ const IcecreamReader = {
     // Caching & Performance
     chapterCache: new Map(),
     isPrefetching: false,
-    maxCacheSize: 10,
+    maxCacheSize: 20,
     // Page tracking
     chapterPageCounts: {},  // { chapterIndex: estimatedPages }
     // Progress saving

@@ -98,6 +98,7 @@ function applySettingsToUI(settings) {
         nas_protocol: 'nas-protocol',
         nas_username: 'nas-username',
         nas_auto_mount: 'nas-auto-mount',
+        calibre_web_url: 'calibre-web-url',
     };
 
     Object.entries(keyToId).forEach(([key, elemId]) => {
@@ -166,7 +167,8 @@ async function saveSettings(event) {
         nas_protocol: document.getElementById('nas-protocol').value,
         nas_username: document.getElementById('nas-username').value,
         nas_password: document.getElementById('nas-password').value,
-        nas_auto_mount: false
+        nas_auto_mount: false,
+        calibre_web_url: document.getElementById('calibre-web-url')?.value || ''
     };
 
     // Save to localStorage
@@ -196,7 +198,8 @@ async function saveSettings(event) {
             const errBody = await response.json().catch(() => ({}));
             const msg = errBody.detail
                 ? (Array.isArray(errBody.detail) ? errBody.detail.map(e => e.msg).join(', ') : String(errBody.detail))
-                : (errBody.error || 'Failed to save settings');
+                : [errBody.error, errBody.message].filter(Boolean).join(': ') || 'Failed to save settings';
+            console.error('Settings save failed:', response.status, errBody);
             throw new Error(msg);
         }
     } catch (error) {
@@ -650,6 +653,100 @@ async function testNASConnection(event) {
     } finally {
         setButtonLoading(btn, false);
     }
+}
+
+/* Calibre integration ---------------------------------------------- */
+
+/**
+ * Pre-flight check that a path is a valid Calibre library before importing.
+ * Calls GET /api/library/calibre-status and shows the volume count.
+ */
+async function calibreCheckStatus(event) {
+    if (event) event.preventDefault();
+    const input = document.getElementById('calibre-library-path');
+    const statusBox = document.getElementById('calibre-status');
+    const statusText = document.getElementById('calibre-status-text');
+    if (!input || !input.value.trim()) {
+        showNotification('Enter a Calibre library path first', 'warning');
+        return;
+    }
+    statusBox.style.display = 'block';
+    statusText.textContent = 'Checking...';
+    try {
+        const url = '/api/library/calibre-status?path=' + encodeURIComponent(input.value.trim());
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.valid) {
+            statusText.innerHTML = `<span style="color:#4CAF50;font-weight:600;">✓ Valid Calibre library</span> — ${data.volume_count} volumes found at <code>${data.path}</code>`;
+        } else {
+            statusText.innerHTML = `<span style="color:#f44336;font-weight:600;">✗ Not a valid library</span> — ${escapeHtml(data.error || 'unknown error')}`;
+        }
+    } catch (e) {
+        statusText.innerHTML = '<span style="color:#f44336;font-weight:600;">✗ Check failed</span> — ' + escapeHtml(String(e));
+    }
+}
+
+/**
+ * Import a Calibre library. Kicks off the background import and streams
+ * progress from the shared scan-progress SSE endpoint into the progress bar.
+ */
+async function calibreImport(event) {
+    if (event) event.preventDefault();
+    const input = document.getElementById('calibre-library-path');
+    if (!input || !input.value.trim()) {
+        showNotification('Enter a Calibre library path first', 'warning');
+        return;
+    }
+    const progressBox = document.getElementById('calibre-import-progress');
+    const progressText = document.getElementById('calibre-progress-text');
+    const progressBar = document.getElementById('calibre-progress-bar');
+    progressBox.style.display = 'block';
+    progressText.textContent = 'Starting import...';
+    progressBar.style.width = '0%';
+
+    let scanId = null;
+    try {
+        const res = await fetch('/api/library/import-calibre', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: input.value.trim() })
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        scanId = data.scan_id;
+    } catch (e) {
+        progressText.innerHTML = `<span style="color:#f44336;">✗ ${escapeHtml(String(e))}</span>`;
+        return;
+    }
+
+    // Stream progress via SSE.
+    const evtSrc = new EventSource(`/api/library/scan-progress/${scanId}`);
+    evtSrc.onmessage = (ev) => {
+        let info;
+        try { info = JSON.parse(ev.data); } catch { return; }
+        const phase = info.phase || '';
+        const msg = info.message || phase || 'Working...';
+        const total = info.total_found || 0;
+        const processed = info.processed || 0;
+        const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
+        progressBar.style.width = pct + '%';
+        progressText.textContent = `${msg} (${processed}/${total || processed})`;
+        if (['completed', 'failed', 'cancelled'].includes(info.status)) {
+            evtSrc.close();
+            if (info.status === 'completed') {
+                progressText.innerHTML = `<span style="color:#4CAF50;font-weight:600;">✓ ${escapeHtml(msg || 'Import complete')}</span> — imported ${info.imported || 0}, skipped ${info.skipped || 0}`;
+                showNotification('Calibre import complete', 'success');
+            } else if (info.status === 'cancelled') {
+                progressText.innerHTML = `<span style="color:#f59e0b;">Cancelled — ${escapeHtml(msg || '')}</span>`;
+            } else {
+                progressText.innerHTML = `<span style="color:#f44336;">✗ ${escapeHtml(msg || 'Import failed')}</span>`;
+            }
+        }
+    };
+    evtSrc.onerror = () => { evtSrc.close(); };
 }
 
 /**

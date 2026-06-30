@@ -14,12 +14,30 @@ const SVG_IMAGE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="current
 const SVG_DELETE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
 const SVG_TAG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>';
 const SVG_LOCK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>';
+const SVG_CALIBRE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>';
 
 // Fast HTML escape using lookup table
 const _escMap = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
 const _escRe = /[&<>"']/g;
 function escapeHtml(text) {
     return text.replace(_escRe, c => _escMap[c]);
+}
+
+/**
+ * Render a content-search snippet safely (spec 012).
+ *
+ * The FTS5 ``snippet()`` wraps matches in ``<mark>…</mark>``. Book content is
+ * untrusted, so the whole string is escaped first (neutralizing any tags in the
+ * content) and ONLY the literal ``&lt;mark&gt;`` / ``&lt;/mark&gt;`` sequences
+ * produced by the snippet delimiters are restored to real tags. A book whose
+ * content literally contained ``<mark>`` would at worst render an empty mark
+ * element — never executable markup.
+ */
+function renderSnippet(raw) {
+    return escapeHtml(raw)
+        .replace(/&lt;mark&gt;/g, '<mark>')
+        .replace(/&lt;&#x2F;mark&gt;/g, '</mark>')
+        .replace(/&lt;\/mark&gt;/g, '</mark>');
 }
 
 /**
@@ -110,6 +128,9 @@ async function loadContinueReading() {
     }
 }
 
+// Content-match snippets from the last search (spec 012): {book_id(String): html}
+let contentSnippets = null;
+
 /**
  * Load books from API
  */
@@ -136,6 +157,7 @@ async function loadBooks(append = false) {
         const data = await response.json();
 
         totalBooks = data.total;
+        contentSnippets = data.content_snippets || null;
         renderBooks(data.books, append);
         // Fetch sidebar counts independently for better performance
         loadSidebarCounts();
@@ -289,6 +311,7 @@ function renderGridView(books, append = false) {
                         ${yearInfo ? `<span class="book-card-year">${yearInfo}</span>` : ''}
                     </div>
                     ${book.categories && book.categories.length ? `<div class="book-card-categories"><span class="category-pill">${escapeHtml(book.categories[0])}</span>${book.categories.length > 1 ? `<span class="category-pill category-pill-more">+${book.categories.length - 1}</span>` : ''}</div>` : ''}
+                    ${contentSnippets && contentSnippets[String(book.id)] ? `<div class="book-card-snippet" title="Matched in book content">${renderSnippet(contentSnippets[String(book.id)])}</div>` : ''}
                 </div>
             </div>
             <div class="book-card-actions">
@@ -296,6 +319,7 @@ function renderGridView(books, append = false) {
                 <button class="book-card-action-btn" data-action="cover" data-book-id="${book.id}" title="Change Cover">${SVG_IMAGE}</button>
                 <button class="book-card-action-btn" data-action="delete" data-book-id="${book.id}" title="Delete">${SVG_DELETE}</button>
                 <button class="book-card-action-btn" data-action="category" data-book-id="${book.id}" title="Categories">${SVG_TAG}</button>
+                ${book.calibre_id ? `<button class="book-card-action-btn" data-action="calibre-web" data-book-id="${book.id}" title="Open in Calibre-Web">${SVG_CALIBRE}</button>` : ''}
                 <button class="book-card-action-btn" data-action="hide" data-book-id="${book.id}" title="Hide/Unhide">${SVG_LOCK}</button>
             </div>
         </div>
@@ -491,6 +515,29 @@ function updateCounts(counts) {
  */
 function openBook(bookId) {
     window.location.href = `/reader/${bookId}`;
+}
+
+/**
+ * Open a Calibre-imported book in the configured Calibre-Web instance.
+ * Fetches the deep-link URL from the backend (which validates that the book
+ * came from Calibre and that Calibre-Web is configured); opens in a new tab.
+ */
+async function openInCalibreWeb(bookId) {
+    try {
+        const res = await fetch(`/api/books/${bookId}/calibre-web-url`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.url) {
+            const reason = data.reason === 'calibre_web_url not configured'
+                ? 'Calibre-Web URL is not configured. Set it in Settings → Calibre.'
+                : 'This book was not imported from a Calibre library.';
+            alert(reason);
+            return;
+        }
+        window.open(data.url, '_blank', 'noopener');
+    } catch (e) {
+        alert('Could not open Calibre-Web link: ' + e);
+    }
 }
 
 /**
@@ -1738,6 +1785,44 @@ function initializeFiltersFromURL() {
     }
 }
 
+/**
+ * Surface a notice when arriving from a Calibre-Web "Read" deep link that could
+ * not open the reader (spec 013). The reverse proxy rewrites Calibre-Web's
+ * /read/<id> to /calibre/launch, which 302s here with a query param when the
+ * Calibre book isn't imported yet (calibre_pending) or is hidden in eLM
+ * (calibre_hidden). The param is stripped after showing so a refresh won't repeat.
+ */
+function initializeCalibreDeepLinkNotice() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const pending = urlParams.get('calibre_pending');
+    const hidden = urlParams.has('calibre_hidden');
+
+    if (pending === null && !hidden) return;
+
+    urlParams.delete('calibre_pending');
+    urlParams.delete('calibre_hidden');
+    const clean = urlParams.toString();
+    window.history.replaceState({}, document.title, clean ? `/?${clean}` : '/');
+
+    const toast = document.createElement('div');
+    toast.style.cssText =
+        'position:fixed;bottom:24px;right:24px;background:#1e293b;color:#f1f5f9;' +
+        'padding:16px 20px;border-radius:12px;z-index:10000;min-width:320px;max-width:420px;' +
+        'box-shadow:0 8px 32px rgba(0,0,0,0.3);font-size:13px;line-height:1.4;';
+    if (hidden) {
+        toast.innerHTML =
+            '<div style="font-weight:600;margin-bottom:4px;">Book is hidden</div>' +
+            '<div>The book you tried to open is hidden in eLibrary Manager.</div>';
+    } else {
+        toast.innerHTML =
+            "<div style=\"font-weight:600;margin-bottom:4px;\">Calibre book not imported</div>" +
+            '<div>This Calibre book isn’t in your eLM library yet. Run a Calibre import to read it here.</div>' +
+            '<a href="/settings" style="display:inline-block;margin-top:10px;color:#60a5fa;text-decoration:none;font-weight:600;">Open Settings →</a>';
+    }
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 8000);
+}
+
 // ============================================
 // KEYBOARD NAVIGATION (Accessibility)
 // ============================================
@@ -1890,6 +1975,7 @@ function initializeGridDelegation() {
                 case 'delete': deleteBook(bookId, e); break;
                 case 'category': showCategoryMenu(bookId, e); break;
                 case 'hide': toggleBookHidden(bookId); break;
+                case 'calibre-web': openInCalibreWeb(bookId); break;
             }
             return;
         }
@@ -1912,6 +1998,7 @@ function initializeGridDelegation() {
 
 document.addEventListener('DOMContentLoaded', () => {
     initializeFiltersFromURL();
+    initializeCalibreDeepLinkNotice();
     initializeSearch();
     initializeFormatFilter();
     initializeFileInput();

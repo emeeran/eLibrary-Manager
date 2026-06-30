@@ -28,6 +28,7 @@ from app.middleware import ProductionMiddleware
 from app.routes import (
     ai_tts,
     auth,
+    calibre,
     categories,
     hidden,
     library,
@@ -235,6 +236,8 @@ templates = Jinja2Templates(directory="frontend/templates")
 # Include route modules
 app.include_router(auth.router)
 app.include_router(library.router)
+app.include_router(calibre.router)
+app.include_router(calibre.web_router)
 app.include_router(reader.router)
 app.include_router(settings.router)
 app.include_router(ai_tts.router)
@@ -294,8 +297,20 @@ async def rate_limit_handler(request: Request, exc: RateLimitError) -> JSONRespo
 
 @app.exception_handler(DawnstarError)
 async def dawnstar_exception_handler(request: Request, exc: DawnstarError) -> JSONResponse:
-    """Handle all other Dawnstar-specific exceptions."""
-    logger.error(f"{type(exc).__name__}: {exc.message} — {exc.details}")
+    """Handle all other Dawnstar-specific exceptions.
+
+    Logs the full traceback (``logger.exception``) so the root cause is
+    recoverable from journald — previously only a one-line message was logged,
+    which made production failures (e.g. settings save errors) impossible to
+    diagnose. The client response stays generic in production for security.
+    """
+    logger.exception(
+        "DawnstarError on %s %s: %s — %s",
+        request.method,
+        request.url.path,
+        exc.message,
+        exc.details,
+    )
     if config.debug:
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -303,7 +318,30 @@ async def dawnstar_exception_handler(request: Request, exc: DawnstarError) -> JS
         )
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={"error": "Request Failed", "message": "An error occurred processing your request"},
+        content={"error": "Request Failed", "message": "An error occurred processing the request"},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all so unexpected errors are logged with a full traceback.
+
+    Without this, a non-Dawnstar exception (e.g. a programming error in a
+    route, or a SQLAlchemy IntegrityError raised below the repository layer)
+    surfaces as a bare 500 with no traceback in journald — which previously
+    made production failures invisible. We log the full traceback here and
+    return a generic 500 (the detail is hidden from clients in production for
+    security; check journald for the traceback).
+    """
+    logger.exception(
+        "Unhandled exception on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"error": "Server Error", "message": "An unexpected error occurred"},
     )
 
 

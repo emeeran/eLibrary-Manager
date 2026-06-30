@@ -3,13 +3,22 @@
 import os
 import re
 import time
+from datetime import UTC, datetime
 
-from sqlalchemy import Select, and_, asc, desc, func, or_, select
+from sqlalchemy import and_, asc, desc, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import noload
 
 from app.exceptions import ResourceNotFoundError, ValidationError
-from app.models import Book, BookCategory, BookSummary, Category, ChapterSummary, Setting
+from app.models import (
+    Book,
+    BookCategory,
+    BookContent,
+    BookSummary,
+    Category,
+    ChapterSummary,
+    Setting,
+)
 from app.schemas import BookCreate, BookUpdate, ProgressUpdate
 
 _COUNT_CACHE_TTL = 10.0  # seconds
@@ -66,23 +75,41 @@ class BookRepository:
                 self._fts_available_cache = False
         return self._fts_available_cache
 
-    def _apply_fts_filter(self, query: Select, search: str) -> Select:
-        """Return ``query`` with an FTS5 prefix-search filter applied.
+    async def _content_fts_available(self) -> bool:
+        """Return True if the books_content_fts virtual table exists on this DB."""
+        try:
+            result = await self.session.execute(
+                __import__("sqlalchemy").text(
+                    "SELECT 1 FROM sqlite_master "
+                    "WHERE type='table' AND name='books_content_fts'"
+                )
+            )
+            return result.scalar() is not None
+        except Exception:
+            return False
 
-        Falls back to the original ``query`` unchanged if the FTS query can't be
-        built (caller should have already confirmed availability).
+    def _build_fts_predicate(self, fts_match: str, content_available: bool):
+        """Build the FTS match predicate: ``(id IN meta_fts) [OR (id IN content_fts)]``.
+
+        Two separate ``IN`` clauses joined by ``OR`` (rather than a SQL ``UNION``)
+        sidesteps bind-param name collisions across a compound select. Both FTS
+        tables are matched with the same term.
         """
         from sqlalchemy import column, text
 
-        fts_match = _build_fts_query(search)
-        if fts_match is None:
-            return query
-        fts_ids = (
+        meta = Book.id.in_(
             select(column("rowid"))
             .select_from(text("books_fts"))
             .where(text("books_fts MATCH :fts_q").bindparams(fts_q=fts_match))
         )
-        return query.where(Book.id.in_(fts_ids))
+        if not content_available:
+            return meta
+        content = Book.id.in_(
+            select(column("book_id"))
+            .select_from(text("books_content_fts"))
+            .where(text("books_content_fts MATCH :fts_q").bindparams(fts_q=fts_match))
+        )
+        return or_(meta, content)
 
     async def create(self, book_data: BookCreate) -> Book:
         """Create a new book record.
@@ -176,14 +203,6 @@ class BookRepository:
             conditions.append(Book.is_recent)
         if reading_only:
             conditions.append(Book.progress > 0)
-        if search:
-            # Default to the portable ilike scan. The async callers
-            # (list_with_count / count_filtered) swap this for an FTS5 query
-            # when the books_fts index exists on the bound database.
-            search_pattern = f"%{search}%"
-            conditions.append(
-                or_(Book.title.ilike(search_pattern), Book.author.ilike(search_pattern))
-            )
         if format_filter:
             conditions.append(Book.format == format_filter.upper())
         if source_filter:
@@ -207,7 +226,17 @@ class BookRepository:
 
         if conditions:
             query = query.where(and_(*conditions))
-        return query
+
+        # The search predicate is returned separately (not ANDed in) so callers
+        # can OR it with FTS5 matches — a content-only hit (body text, not
+        # title/author) must still surface the book. See list_with_count.
+        search_ilike: ... = None
+        if search:
+            search_pattern = f"%{search}%"
+            search_ilike = or_(
+                Book.title.ilike(search_pattern), Book.author.ilike(search_pattern)
+            )
+        return query, search_ilike
 
     async def list_with_count(
         self,
@@ -234,7 +263,7 @@ class BookRepository:
         Returns:
             Tuple of (books_list, total_count)
         """
-        query = self._build_list_query(
+        query, search_ilike = self._build_list_query(
             favorite_only=favorite_only,
             recent_only=recent_only,
             reading_only=reading_only,
@@ -246,11 +275,20 @@ class BookRepository:
             show_hidden=show_hidden,
             directory_filter=directory_filter,
         )
-        # Upgrade the search filter to an FTS5 prefix query when the index is
-        # available (fast at scale). The ilike condition already in the query
-        # stays as a harmless extra predicate; the FTS subquery drives the match.
-        if search and await self._fts_available():
-            query = self._apply_fts_filter(query, search)
+        # Build the search predicate: (title/author ilike) OR (metadata FTS) OR
+        # (content FTS). Content-only hits (body text) must still surface the
+        # book, so FTS is OR'd with — not AND'd against — the ilike clause.
+        search_predicate = search_ilike
+        if search:
+            fts_match = _build_fts_query(search)
+            if fts_match is not None and await self._fts_available():
+                content_available = await self._content_fts_available()
+                fts_pred = self._build_fts_predicate(fts_match, content_available)
+                search_predicate = (
+                    fts_pred if search_predicate is None else or_(search_predicate, fts_pred)
+                )
+        if search_predicate is not None:
+            query = query.where(search_predicate)
 
         # Separate COUNT query — much faster than window function for large tables
         total = await self.count_filtered(
@@ -308,7 +346,7 @@ class BookRepository:
             if now - cached_time < _COUNT_CACHE_TTL:
                 return cached_count
 
-        query = self._build_list_query(
+        query, search_ilike = self._build_list_query(
             favorite_only=favorite_only,
             recent_only=recent_only,
             reading_only=reading_only,
@@ -320,9 +358,18 @@ class BookRepository:
             show_hidden=show_hidden,
             directory_filter=directory_filter,
         )
-        # Mirror the FTS upgrade from list_with_count so the count matches.
-        if search and await self._fts_available():
-            query = self._apply_fts_filter(query, search)
+        # Mirror list_with_count's search predicate so the count matches exactly.
+        search_predicate = search_ilike
+        if search:
+            fts_match = _build_fts_query(search)
+            if fts_match is not None and await self._fts_available():
+                content_available = await self._content_fts_available()
+                fts_pred = self._build_fts_predicate(fts_match, content_available)
+                search_predicate = (
+                    fts_pred if search_predicate is None else or_(search_predicate, fts_pred)
+                )
+        if search_predicate is not None:
+            query = query.where(search_predicate)
         count_query = select(func.count()).select_from(query.subquery())
         result = await self.session.execute(count_query)
         count = result.scalar() or 0
@@ -503,6 +550,124 @@ class BookRepository:
             return []
         result = await self.session.execute(select(Book).where(Book.id.in_(ids)))
         return list(result.scalars().all())
+
+
+class BookContentRepository:
+    """Repository for the content-extraction index (spec 012).
+
+    Tracks per-book extraction status in ``book_contents`` and the extracted
+    text in the ``books_content_fts`` FTS5 virtual table. FTS rows are managed
+    with raw SQL (virtual tables aren't first-class ORM mappings).
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+
+    async def seed_missing(self) -> int:
+        """Insert ``pending`` rows for books not yet tracked. Returns count seeded."""
+        result = await self.session.execute(
+            text(
+                "INSERT INTO book_contents(book_id, extract_status) "
+                "SELECT b.id, 'pending' FROM books b "
+                "LEFT JOIN book_contents bc ON bc.book_id = b.id "
+                "WHERE bc.book_id IS NULL"
+            )
+        )
+        await self.session.commit()
+        return result.rowcount or 0
+
+    async def pending_batch(self, limit: int = 50) -> list[tuple[int, str, str]]:
+        """Return up to ``limit`` pending books as (book_id, path, format)."""
+        rows = (
+            await self.session.execute(
+                select(Book.id, Book.path, Book.format)
+                .join(BookContent, BookContent.book_id == Book.id)
+                .where(BookContent.extract_status == "pending")
+                .order_by(Book.id)
+                .limit(limit)
+            )
+        ).all()
+        return [(r[0], r[1], r[2]) for r in rows]
+
+    async def mark_status(self, book_id: int, status: str) -> None:
+        """Set a book's extraction status (and clear any stale FTS row on non-success)."""
+        existing = await self.session.get(BookContent, book_id)
+        if existing:
+            existing.extract_status = status
+        else:
+            self.session.add(BookContent(book_id=book_id, extract_status=status))
+        if status in ("empty", "failed"):
+            await self.session.execute(
+                text("DELETE FROM books_content_fts WHERE book_id = :bid"), {"bid": book_id}
+            )
+
+    async def upsert_extracted(
+        self, book_id: int, content_text: str, char_count: int, source_mtime: float | None
+    ) -> None:
+        """Store extracted text in the FTS table and mark the book extracted."""
+        now = datetime.now(UTC)
+        # Replace any existing FTS row for this book, then insert the new content.
+        await self.session.execute(
+            text("DELETE FROM books_content_fts WHERE book_id = :bid"), {"bid": book_id}
+        )
+        await self.session.execute(
+            text("INSERT INTO books_content_fts(book_id, content) VALUES (:bid, :content)"),
+            {"bid": book_id, "content": content_text},
+        )
+        existing = await self.session.get(BookContent, book_id)
+        if existing:
+            existing.extract_status = "extracted"
+            existing.char_count = char_count
+            existing.source_mtime = source_mtime
+            existing.extracted_at = now
+        else:
+            self.session.add(
+                BookContent(
+                    book_id=book_id,
+                    extract_status="extracted",
+                    char_count=char_count,
+                    source_mtime=source_mtime,
+                    extracted_at=now,
+                )
+            )
+
+    async def status_counts(self) -> dict[str, int]:
+        """Return {extract_status: count} for progress reporting."""
+        rows = (
+            await self.session.execute(
+                select(BookContent.extract_status, func.count(BookContent.book_id)).group_by(
+                    BookContent.extract_status
+                )
+            )
+        ).all()
+        return {r[0]: int(r[1]) for r in rows}
+
+    async def snippets_for(self, book_ids: list[int], fts_match: str) -> dict[int, str]:
+        """Return ``{book_id: context_snippet}`` for content-FTS matches.
+
+        Uses FTS5 ``snippet()`` over the ``content`` column (index 1). Returns
+        ``{}`` if there's nothing to query (no ids/term) or if the content FTS
+        table isn't present (e.g. in-memory test DB) — never raises.
+        """
+        if not book_ids or not fts_match:
+            return {}
+        try:
+            from sqlalchemy import bindparam
+
+            rows = (
+                await self.session.execute(
+                    text(
+                        "SELECT book_id, snippet(books_content_fts, 1, "
+                        "'<mark>', '</mark>', ' … ', 12) "
+                        "FROM books_content_fts "
+                        "WHERE books_content_fts MATCH :q AND book_id IN :ids"
+                    ).bindparams(bindparam("ids", expanding=True)),
+                    {"q": fts_match, "ids": list(book_ids)},
+                )
+            ).all()
+        except Exception:  # noqa: BLE001 — table missing / no fts5 → no snippets
+            return {}
+        return {int(r[0]): r[1] for r in rows if r[1]}
 
 
 class ChapterSummaryRepository:

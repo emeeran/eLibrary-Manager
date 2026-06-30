@@ -1283,6 +1283,25 @@ button {
     cursor: default;
 }
 
+/* Content-search match excerpt (spec 012). */
+.book-card-snippet {
+    font-size: 11px;
+    line-height: 1.35;
+    margin-top: 6px;
+    color: var(--text-muted, #6b7280);
+    background: rgba(250, 204, 21, 0.08);
+    border-radius: var(--radius-sm, 4px);
+    padding: 4px 6px;
+    max-height: 4.05em; /* ~3 lines */
+    overflow: hidden;
+}
+.book-card-snippet mark {
+    background: rgba(250, 204, 21, 0.45);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
 .book-card-meta {
     display: flex;
     align-items: center;

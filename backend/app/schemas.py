@@ -33,6 +33,10 @@ class BookCreate(BookBase):
     subjects: list[str] = Field(
         default_factory=list, max_length=20, description="Subjects/tags from metadata"
     )
+    calibre_id: int | None = Field(None, description="Calibre book id, if imported from Calibre")
+    calibre_uuid: str | None = Field(None, max_length=64, description="Calibre record UUID")
+    series: str | None = Field(None, max_length=255, description="Calibre series name")
+    series_index: float | None = Field(None, description="Position within the Calibre series")
 
 
 class BookUpdate(BaseModel):
@@ -70,6 +74,10 @@ class BookResponse(BookBase):
     total_pages: int = 0
     storage_type: str = "local"
     rating: int = 0
+    calibre_id: int | None = None
+    calibre_uuid: str | None = None
+    series: str | None = None
+    series_index: float | None = None
     categories: list[str] = Field(default_factory=list, description="Category names")
 
     model_config = {"from_attributes": True}
@@ -117,6 +125,9 @@ class BookListResponse(BaseModel):
     page: int
     page_size: int
     counts: dict[str, int] | None = None  # Sidebar counts (all, recent, favorites, etc.)
+    # When a search matched book CONTENT, a short context excerpt per book_id
+    # (spec 012). None when not searching or no content index.
+    content_snippets: dict[int, str] | None = None
 
 
 class ProgressUpdate(BaseModel):
@@ -312,6 +323,11 @@ class SettingsCreate(BaseModel):
     nas_password: str | None = Field(None, max_length=200)
     nas_auto_mount: bool | None = None
 
+    # Calibre integration settings
+    calibre_web_url: str | None = Field(
+        None, max_length=500, description="Base URL of a Calibre-Web instance"
+    )
+
 
 class SettingsResponse(BaseModel):
     """Schema for settings response."""
@@ -342,6 +358,9 @@ class SettingsResponse(BaseModel):
     nas_protocol: str = "smb"
     nas_username: str = ""
     nas_auto_mount: bool = False
+
+    # Calibre integration
+    calibre_web_url: str = ""
 
 
 class AIConnectionTest(BaseModel):

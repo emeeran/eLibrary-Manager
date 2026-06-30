@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eLibrary Manager - Reader</title>
-    <link rel="stylesheet" href="/static/css/reader.css?v=39">
+    <link rel="stylesheet" href="/static/css/reader.css?v=41">
 </head>
 
 <body>
@@ -36,6 +36,13 @@
                 <button class="ic-tab" onclick="goToLibrary()" title="Library">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
+                    </svg>
+                </button>
+
+                <!-- Open in Calibre-Web (only shown for Calibre-imported books) -->
+                <button class="ic-tab" id="ic-calibre-web-tab" onclick="openReaderInCalibreWeb()" title="Open in Calibre-Web" style="display:none;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/>
                     </svg>
                 </button>
 
@@ -143,6 +150,11 @@
                 <button onclick="addSelectionNote()" class="ic-tool-btn" title="Add Note">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                </button>
+                <button onclick="bookmarkSelection()" class="ic-tool-btn" title="Bookmark selection (Ctrl+Shift+B)">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
                     </svg>
                 </button>
                 <button onclick="copySelection()" class="ic-tool-btn" title="Copy">
@@ -537,6 +549,9 @@
                     <div class="ic-help-row"><kbd>&rarr;</kbd> <span>Next page</span></div>
                     <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>&larr;</kbd> <span>Previous chapter</span></div>
                     <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>&rarr;</kbd> <span>Next chapter</span></div>
+                    <div class="ic-help-row"><kbd>PgUp</kbd> / <kbd>PgDn</kbd> <span>Previous / next chapter</span></div>
+                    <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>Home</kbd> / <kbd>End</kbd> <span>Jump to first / last chapter</span></div>
+                    <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> <span>Bookmark selected text</span></div>
                     <div class="ic-help-row"><kbd>T</kbd> <span>Toggle Table of Contents</span></div>
                     <div class="ic-help-row"><kbd>B</kbd> <span>Bookmarks panel</span></div>
                     <div class="ic-help-row"><kbd>S</kbd> <span>Toggle AI Summary</span></div>
@@ -560,6 +575,7 @@
 
             <!-- Progress Slider -->
             <div class="ic-footer-center">
+                <span class="ic-progress-percent" id="ic-progress-percent" aria-hidden="true">0%</span>
                 <input type="range" class="ic-progress-slider" id="ic-progress-slider" min="0" max="100" value="0"
                     aria-label="Reading progress">
             </div>
@@ -580,17 +596,17 @@
 
     <!-- Reader JavaScript (modularized; loaded in dependency order) -->
     <script src="/static/js/tts.js"></script>
-    <script src="/static/js/reader/state.js?v=38"></script>
-    <script src="/static/js/reader/ui.js?v=37"></script>
-    <script src="/static/js/reader/settings.js?v=37"></script>
-    <script src="/static/js/reader/chapters.js?v=38"></script>
-    <script src="/static/js/reader/search.js?v=37"></script>
-    <script src="/static/js/reader/annotations.js?v=37"></script>
-    <script src="/static/js/reader/panels.js?v=38"></script>
-    <script src="/static/js/reader/summary.js?v=37"></script>
-    <script src="/static/js/reader/tts-bridge.js?v=37"></script>
-    <script src="/static/js/reader/init.js?v=38"></script>
-    <script src="/static/js/reader/globals.js?v=37"></script>
+    <script src="/static/js/reader/state.js?v=40"></script>
+    <script src="/static/js/reader/ui.js?v=41"></script>
+    <script src="/static/js/reader/settings.js?v=38"></script>
+    <script src="/static/js/reader/chapters.js?v=40"></script>
+    <script src="/static/js/reader/search.js?v=38"></script>
+    <script src="/static/js/reader/annotations.js?v=39"></script>
+    <script src="/static/js/reader/panels.js?v=40"></script>
+    <script src="/static/js/reader/summary.js?v=38"></script>
+    <script src="/static/js/reader/tts-bridge.js?v=38"></script>
+    <script src="/static/js/reader/init.js?v=40"></script>
+    <script src="/static/js/reader/globals.js?v=39"></script>
     <script src="/static/js/resize-sidebar.js"></script>
     <script>
         // Left sidebar (TOC)

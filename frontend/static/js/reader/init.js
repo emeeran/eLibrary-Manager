@@ -141,6 +141,8 @@ async function initReader(bookId) {
         await initializeTTS();
         await loadTableOfContents(bookId);
 
+        maybeShowCalibreWebTab();
+
         const startChapter = book.current_chapter || 0;
         await loadChapter(startChapter);
 
@@ -188,6 +190,14 @@ document.addEventListener('keydown', function (e) {
         return;
     }
 
+    // Ctrl+Shift+B: bookmark the current text selection (falls back to the
+    // whole chapter when nothing is selected).
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'B' || e.key === 'b')) {
+        e.preventDefault();
+        bookmarkSelection();
+        return;
+    }
+
     switch (e.key) {
         case 'ArrowLeft':
             if (e.ctrlKey || e.metaKey) {
@@ -200,6 +210,26 @@ document.addEventListener('keydown', function (e) {
                 e.preventDefault();
                 const tc = IcecreamReader.totalChapters;
                 if (tc <= 0 || IcecreamReader.currentChapter < tc - 1) loadChapter(IcecreamReader.currentChapter + 1);
+            }
+            break;
+        case 'PageUp':
+            e.preventDefault();
+            if (IcecreamReader.currentChapter > 0) loadChapter(IcecreamReader.currentChapter - 1);
+            break;
+        case 'PageDown':
+            e.preventDefault();
+            if (IcecreamReader.totalChapters <= 0 || IcecreamReader.currentChapter < IcecreamReader.totalChapters - 1) loadChapter(IcecreamReader.currentChapter + 1);
+            break;
+        case 'Home':
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                loadChapter(0);
+            }
+            break;
+        case 'End':
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault();
+                if (IcecreamReader.totalChapters > 0) loadChapter(IcecreamReader.totalChapters - 1);
             }
             break;
         case '+':
