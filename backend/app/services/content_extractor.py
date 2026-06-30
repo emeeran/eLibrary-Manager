@@ -86,12 +86,25 @@ def _extract_epub(path: str) -> str:
 
 
 def _extract_pdf(path: str) -> str:
-    """Concatenate per-page text via PyMuPDF."""
+    """Concatenate per-page text via PyMuPDF, capped to bound memory.
+
+    Extracts page-by-page and stops once ``_MAX_TEXT_CHARS`` is reached, so a
+    huge PDF can't blow memory (the whole-doc string is never materialized).
+    """
     import fitz
 
     doc = fitz.open(path)
     try:
-        return "\n".join(page.get_text("text") for page in doc)
+        parts: list[str] = []
+        total = 0
+        for page in doc:
+            t = page.get_text("text")
+            if t:
+                parts.append(t)
+                total += len(t)
+                if total >= _MAX_TEXT_CHARS:
+                    break
+        return " ".join(parts)[:_MAX_TEXT_CHARS]
     finally:
         doc.close()
 
