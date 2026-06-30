@@ -435,9 +435,14 @@ class LibraryService:
                     skipped += 1
                     continue
 
-                cover_path = await scanner.extract_cover(book_data.path)
-                if cover_path:
-                    book_data.cover_path = cover_path
+                # Covers are deferred: extract_cover opens each ebook, which is
+                # impractically slow over network mounts (CIFS/autofs) — 10k+ file
+                # opens stall the scan in D-state. fast_index stays filename-only
+                # by intent; populate covers later via the reader (on open) or a
+                # "refresh covers" pass. The grid shows generated placeholders until then.
+                # cover_path = await scanner.extract_cover(book_data.path)
+                # if cover_path:
+                #     book_data.cover_path = cover_path
 
                 try:
                     await self.book_repo.create(book_data)

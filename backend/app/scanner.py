@@ -191,10 +191,11 @@ class LibraryScanner:
                                         title = parts[0].strip()
                                         author = parts[1].strip()
 
-                                    try:
-                                        file_size = entry.stat(follow_symlinks=False).st_size
-                                    except OSError:
-                                        file_size = 0
+                                    # file_size is deferred: entry.stat() is a per-file
+                                    # network round-trip on CIFS/autofs mounts (10k+ files
+                                    # → hours of D-state I/O). The reader parses on demand,
+                                    # so 0 here is fine; fast_index is filename-only by intent.
+                                    file_size = 0
 
                                     books.append(
                                         BookCreate(
