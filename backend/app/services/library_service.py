@@ -560,6 +560,7 @@ class LibraryService:
         directory_filter: str | None = None,
         series_filter: list[str] | None = None,
         rating_min: int | None = None,
+        cursor: str | None = None,
     ) -> tuple[list[Book], int]:
         """List books with pagination, filters, and sorting."""
         skip = (page - 1) * page_size
@@ -581,6 +582,7 @@ class LibraryService:
             directory_filter=directory_filter,
             series_filter=series_filter,
             rating_min=rating_min,
+            cursor=cursor,
         )
 
     async def get_library_stats(self) -> dict:

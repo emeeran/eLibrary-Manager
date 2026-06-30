@@ -1,5 +1,7 @@
 """Repository pattern for database operations."""
 
+import base64
+import json
 import os
 import re
 import time
@@ -22,6 +24,79 @@ from app.models import (
 from app.schemas import BookCreate, BookUpdate, ProgressUpdate
 
 _COUNT_CACHE_TTL = 10.0  # seconds
+
+# Sentinel for coalescing nullable sort columns (last_read) so the sort order is
+# total — required for stable keyset (cursor) pagination.
+_DATE_FLOOR = datetime(1970, 1, 1, tzinfo=UTC)
+
+
+def _sort_expression(sort_by: str):
+    """SQL sort expression for a mode, with nulls coalesced to a total order.
+
+    Used for both ORDER BY and the keyset cursor comparison so the two agree.
+    """
+    if sort_by == "title":
+        return func.lower(Book.title)
+    if sort_by == "author":
+        return func.lower(func.coalesce(Book.author, ""))
+    if sort_by == "last_read":
+        return func.coalesce(Book.last_read_date, _DATE_FLOOR)
+    if sort_by == "progress":
+        return Book.progress
+    return Book.added_date  # default; non-null
+
+
+def _sort_value(book: Book, sort_by: str):
+    """The Python-side sort value of a book (mirror of ``_sort_expression``)."""
+    if sort_by == "title":
+        return (book.title or "").lower()
+    if sort_by == "author":
+        return (book.author or "").lower()
+    if sort_by == "last_read":
+        return book.last_read_date or _DATE_FLOOR
+    if sort_by == "progress":
+        return book.progress
+    return book.added_date
+
+
+def _ser(val: object) -> object:
+    """Serialize a cursor sort value (datetime → tagged dict) for JSON."""
+    if isinstance(val, datetime):
+        return {"__dt__": val.isoformat()}
+    return val
+
+
+def _deser(val: object) -> object:
+    """Deserialize a cursor sort value back to its native type."""
+    if isinstance(val, dict) and "__dt__" in val:
+        return datetime.fromisoformat(val["__dt__"])
+    return val
+
+
+def encode_cursor(sort_by: str, sort_order: str, book: Book) -> str:
+    """Opaque cursor encoding the last row's (sort_value, id) + sort mode."""
+    payload = {
+        "b": sort_by,
+        "o": sort_order,
+        "s": _ser(_sort_value(book, sort_by)),
+        "i": book.id,
+    }
+    raw = json.dumps(payload, separators=(",", ":")).encode()
+    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+
+
+def decode_cursor(cursor: str) -> tuple[str, str, object, int]:
+    """Decode an opaque cursor → (sort_by, sort_order, sort_value, last_id)."""
+    pad = "=" * (-len(cursor) % 4)
+    payload = json.loads(base64.urlsafe_b64decode(cursor + pad))
+    return payload["b"], payload["o"], _deser(payload["s"]), int(payload["i"])
+
+
+def _cursor_where(expr, sort_order: str, value: object, last_id: int):
+    """WHERE clause for the page AFTER the cursor (keyset pagination)."""
+    if sort_order == "desc":
+        return or_(expr < value, and_(expr == value, Book.id < last_id))
+    return or_(expr > value, and_(expr == value, Book.id > last_id))
 
 
 def _build_fts_query(search: str) -> str | None:
@@ -307,6 +382,7 @@ class BookRepository:
         directory_filter: str | None = None,
         series_filter: list[str] | None = None,
         rating_min: int | None = None,
+        cursor: str | None = None,
     ) -> tuple[list[Book], int]:
         """List books with optional filters and sorting, returning total count.
 
@@ -366,21 +442,26 @@ class BookRepository:
             rating_min=rating_min,
         )
 
-        # Apply sorting and pagination (case-insensitive for text columns)
-        sort_map = {
-            "title": Book.title,
-            "author": Book.author,
-            "added_date": Book.added_date,
-            "last_read": Book.last_read_date,
-            "progress": Book.progress,
-        }
-        sort_col = sort_map.get(sort_by, Book.added_date)
-        if sort_by in ("title", "author"):
-            order_expr = func.lower(sort_col)
-        else:
-            order_expr = sort_col
+        # Keyset (cursor) pagination when a cursor is supplied; else OFFSET.
+        # The cursor embeds its own sort_by/order so a pagination sequence stays
+        # stable even if the request's sort params differ.
+        cur_value = None
+        cur_id = None
+        if cursor:
+            try:
+                sort_by, sort_order, cur_value, cur_id = decode_cursor(cursor)
+            except Exception:  # noqa: BLE001 — bad cursor → fall back to page 1
+                cursor = None
+
+        # Apply sorting (total order: sort expr + id tiebreaker).
+        expr = _sort_expression(sort_by)
         order_func = desc if sort_order == "desc" else asc
-        query = query.order_by(order_func(order_expr)).offset(skip).limit(limit)
+        query = query.order_by(order_func(expr), order_func(Book.id))
+        if cursor and cur_value is not None and cur_id is not None:
+            query = query.where(_cursor_where(expr, sort_order, cur_value, cur_id))
+        else:
+            query = query.offset(skip)
+        query = query.limit(limit)
 
         result = await self.session.execute(query)
         books = list(result.scalars().all())

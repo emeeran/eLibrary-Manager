@@ -1834,6 +1834,11 @@ button {
        this, cards whose cover image creates its own stacking context could
        paint over the buttons. */
     z-index: 0;
+    /* Browser-level render virtualization (D4): skip layout/paint for cards
+       scrolled off-screen. The intrinsic size keeps scroll position stable
+       before the card renders. Avoids a JS DOM-recycling rewrite. */
+    content-visibility: auto;
+    contain-intrinsic-size: 0 320px;
 }
 
 .book-card-actions {

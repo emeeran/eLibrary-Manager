@@ -643,6 +643,7 @@ async def list_books(
     directory_filter: str | None = None,
     series: str | None = None,
     rating_min: int | None = None,
+    cursor: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> BookListResponse:
     """List books with pagination, filters, and sorting.
@@ -707,7 +708,7 @@ async def list_books(
 
     session_token = request.cookies.get(_SCN, "")
     user_hash = hashlib.sha256(session_token.encode()).hexdigest()[:8] if session_token else "anon"
-    cache_key = f"{user_hash}|{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}|{series_filter}|{rating_min}"
+    cache_key = f"{user_hash}|{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}|{series_filter}|{rating_min}|{cursor}"
     if cache_key in _search_cache:
         return _search_cache[cache_key]
 
@@ -728,11 +729,19 @@ async def list_books(
         directory_filter=directory_filter,
         series_filter=series_filter,
         rating_min=rating_min,
+        cursor=cursor,
     )
 
     # Batch-fetch categories for all books in a single query
     book_ids = [book.id for book in books]
     categories_map = await service.book_repo.get_categories_for_books(book_ids)
+
+    # Keyset cursor for the next page (only when this page was full).
+    next_cursor = None
+    if books and len(books) == page_size:
+        from app.repositories import encode_cursor
+
+        next_cursor = encode_cursor(sort_by, sort_order, books[-1])
 
     # When searching, surface a content snippet for any book that matched by body
     # text (spec 012). No-op when not searching or no content index.
@@ -753,6 +762,7 @@ async def list_books(
         page_size=page_size,
         counts=None,  # Fetched independently via /api/stats/sidebar
         content_snippets=content_snippets,
+        next_cursor=next_cursor,
     )
 
     _search_cache[cache_key] = result

@@ -128,6 +128,8 @@ class BookListResponse(BaseModel):
     # When a search matched book CONTENT, a short context excerpt per book_id
     # (spec 012). None when not searching or no content index.
     content_snippets: dict[int, str] | None = None
+    # Opaque cursor for the next page (keyset pagination); None on the last page.
+    next_cursor: str | None = None
 
 
 class ProgressUpdate(BaseModel):

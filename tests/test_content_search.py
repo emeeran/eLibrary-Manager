@@ -317,3 +317,64 @@ async def test_series_endpoint(client, db_session) -> None:
     foundation = next((s for s in resp.json() if s["name"] == "Foundation"), None)
     assert foundation is not None
     assert foundation["count"] == 2
+
+
+# --------------------------------------------------------------------- #
+# Keyset (cursor) pagination (D4)
+# --------------------------------------------------------------------- #
+
+
+async def test_keyset_pagination_title(db_session) -> None:
+    """Cursor pagination over a text sort returns each book once (no dup/skip)."""
+    from app.repositories import BookRepository, encode_cursor
+    from app.schemas import BookCreate
+
+    repo = BookRepository(db_session)
+    for i in range(25):
+        await repo.create(
+            BookCreate(title=f"Book {i:02d}", author=f"Author {i % 5}", path=f"/tmp/k{i}.epub", file_size=10)
+        )
+    await db_session.commit()
+
+    seen: set[int] = set()
+    cursor = None
+    pages = 0
+    while True:
+        books, total = await repo.list_with_count(
+            limit=10, sort_by="title", sort_order="asc", cursor=cursor
+        )
+        assert total == 25
+        for b in books:
+            assert b.id not in seen, "duplicate across pages"
+            seen.add(b.id)
+        pages += 1
+        if len(books) < 10 or pages > 9:
+            break
+        cursor = encode_cursor("title", "asc", books[-1])
+
+    assert len(seen) == 25
+
+
+async def test_keyset_pagination_added_date(db_session) -> None:
+    """Cursor pagination over the default datetime sort is stable (id tiebreak)."""
+    from app.repositories import BookRepository, encode_cursor
+    from app.schemas import BookCreate
+
+    repo = BookRepository(db_session)
+    for i in range(23):
+        await repo.create(BookCreate(title=f"T{i}", author="A", path=f"/tmp/d{i}.epub", file_size=10))
+    await db_session.commit()
+
+    seen: set[int] = set()
+    cursor = None
+    pages = 0
+    while True:
+        books, total = await repo.list_with_count(limit=7, sort_by="added_date", sort_order="desc", cursor=cursor)
+        assert total == 23
+        seen.update(b.id for b in books)
+        pages += 1
+        if len(books) < 7 or pages > 9:
+            break
+        cursor = encode_cursor("added_date", "desc", books[-1])
+
+    assert len(seen) == 23

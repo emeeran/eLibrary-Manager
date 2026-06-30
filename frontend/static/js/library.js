@@ -143,6 +143,8 @@ async function loadContinueReading() {
 
 // Content-match snippets from the last search (spec 012): {book_id(String): html}
 let contentSnippets = null;
+// Keyset cursor for the next page (D4); null when paginating by page or at end.
+let nextCursor = null;
 
 /**
  * Load books from API
@@ -159,11 +161,21 @@ async function loadBooks(append = false) {
         showTopProgress();
     }
 
+    // A fresh (non-append) query starts a new pagination sequence.
+    if (!append) {
+        nextCursor = null;
+        currentPage = 1;
+    }
+
     const params = new URLSearchParams({
         page: currentPage,
         page_size: pageSize,
         ...currentFilters
     });
+    // Append via keyset cursor when available (stable, fast deep pages).
+    if (append && nextCursor) {
+        params.set('cursor', nextCursor);
+    }
 
     try {
         const response = await fetch(`/api/books?${params}`);
@@ -171,6 +183,7 @@ async function loadBooks(append = false) {
 
         totalBooks = data.total;
         contentSnippets = data.content_snippets || null;
+        nextCursor = data.next_cursor || null;
         renderBooks(data.books, append);
         // Fetch sidebar counts independently for better performance
         loadSidebarCounts();
@@ -192,11 +205,14 @@ async function loadBooks(append = false) {
  */
 async function loadMoreBooks() {
     if (isLoadingMore) return;
-    const loadedSoFar = currentPage * pageSize;
-    if (loadedSoFar >= totalBooks) return;
+    // No more pages: no cursor and page-based load caught up.
+    if (!nextCursor && currentPage * pageSize >= totalBooks) return;
 
     isLoadingMore = true;
-    currentPage++;
+    // Prefer the keyset cursor; fall back to incrementing the page.
+    if (!nextCursor) {
+        currentPage++;
+    }
     await loadBooks(true);
     isLoadingMore = false;
 }
