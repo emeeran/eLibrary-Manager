@@ -35,7 +35,10 @@ router = APIRouter(prefix="/api", tags=["calibre"])
 
 # Reuse the library scan lock so a Calibre import and a normal scan can't
 # stamp on each other's progress stream or DB batch commits.
-from app.routes.library import _active_scans  # noqa: E402
+from app.routes.library import (  # noqa: E402
+    _active_scans,
+    invalidate_book_list_cache,
+)
 
 # ---------------------------------------------------------------------- #
 # Pre-flight check
@@ -149,6 +152,7 @@ async def import_calibre_library(
                     await session.commit()
 
                     invalidate_stats_cache()
+                    invalidate_book_list_cache()
                     scan_store.update(
                         scan_id,
                         status="completed",

@@ -400,6 +400,7 @@ async def test_import_library_full_pipeline(calibre_library: dict, tmp_path: Pat
     assert dune.format == "EPUB"
     assert dune.isbn == "9780441172719"
     assert dune.publisher == "Chilton Books"
+    assert dune.rating == 5  # Calibre 10 → app 5-star scale
     assert "Science Fiction" in dune.subjects
     assert dune.cover_path is not None
 

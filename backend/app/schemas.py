@@ -30,6 +30,7 @@ class BookCreate(BookBase):
     isbn: str | None = Field(None, max_length=30)
     total_pages: int = Field(default=0, ge=0)
     storage_type: str = Field(default="local", pattern="^(local|nas)$")
+    rating: int = Field(default=0, ge=0, le=5)
     subjects: list[str] = Field(
         default_factory=list, max_length=20, description="Subjects/tags from metadata"
     )

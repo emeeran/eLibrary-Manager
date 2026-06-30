@@ -443,6 +443,7 @@ def _volume_to_book_create(
         # fast-indexer does so progress math has a sane denominator.
         total_pages=max(1, volume.file_size // 2048),
         storage_type="local",
+        rating=volume.rating,
         subjects=volume.subjects,
         calibre_id=volume.calibre_id,
         calibre_uuid=volume.calibre_uuid,

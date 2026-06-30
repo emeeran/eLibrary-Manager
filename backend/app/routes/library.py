@@ -155,6 +155,7 @@ async def _run_background_scan(
                 from app.services.library_service import invalidate_stats_cache
 
                 invalidate_stats_cache()
+                invalidate_book_list_cache()
                 scan_store.update(
                     scan_id,
                     status="completed",
@@ -266,6 +267,7 @@ async def backfill_content() -> dict:
                     )
                     await session.commit()
                     invalidate_stats_cache()
+                    invalidate_book_list_cache()
                     scan_store.update(
                         scan_id,
                         status="completed",
