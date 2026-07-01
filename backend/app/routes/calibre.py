@@ -256,38 +256,56 @@ web_router = APIRouter(tags=["calibre"])
 async def launch_reader(
     calibre_id: int | None = Query(None, ge=1),
     calibre_uuid: str | None = Query(None, max_length=64),
+    title: str | None = Query(None, max_length=500),
+    author: str | None = Query(None, max_length=300),
     db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
-    """Resolve a Calibre book and redirect to eLM's reader (spec 013).
+    """Resolve a book and redirect to eLM's reader (spec 013).
 
-    Reverse-direction deep link: Calibre-Web's "Read in web browser" button,
-    rewritten by the shared reverse proxy, lands here. Maps a Calibre book
-    id/uuid to the eLM ``Book`` and 302s to ``/reader/{id}``.
+    Resolution order (every branch returns a 302 — a user click must never hit
+    a dead-end 404):
 
-    Resolution rules (every branch returns a 302 — a user click must never
-    hit a dead-end 404):
-
-    * No id/uuid supplied              → ``/library``.
-    * Calibre id/uuid not yet imported → ``/library?calibre_pending=<key>``
-      (the library surfaces a "run a Calibre import" notice).
-    * Resolved book is hidden          → ``/library?calibre_hidden=1``
-      (a deep link must not bypass the per-book password gate, spec 010).
-    * Otherwise                        → ``/reader/{book.id}``.
+    1. ``calibre_id`` / ``calibre_uuid`` — direct lookup (Calibre-imported books).
+    2. ``title`` (+ optional ``author``) — match by title. This is what the
+       Calibre-Web userscript uses, since bulk-loaded eLM books have no
+       ``calibre_id``. Tries exact (case-insensitive) title first, then a
+       title ilike fallback, restricted to non-deleted books.
+    3. Resolved book is hidden → ``/library?calibre_hidden=1`` (no password bypass).
+    4. No match → ``/library?calibre_pending=<key>``.
     """
-    if calibre_id is None and not calibre_uuid:
+    from sqlalchemy import func as sa_func
+
+    if calibre_id is None and not calibre_uuid and not title:
         return RedirectResponse(url="/library", status_code=302)
 
+    book = None
     if calibre_id is not None:
         book = (
             await db.execute(select(Book).where(Book.calibre_id == calibre_id))
         ).scalar_one_or_none()
-    else:
+    elif calibre_uuid:
         book = (
             await db.execute(select(Book).where(Book.calibre_uuid == calibre_uuid))
         ).scalar_one_or_none()
+    elif title:
+        base = select(Book).where(Book.is_deleted.is_(False))
+        q = base.where(sa_func.lower(Book.title) == title.strip().lower())
+        if author:
+            q = q.where(sa_func.lower(sa_func.coalesce(Book.author, "")) == author.strip().lower())
+        book = (await db.execute(q.limit(1))).scalar_one_or_none()
+        if book is None:
+            # Looser fallback: title contains the term (no author constraint).
+            book = (
+                await db.execute(
+                    base.where(Book.title.ilike(f"%{title.strip()}%")).limit(1)
+                )
+            ).scalar_one_or_none()
 
     if book is None:
-        key = calibre_id if calibre_id is not None else calibre_uuid
+        key = (
+            calibre_id if calibre_id is not None
+            else (calibre_uuid or (title and f"title:{title[:40]}") or "")
+        )
         return RedirectResponse(url=f"/library?calibre_pending={key}", status_code=302)
     if book.is_hidden:
         return RedirectResponse(url="/library?calibre_hidden=1", status_code=302)

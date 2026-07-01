@@ -520,7 +520,7 @@ async def test_calibre_web_url_for_non_calibre_book(client, db_session) -> None:
 
 async def _insert_calibre_book(
     db_session, *, calibre_id: int, calibre_uuid: str | None = None,
-    is_hidden: bool = False, title: str = "X",
+    is_hidden: bool = False, title: str = "X", author: str = "A",
 ):
     """Insert a Calibre-linked book into the test DB and return it."""
     from app.repositories import BookRepository
@@ -530,7 +530,7 @@ async def _insert_calibre_book(
     book = await repo.create(
         BookCreate(
             title=title,
-            author="A",
+            author=author,
             path=f"/tmp/calibre_{calibre_id}.epub",
             file_size=10,
             format="EPUB",
@@ -580,6 +580,25 @@ async def test_launch_hidden_book_redirects_to_library(client, db_session) -> No
     resp = await client.get("/calibre/launch", params={"calibre_id": 5})
     assert resp.status_code == 302
     assert resp.headers["location"] == "/library?calibre_hidden=1"
+
+
+async def test_launch_by_title(client, db_session) -> None:
+    """A bulk-loaded book (no calibre_id) is found by title for the userscript."""
+    await _insert_calibre_book(db_session, calibre_id=91, title="A Unique Title", author="Author A")
+    # No calibre_id — resolve by title.
+    resp = await client.get("/calibre/launch", params={"title": "A Unique Title"})
+    assert resp.status_code == 302
+    assert "/reader/" in resp.headers["location"]
+
+
+async def test_launch_by_title_with_author_disambiguates(client, db_session) -> None:
+    """title + author picks the right book among same-titled entries."""
+    wanted = await _insert_calibre_book(db_session, calibre_id=101, title="Same", author="Wanted")
+    other = await _insert_calibre_book(db_session, calibre_id=102, title="Same", author="Other")
+    resp = await client.get("/calibre/launch", params={"title": "Same", "author": "Wanted"})
+    assert resp.status_code == 302
+    assert resp.headers["location"] == f"/reader/{wanted.id}"
+    assert wanted.id != other.id
 
 
 # --------------------------------------------------------------------- #
