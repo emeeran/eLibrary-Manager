@@ -65,6 +65,9 @@ class DatabaseManager:
                 cursor.execute("PRAGMA temp_store=MEMORY")
                 mmap_size = int(os.environ.get("DB_MMAP_SIZE", 33554432))  # 32MB default
                 cursor.execute(f"PRAGMA mmap_size={mmap_size}")
+                # Wait (up to 15s) for a write lock instead of erroring
+                # "database is locked" when a background backfill/scan is writing.
+                cursor.execute("PRAGMA busy_timeout=15000")
                 cursor.close()
 
             logger.info(f"Database engine created: {self.config.database_url}")
