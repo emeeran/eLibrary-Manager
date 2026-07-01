@@ -108,10 +108,13 @@ async def run_content_backfill(
                     logger.warning("Content write failed (book %s, %s): %s", book_id, path, e)
                     await repo.mark_status(book_id, "failed")
                     failed += 1
+                # Commit per-book so the write transaction is brief — the live
+                # reader writes metadata on book-open, and a long batched
+                # transaction would starve it ("database is locked").
+                await session.commit()
                 processed += 1
                 if progress_callback:
                     await progress_callback(processed, total_pending, path)
-            await session.commit()
     finally:
         if pool is not None:
             pool.shutdown(wait=False, cancel_futures=True)
