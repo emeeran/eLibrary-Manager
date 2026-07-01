@@ -30,17 +30,6 @@
     // Link/button text that indicates a "read in browser" affordance.
     const READ_TEXT_RE = /read.*(in.*browser|online|book)|readbook/i;
 
-    function isReadAffordance(el) {
-        if (!el || el.tagName !== 'A' && el.tagName !== 'BUTTON' && !el.getAttribute?.('onclick')) {
-            // still allow anchors detected by href below
-        }
-        const a = el.closest?.('a, button, [role="button"]');
-        if (!a) return false;
-        const href = a.getAttribute('href') || '';
-        const text = (a.textContent || '').trim();
-        return READ_RE.test(href) || READ_TEXT_RE.test(text) || READ_RE.test(text);
-    }
-
     function titleFor(el) {
         let scope = el.closest?.('[class*="book"], [class*="media"], [class*="card"], li, article, section, .container, body') || document;
         let node = scope;
