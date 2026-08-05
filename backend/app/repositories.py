@@ -585,6 +585,15 @@ class BookRepository:
             ResourceNotFoundError: If book doesn't exist
         """
         book = await self.get_by_id_or_404(book_id)
+        # ``books_content_fts`` is app-managed (no triggers / FK cascade), so the
+        # ORM delete of the Book would otherwise orphan its content-search row.
+        # The ``book_contents`` status row is removed by FK ``ondelete=CASCADE``.
+        # Guarded so this is safe on DBs without the FTS table (tests, fresh
+        # installs before the content-search migration has run).
+        if await self._content_fts_available():
+            await self.session.execute(
+                text("DELETE FROM books_content_fts WHERE book_id = :bid"), {"bid": book_id}
+            )
         await self.session.delete(book)
 
     async def count(self) -> int:
