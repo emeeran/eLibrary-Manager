@@ -52,10 +52,18 @@ class GoogleProvider(BaseAIProvider):
         The google-genai SDK auto-reads GOOGLE_API_KEY from the environment
         and ignores the api_key parameter when the env var is present.
         We temporarily unset it so our config key takes priority.
+
+        A request timeout is applied via ``HttpOptions`` (milliseconds) so a
+        hung Gemini call can never block the caller indefinitely.
         """
         saved = os.environ.pop("GOOGLE_API_KEY", None)
         try:
-            return genai.Client(api_key=self._api_key)
+            return genai.Client(
+                api_key=self._api_key,
+                http_options=types.HttpOptions(
+                    timeout=int(self.config.ai_request_timeout * 1000)
+                ),
+            )
         finally:
             if saved is not None:
                 os.environ["GOOGLE_API_KEY"] = saved
@@ -82,7 +90,9 @@ class GoogleProvider(BaseAIProvider):
             logger.debug(f"Sending request to Google Gemini: {len(text)} chars")
 
             client = self._get_client()
-            response = client.models.generate_content(
+            # Use the async surface (``client.aio``) so this never blocks the
+            # event loop while waiting on the network.
+            response = await client.aio.models.generate_content(
                 model=self.model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
@@ -119,7 +129,7 @@ class GoogleProvider(BaseAIProvider):
 
         try:
             client = self._get_client()
-            response = client.models.generate_content(
+            response = await client.aio.models.generate_content(
                 model=self.model,
                 contents="test",
                 config=types.GenerateContentConfig(max_output_tokens=1),

@@ -3,6 +3,7 @@
 Coordinates between repositories, scanner, AI engine, and reader functionality.
 """
 
+import asyncio
 from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
@@ -17,6 +18,12 @@ from app.scanner import LibraryScanner
 from app.schemas import ProgressUpdate
 
 logger = get_logger(__name__)
+
+# Single-flight coalescing for summary generation: maps a summary key to the
+# in-progress Task generating it. Two concurrent requests for the same chapter
+# (or book) share one AI call + one DB write instead of racing. Populated in a
+# finally so entries never leak. Keys: (book_id, chapter_index) | ("book", book_id).
+_summary_inflight: dict[tuple[int, int] | tuple[str, int], asyncio.Task] = {}
 
 
 class ReaderService:
@@ -142,18 +149,37 @@ class ReaderService:
                 logger.debug(f"Using cached summary for book {book_id}, chapter {chapter_index}")
                 return cached
 
+        # Single-flight: coalesce concurrent requests for the same chapter so we
+        # make one AI call and one DB write instead of racing. The task runs on
+        # this instance's session; concurrent callers await the same result.
+        key = (book_id, chapter_index)
+        existing = _summary_inflight.get(key)
+        if existing is not None:
+            return await existing
+
+        task = asyncio.create_task(self._generate_chapter_summary(book, chapter_index))
+        _summary_inflight[key] = task
+        try:
+            return await task
+        finally:
+            _summary_inflight.pop(key, None)
+
+    async def _generate_chapter_summary(
+        self, book: Book, chapter_index: int
+    ) -> ChapterSummary:
+        """Extract chapter text, summarize via AI, and persist (single-flight body)."""
         from app.reader_engine import get_reader_engine
 
         reader = get_reader_engine()
         # Extract only the requested chapter — avoids parsing the entire book
         try:
-            chapter_text, chapter_title, total_chapters = await reader.get_chapter_content(
+            chapter_text, chapter_title, _total_chapters = await reader.get_chapter_content(
                 book.path, chapter_index
             )
         except ResourceNotFoundError:
             raise ResourceNotFoundError(
                 f"Chapter {chapter_index} not found",
-                {"book_id": book_id, "chapter_index": chapter_index},
+                {"book_id": book.id, "chapter_index": chapter_index},
             ) from None
 
         orchestrator = await get_ai_orchestrator()
@@ -162,7 +188,7 @@ class ReaderService:
         )
 
         summary = await self.summary_repo.create(
-            book_id=book_id,
+            book_id=book.id,
             chapter_index=chapter_index,
             chapter_title=chapter_title,
             summary_text=summary_text,
@@ -170,7 +196,7 @@ class ReaderService:
         )
 
         logger.info(
-            f"Summary generated for book {book_id}, "
+            f"Summary generated for book {book.id}, "
             f"chapter {chapter_index} using {summary.provider}"
         )
 
@@ -197,6 +223,21 @@ class ReaderService:
                 logger.debug(f"Using cached book summary for {book_id}")
                 return existing
 
+        # Single-flight: one book-summary generation at a time per book.
+        key = ("book", book_id)
+        inflight = _summary_inflight.get(key)
+        if inflight is not None:
+            return await inflight
+
+        task = asyncio.create_task(self._generate_book_summary(book))
+        _summary_inflight[key] = task
+        try:
+            return await task
+        finally:
+            _summary_inflight.pop(key, None)
+
+    async def _generate_book_summary(self, book: Book) -> ChapterSummary:
+        """Generate a whole-book summary from per-chapter summaries (single-flight body)."""
         from app.reader_engine import get_reader_engine
 
         reader = get_reader_engine()
@@ -204,7 +245,7 @@ class ReaderService:
         chapter_summaries = []
         chapter_idx = 0
         while True:
-            cached = await self.summary_repo.get_cached_summary(book_id, chapter_idx)
+            cached = await self.summary_repo.get_cached_summary(book.id, chapter_idx)
             if cached:
                 chapter_summaries.append(cached.summary_text)
                 chapter_idx += 1
@@ -222,7 +263,7 @@ class ReaderService:
             chapter_summaries.append(summary_text)
 
             await self.summary_repo.create(
-                book_id=book_id,
+                book_id=book.id,
                 chapter_index=chapter_idx,
                 chapter_title=title,
                 summary_text=summary_text,
@@ -241,12 +282,12 @@ class ReaderService:
         )
 
         book_summary = await self.book_summary_repo.create_or_update(
-            book_id=book_id,
+            book_id=book.id,
             summary_text=book_summary_text,
             provider=await orchestrator.get_active_provider(),
         )
 
-        logger.info(f"Book summary generated for {book_id}")
+        logger.info(f"Book summary generated for {book.id}")
         return book_summary
 
     async def get_ai_providers_status(self) -> dict:

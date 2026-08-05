@@ -1,5 +1,7 @@
 """Multi-provider AI orchestration with automatic fallback."""
 
+import asyncio
+
 from app.ai_providers import (
     BaseAIProvider,
     GoogleProvider,
@@ -70,11 +72,10 @@ class AIProviderOrchestrator:
         Raises:
             AIServiceError: If all providers fail
         """
-        # Strip HTML tags for clean text summarization
+        # Strip HTML tags for clean text summarization. Run off the event loop —
+        # BeautifulSoup parsing of a long chapter is pure CPU work.
         if "<" in text and ">" in text:
-            from bs4 import BeautifulSoup
-
-            text = BeautifulSoup(text, "html.parser").get_text(separator="\n", strip=True)
+            text = await asyncio.to_thread(self._strip_html, text)
 
         if len(text) < 100:
             return "(Chapter too short to summarize)"
@@ -88,9 +89,9 @@ class AIProviderOrchestrator:
                     logger.debug(f"{provider.name} not available, skipping...")
                     continue
 
-                # Attempt generation
+                # Attempt generation (with bounded retry on transient failures)
                 logger.info(f"Attempting summarization with {provider.name}")
-                result = await provider.summarize(text, context)
+                result = await self._summarize_with_retry(provider, text, context)
                 self.current_provider = provider.name
 
                 logger.info(f"Summary generated using {provider.name}")
@@ -118,6 +119,42 @@ class AIProviderOrchestrator:
                 "last_error": str(last_error) if last_error else None,
             },
         )
+
+    @staticmethod
+    def _strip_html(text: str) -> str:
+        """Strip HTML to plain text (run via ``asyncio.to_thread``)."""
+        from bs4 import BeautifulSoup
+
+        return BeautifulSoup(text, "html.parser").get_text(separator="\n", strip=True)
+
+    async def _summarize_with_retry(
+        self, provider: BaseAIProvider, text: str, context: str | None
+    ) -> str:
+        """Call ``provider.summarize`` with bounded retry + exponential backoff.
+
+        Retries only on :class:`AIServiceError` (transient provider failures such
+        as timeouts, 429s, 5xx). Other exceptions propagate immediately — they
+        signal unexpected bugs and should not be retried. On exhaustion the last
+        ``AIServiceError`` is re-raised so the caller's fallback loop moves on.
+        """
+        max_retries = max(0, self.config.ai_max_retries)
+        last_exc: AIServiceError | None = None
+        for attempt in range(max_retries + 1):
+            try:
+                return await provider.summarize(text, context)
+            except AIServiceError as exc:
+                last_exc = exc
+                if attempt >= max_retries:
+                    break
+                delay = 0.5 * (3 ** attempt)  # 0.5s, 1.5s, 4.5s, ...
+                logger.warning(
+                    f"{provider.name} transient failure "
+                    f"(attempt {attempt + 1}/{max_retries + 1}), "
+                    f"retrying in {delay:.1f}s: {exc}"
+                )
+                await asyncio.sleep(delay)
+        assert last_exc is not None  # loop runs at least once
+        raise last_exc
 
     async def get_provider_status(self) -> list[dict]:
         """Get status of all AI providers.

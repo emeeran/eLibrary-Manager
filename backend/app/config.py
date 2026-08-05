@@ -44,6 +44,12 @@ class AppConfig(BaseSettings):
     # AI Settings
     ai_default_provider: str = "auto"
     ai_enable_fallback: bool = True
+    # Per-request timeout (seconds) for a single provider summarization call, and
+    # how many times to retry a transient failure before falling back. The Google
+    # provider applies the timeout via HttpOptions; retries+backoff live in the
+    # orchestrator.
+    ai_request_timeout: float = 30.0
+    ai_max_retries: int = 2
 
     # Application
     app_host: str = "0.0.0.0"
