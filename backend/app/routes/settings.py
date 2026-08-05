@@ -216,7 +216,7 @@ async def test_ai_connection(request: AIConnectionTest) -> dict:
         if request.api_key:
             _apply_ai_credentials(request.provider, request.api_key)
 
-        orchestrator = get_ai_orchestrator()
+        orchestrator = await get_ai_orchestrator()
 
         test_result = await orchestrator.generate_summary(
             book_id=1,
