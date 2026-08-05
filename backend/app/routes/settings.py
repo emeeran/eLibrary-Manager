@@ -227,7 +227,7 @@ async def test_ai_connection(request: AIConnectionTest) -> dict:
         return {
             "status": "success",
             "provider": request.provider,
-            "message": "Connection successful!",
+            "message": "Connection successful",
             "test_summary": test_result[:100] + "..." if len(test_result) > 100 else test_result,
         }
 

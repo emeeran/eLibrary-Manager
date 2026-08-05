@@ -139,13 +139,10 @@ class CalibreImporter:
             FileNotFoundError: If the root or ``metadata.db`` is missing.
         """
         if not self.library_root.is_dir():
-            raise FileNotFoundError(
-                f"Calibre library directory not found: {self.library_root}"
-            )
+            raise FileNotFoundError(f"Calibre library directory not found: {self.library_root}")
         if not self.metadata_db.is_file():
             raise FileNotFoundError(
-                f"metadata.db not found in {self.library_root} — "
-                "is this a Calibre library root?"
+                f"metadata.db not found in {self.library_root} — is this a Calibre library root?"
             )
 
     # ------------------------------------------------------------------ #
@@ -281,11 +278,9 @@ class CalibreImporter:
         progress_callback: Callable[[int, int, str], Awaitable[None]] | None = None,
         cancel_check: Callable[[], None] | None = None,
         exists_check: Callable[[CalibreVolume], bool] | None = None,
-        commit_one: Callable[[CalibreVolume, BookCreate], Awaitable[None]]
-        | None = None,
+        commit_one: Callable[[CalibreVolume, BookCreate], Awaitable[None]] | None = None,
         lookup_check: Callable[[CalibreVolume], str] | None = None,
-        update_one: Callable[[CalibreVolume, BookCreate], Awaitable[None]]
-        | None = None,
+        update_one: Callable[[CalibreVolume, BookCreate], Awaitable[None]] | None = None,
     ) -> CalibreImportSummary:
         """Import the Calibre library into the index.
 
@@ -322,8 +317,7 @@ class CalibreImporter:
         volumes = await asyncio.to_thread(self._read_catalog)
         summary = CalibreImportSummary(total_in_library=len(volumes))
         logger.info(
-            f"Calibre import: {summary.total_in_library} volumes in catalog at "
-            f"{self.library_root}"
+            f"Calibre import: {summary.total_in_library} volumes in catalog at {self.library_root}"
         )
 
         for i, volume in enumerate(volumes):
@@ -367,9 +361,7 @@ class CalibreImporter:
                         summary.imported += 1
             except Exception as e:  # noqa: BLE001 — keep importing on per-book errors
                 summary.errors += 1
-                logger.error(
-                    f"Failed to import Calibre book {volume.calibre_id}: {e}"
-                )
+                logger.error(f"Failed to import Calibre book {volume.calibre_id}: {e}")
 
             if progress_callback and (i % 10 == 0 or i == summary.total_in_library - 1):
                 await progress_callback(i + 1, summary.total_in_library, volume.title)
@@ -423,9 +415,7 @@ def _split_tags(tags: str | None, fallback_title: str | None) -> list[str]:
     return out
 
 
-def _volume_to_book_create(
-    volume: CalibreVolume, cover_path: str | None
-) -> BookCreate:
+def _volume_to_book_create(volume: CalibreVolume, cover_path: str | None) -> BookCreate:
     """Convert a resolved :class:`CalibreVolume` to a :class:`BookCreate`."""
     return BookCreate(
         title=volume.title[:500],

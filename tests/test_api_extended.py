@@ -11,20 +11,24 @@ from httpx import AsyncClient
 async def _create_test_book(db_session) -> Book:
     """Helper: create a unique test book in the database."""
     from app.repositories import BookRepository
+
     uid = uuid.uuid4().hex[:8]
     repo = BookRepository(db_session)
-    return await repo.create(BookCreate(
-        title=f"Test Book {uid}",
-        author="Test Author",
-        path=f"/test/book_{uid}.epub",
-        format="EPUB",
-        file_size=2048,
-    ))
+    return await repo.create(
+        BookCreate(
+            title=f"Test Book {uid}",
+            author="Test Author",
+            path=f"/test/book_{uid}.epub",
+            format="EPUB",
+            file_size=2048,
+        )
+    )
 
 
 # ============================================
 # BOOK ENDPOINTS
 # ============================================
+
 
 @pytest.mark.asyncio
 async def test_books_list_pagination(client: AsyncClient):
@@ -42,14 +46,17 @@ async def test_books_list_pagination(client: AsyncClient):
 async def test_books_list_search(client: AsyncClient, db_session):
     """Test books listing with search."""
     from app.repositories import BookRepository
+
     repo = BookRepository(db_session)
-    await repo.create(BookCreate(
-        title="Unique Search Title",
-        author="Unique Author",
-        path="/test/search_book.epub",
-        format="EPUB",
-        file_size=100,
-    ))
+    await repo.create(
+        BookCreate(
+            title="Unique Search Title",
+            author="Unique Author",
+            path="/test/search_book.epub",
+            format="EPUB",
+            file_size=100,
+        )
+    )
 
     response = await client.get("/api/books?search=Unique Search")
     assert response.status_code == 200
@@ -62,13 +69,10 @@ async def test_books_list_search(client: AsyncClient, db_session):
 async def test_books_list_sort(client: AsyncClient, db_session):
     """Test books listing with sorting."""
     from app.repositories import BookRepository
+
     repo = BookRepository(db_session)
-    await repo.create(BookCreate(
-        title="Alpha", path="/test/a.epub", format="EPUB", file_size=100
-    ))
-    await repo.create(BookCreate(
-        title="Zeta", path="/test/z.epub", format="EPUB", file_size=100
-    ))
+    await repo.create(BookCreate(title="Alpha", path="/test/a.epub", format="EPUB", file_size=100))
+    await repo.create(BookCreate(title="Zeta", path="/test/z.epub", format="EPUB", file_size=100))
 
     # Sort by title ascending
     response = await client.get("/api/books?sort_by=title&sort_order=asc")
@@ -108,8 +112,7 @@ async def test_book_update_progress(client: AsyncClient, db_session):
     book = await _create_test_book(db_session)
 
     response = await client.post(
-        f"/api/books/{book.id}/progress",
-        json={"chapter_index": 2, "progress": 35.5}
+        f"/api/books/{book.id}/progress", json={"chapter_index": 2, "progress": 35.5}
     )
     assert response.status_code == 200
 
@@ -130,6 +133,7 @@ async def test_book_delete(client: AsyncClient, db_session):
 # BOOKMARK ENDPOINTS
 # ============================================
 
+
 @pytest.mark.asyncio
 async def test_bookmark_crud(client: AsyncClient, db_session):
     """Test bookmark create, list, get, delete."""
@@ -138,7 +142,7 @@ async def test_bookmark_crud(client: AsyncClient, db_session):
     # Create
     response = await client.post(
         f"/api/books/{book.id}/bookmarks",
-        json={"chapter_index": 1, "position_in_chapter": 100, "title": "Test Bookmark"}
+        json={"chapter_index": 1, "position_in_chapter": 100, "title": "Test Bookmark"},
     )
     assert response.status_code == 200
     bookmark = response.json()
@@ -164,6 +168,7 @@ async def test_bookmark_crud(client: AsyncClient, db_session):
 # NOTE ENDPOINTS
 # ============================================
 
+
 @pytest.mark.asyncio
 async def test_note_crud(client: AsyncClient, db_session):
     """Test note create, list, delete."""
@@ -177,8 +182,8 @@ async def test_note_crud(client: AsyncClient, db_session):
             "position_in_chapter": 50,
             "content": "This is an important passage",
             "color": "yellow",
-            "quoted_text": "important passage"
-        }
+            "quoted_text": "important passage",
+        },
     )
     assert response.status_code == 200
     note = response.json()
@@ -200,6 +205,7 @@ async def test_note_crud(client: AsyncClient, db_session):
 # ANNOTATION ENDPOINTS
 # ============================================
 
+
 @pytest.mark.asyncio
 async def test_annotation_crud(client: AsyncClient, db_session):
     """Test annotation create, list, delete."""
@@ -214,8 +220,8 @@ async def test_annotation_crud(client: AsyncClient, db_session):
             "end_position": 50,
             "text": "Highlighted text here",
             "color": "green",
-            "note": "This is interesting"
-        }
+            "note": "This is interesting",
+        },
     )
     assert response.status_code == 200
     annotation = response.json()
@@ -242,6 +248,7 @@ async def test_annotation_crud(client: AsyncClient, db_session):
 # SETTINGS ENDPOINTS
 # ============================================
 
+
 @pytest.mark.asyncio
 async def test_settings_get_defaults(client: AsyncClient):
     """Test getting default settings."""
@@ -256,10 +263,7 @@ async def test_settings_get_defaults(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_settings_update(client: AsyncClient):
     """Test updating settings."""
-    response = await client.post(
-        "/api/settings",
-        json={"theme": "night", "font_size": 18}
-    )
+    response = await client.post("/api/settings", json={"theme": "night", "font_size": 18})
     assert response.status_code == 200
 
     # Verify update
@@ -271,6 +275,7 @@ async def test_settings_update(client: AsyncClient):
 # ============================================
 # TTS ENDPOINTS
 # ============================================
+
 
 @pytest.mark.asyncio
 async def test_tts_engines(client: AsyncClient):
@@ -309,14 +314,12 @@ async def test_tts_stream_empty_text(client: AsyncClient):
 # CATEGORIES ENDPOINTS
 # ============================================
 
+
 @pytest.mark.asyncio
 async def test_categories_crud(client: AsyncClient, db_session):
     """Test category create, list, delete."""
     # Create
-    response = await client.post(
-        "/api/categories",
-        json={"name": "Fiction", "color": "#ff0000"}
-    )
+    response = await client.post("/api/categories", json={"name": "Fiction", "color": "#ff0000"})
     assert response.status_code == 201
     cat = response.json()
     cat_id = cat["id"]
@@ -339,16 +342,12 @@ async def test_assign_category_to_book(client: AsyncClient, db_session):
     book = await _create_test_book(db_session)
 
     # Create category
-    response = await client.post(
-        "/api/categories",
-        json={"name": "Science", "color": "#00ff00"}
-    )
+    response = await client.post("/api/categories", json={"name": "Science", "color": "#00ff00"})
     cat_id = response.json()["id"]
 
     # Assign
     response = await client.post(
-        f"/api/books/{book.id}/categories",
-        json={"category_ids": [cat_id]}
+        f"/api/books/{book.id}/categories", json={"category_ids": [cat_id]}
     )
     assert response.status_code == 200
 
@@ -356,6 +355,7 @@ async def test_assign_category_to_book(client: AsyncClient, db_session):
 # ============================================
 # EXPORT ENDPOINT (markdown + json)
 # ============================================
+
 
 @pytest.mark.asyncio
 async def test_export_markdown(client: AsyncClient, db_session):
@@ -382,7 +382,12 @@ async def test_export_json_structure_and_disposition(client: AsyncClient, db_ses
     )
     await client.post(
         f"/api/books/{book.id}/notes",
-        json={"chapter_index": 2, "position_in_chapter": 50, "content": "a note", "color": "yellow"},
+        json={
+            "chapter_index": 2,
+            "position_in_chapter": 50,
+            "content": "a note",
+            "color": "yellow",
+        },
     )
 
     resp = await client.get(f"/api/books/{book.id}/export?format=json")

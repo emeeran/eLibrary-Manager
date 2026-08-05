@@ -4,23 +4,35 @@
 let currentPage = 1;
 const pageSize = 24;
 let currentFilters = {};
-let currentView = 'grid';
+let currentView = "grid";
 let totalBooks = 0;
 let isLoadingMore = false;
 
 // Precomputed SVG icons (avoid rebuilding strings per book)
-const SVG_EDIT = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
-const SVG_IMAGE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
-const SVG_DELETE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
-const SVG_TAG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>';
-const SVG_LOCK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>';
-const SVG_CALIBRE = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>';
+const SVG_EDIT =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+const SVG_IMAGE =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>';
+const SVG_DELETE =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+const SVG_TAG =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>';
+const SVG_LOCK =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>';
+const SVG_CALIBRE =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>';
 
 // Fast HTML escape using lookup table
-const _escMap = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+const _escMap = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
 const _escRe = /[&<>"']/g;
 function escapeHtml(text) {
-    return text.replace(_escRe, c => _escMap[c]);
+  return text.replace(_escRe, (c) => _escMap[c]);
 }
 
 /**
@@ -34,10 +46,10 @@ function escapeHtml(text) {
  * element — never executable markup.
  */
 function renderSnippet(raw) {
-    return escapeHtml(raw)
-        .replace(/&lt;mark&gt;/g, '<mark>')
-        .replace(/&lt;&#x2F;mark&gt;/g, '</mark>')
-        .replace(/&lt;\/mark&gt;/g, '</mark>');
+  return escapeHtml(raw)
+    .replace(/&lt;mark&gt;/g, "<mark>")
+    .replace(/&lt;&#x2F;mark&gt;/g, "</mark>")
+    .replace(/&lt;\/mark&gt;/g, "</mark>");
 }
 
 /**
@@ -46,11 +58,11 @@ function renderSnippet(raw) {
  * reader's in-book search.
  */
 function jumpToMatch(bookId, event) {
-    if (event) event.stopPropagation();
-    const raw = currentFilters.search || '';
-    const bare = raw.replace(/\b(author|title|series|isbn):\S+/gi, '').trim();
-    if (!bare) return;
-    window.location.href = `/reader/${bookId}?q=${encodeURIComponent(bare)}`;
+  if (event) event.stopPropagation();
+  const raw = currentFilters.search || "";
+  const bare = raw.replace(/\b(author|title|series|isbn):\S+/gi, "").trim();
+  if (!bare) return;
+  window.location.href = `/reader/${bookId}?q=${encodeURIComponent(bare)}`;
 }
 
 /**
@@ -60,16 +72,18 @@ function jumpToMatch(bookId, event) {
  * Returns an HTML string for a colored block with the title text on it.
  */
 function generatedCover(title, author, compact = false) {
-    const seed = String(title || '') + '|' + String(author || '');
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-        hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
-    }
-    const hue = hash % 360;
-    const bg = `linear-gradient(135deg, hsl(${hue}, 45%, 45%), hsl(${(hue + 40) % 360}, 45%, 35%))`;
-    const safeTitle = escapeHtml((title || 'Untitled').slice(0, 60));
-    const cls = compact ? 'book-card-cover-placeholder generated' : 'book-card-cover-placeholder generated';
-    return `<div class="${cls}" style="background:${bg};" aria-hidden="true">${safeTitle}</div>`;
+  const seed = String(title || "") + "|" + String(author || "");
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  const hue = hash % 360;
+  const bg = `linear-gradient(135deg, hsl(${hue}, 45%, 45%), hsl(${(hue + 40) % 360}, 45%, 35%))`;
+  const safeTitle = escapeHtml((title || "Untitled").slice(0, 60));
+  const cls = compact
+    ? "book-card-cover-placeholder generated"
+    : "book-card-cover-placeholder generated";
+  return `<div class="${cls}" style="background:${bg};" aria-hidden="true">${safeTitle}</div>`;
 }
 
 /**
@@ -80,10 +94,10 @@ function generatedCover(title, author, compact = false) {
  * and broke the action buttons). Wired via onerror="coverError(this)".
  */
 function coverError(img) {
-    const title = img.getAttribute('data-title') || 'Untitled';
-    const author = img.getAttribute('data-author') || '';
-    const parent = img.parentElement;
-    if (parent) parent.innerHTML = generatedCover(title, author);
+  const title = img.getAttribute("data-title") || "Untitled";
+  const author = img.getAttribute("data-author") || "";
+  const parent = img.parentElement;
+  if (parent) parent.innerHTML = generatedCover(title, author);
 }
 window.coverError = coverError;
 
@@ -93,40 +107,48 @@ window.coverError = coverError;
  * it doesn't clutter search/filter results.
  */
 async function loadContinueReading() {
-    const section = document.getElementById('continue-reading');
-    const grid = document.getElementById('continue-reading-grid');
-    if (!section || !grid) return;
+  const section = document.getElementById("continue-reading");
+  const grid = document.getElementById("continue-reading-grid");
+  if (!section || !grid) return;
 
-    // Hide the shelf whenever the user applies filters/search.
-    const hasFilters = Object.keys(currentFilters).length > 0;
-    if (hasFilters) {
-        section.hidden = true;
-        return;
+  // Hide the shelf whenever the user applies filters/search.
+  const hasFilters = Object.keys(currentFilters).length > 0;
+  if (hasFilters) {
+    section.hidden = true;
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      page: 1,
+      page_size: 6,
+      reading_only: true,
+      sort_by: "last_read",
+      sort_order: "desc",
+    });
+    const res = await fetch(`/api/books?${params}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.books.length) {
+      section.hidden = true;
+      return;
     }
 
-    try {
-        const params = new URLSearchParams({
-            page: 1, page_size: 6,
-            reading_only: true,
-            sort_by: 'last_read', sort_order: 'desc',
-        });
-        const res = await fetch(`/api/books?${params}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data.books.length) { section.hidden = true; return; }
-
-        grid.className = 'book-grid';
-        grid.innerHTML = data.books.map(book => {
-            const safeTitle = escapeHtml(book.title);
-            const safeAuthor = escapeHtml(book.author || 'Unknown Author');
-            return `
+    grid.className = "book-grid";
+    grid.innerHTML = data.books
+      .map((book) => {
+        const safeTitle = escapeHtml(book.title);
+        const safeAuthor = escapeHtml(book.author || "Unknown Author");
+        return `
             <div class="book-card-wrapper" role="listitem">
                 <div class="book-card" data-book-id="${book.id}" tabindex="0" role="button" aria-label="Read ${safeTitle} by ${safeAuthor}">
                     <div class="book-card-cover">
-                        ${book.cover_path
-                    ? `<img src="/covers/${encodeURIComponent(book.cover_path.split('/').pop())}" alt="${safeTitle}" loading="lazy" class="lazy-image" data-title="${safeTitle}" data-author="${safeAuthor}" onload="this.classList.add('loaded')" onerror="coverError(this)">`
-                    : generatedCover(book.title, book.author)}
-                        <div class="book-card-progress"><div class="book-card-progress-fill" style="width:${book.progress||0}%"></div></div>
+                        ${
+                          book.cover_path
+                            ? `<img src="/covers/${encodeURIComponent(book.cover_path.split("/").pop())}" alt="${safeTitle}" loading="lazy" class="lazy-image" data-title="${safeTitle}" data-author="${safeAuthor}" onload="this.classList.add('loaded')" onerror="coverError(this)">`
+                            : generatedCover(book.title, book.author)
+                        }
+                        <div class="book-card-progress"><div class="book-card-progress-fill" style="width:${book.progress || 0}%"></div></div>
                     </div>
                     <div class="book-card-info">
                         <div class="book-card-title">${safeTitle}</div>
@@ -134,11 +156,12 @@ async function loadContinueReading() {
                     </div>
                 </div>
             </div>`;
-        }).join('');
-        section.hidden = false;
-    } catch (e) {
-        section.hidden = true;
-    }
+      })
+      .join("");
+    section.hidden = false;
+  } catch (e) {
+    section.hidden = true;
+  }
 }
 
 // Content-match snippets from the last search (spec 012): {book_id(String): html}
@@ -150,112 +173,116 @@ let nextCursor = null;
  * Load books from API
  */
 async function loadBooks(append = false) {
-    // Initial page load (empty grid) -> full loading overlay. Subsequent
-    // filter/sort/page changes -> slim top progress bar so the grid stays
-    // visible and the change feels smooth instead of flashing a blank spinner.
-    const grid = document.getElementById('book-grid');
-    const isInitialLoad = !append && (!grid || !grid.children.length);
-    if (isInitialLoad) {
-        showLoading();
-    } else if (!append) {
-        showTopProgress();
-    }
+  // Initial page load (empty grid) -> full loading overlay. Subsequent
+  // filter/sort/page changes -> slim top progress bar so the grid stays
+  // visible and the change feels smooth instead of flashing a blank spinner.
+  const grid = document.getElementById("book-grid");
+  const isInitialLoad = !append && (!grid || !grid.children.length);
+  if (isInitialLoad) {
+    showLoading();
+  } else if (!append) {
+    showTopProgress();
+  }
 
-    // A fresh (non-append) query starts a new pagination sequence.
-    if (!append) {
-        nextCursor = null;
-        currentPage = 1;
-    }
+  // A fresh (non-append) query starts a new pagination sequence.
+  if (!append) {
+    nextCursor = null;
+    currentPage = 1;
+  }
 
-    const params = new URLSearchParams({
-        page: currentPage,
-        page_size: pageSize,
-        ...currentFilters
-    });
-    // Append via keyset cursor when available (stable, fast deep pages).
-    if (append && nextCursor) {
-        params.set('cursor', nextCursor);
-    }
+  const params = new URLSearchParams({
+    page: currentPage,
+    page_size: pageSize,
+    ...currentFilters,
+  });
+  // Append via keyset cursor when available (stable, fast deep pages).
+  if (append && nextCursor) {
+    params.set("cursor", nextCursor);
+  }
 
-    try {
-        const response = await fetch(`/api/books?${params}`);
-        const data = await response.json();
+  try {
+    const response = await fetch(`/api/books?${params}`);
+    const data = await response.json();
 
-        totalBooks = data.total;
-        contentSnippets = data.content_snippets || null;
-        nextCursor = data.next_cursor || null;
-        renderBooks(data.books, append);
-        // Fetch sidebar counts independently for better performance
-        loadSidebarCounts();
-        // The Continue Reading shelf only appears on the default view —
-        // refresh/hide it whenever the grid reloads.
-        if (!append) loadContinueReading();
-        hideLoading();
-        hideTopProgress();
-    } catch (error) {
-        console.error('Failed to load books:', error);
-        showError('Failed to load books. Please try again.');
-        hideLoading();
-        hideTopProgress();
-    }
+    totalBooks = data.total;
+    contentSnippets = data.content_snippets || null;
+    nextCursor = data.next_cursor || null;
+    renderBooks(data.books, append);
+    // Fetch sidebar counts independently for better performance
+    loadSidebarCounts();
+    // The Continue Reading shelf only appears on the default view —
+    // refresh/hide it whenever the grid reloads.
+    if (!append) loadContinueReading();
+    hideLoading();
+    hideTopProgress();
+  } catch (error) {
+    console.error("Failed to load books:", error);
+    showError("Failed to load books. Please try again.");
+    hideLoading();
+    hideTopProgress();
+  }
 }
 
 /**
  * Load next page for infinite scroll
  */
 async function loadMoreBooks() {
-    if (isLoadingMore) return;
-    // No more pages: no cursor and page-based load caught up.
-    if (!nextCursor && currentPage * pageSize >= totalBooks) return;
+  if (isLoadingMore) return;
+  // No more pages: no cursor and page-based load caught up.
+  if (!nextCursor && currentPage * pageSize >= totalBooks) return;
 
-    isLoadingMore = true;
-    // Prefer the keyset cursor; fall back to incrementing the page.
-    if (!nextCursor) {
-        currentPage++;
-    }
-    await loadBooks(true);
-    isLoadingMore = false;
+  isLoadingMore = true;
+  // Prefer the keyset cursor; fall back to incrementing the page.
+  if (!nextCursor) {
+    currentPage++;
+  }
+  await loadBooks(true);
+  isLoadingMore = false;
 }
 
 /**
  * Render books to the grid or table
  */
 function renderBooks(books, append = false) {
-    const grid = document.getElementById('book-grid');
+  const grid = document.getElementById("book-grid");
 
-    if (books.length === 0 && !append) {
-        // Determine which empty state to show based on current filters
-        let emptyStateTitle = 'No books found';
-        let emptyStateDescription = 'Try adjusting your filters or add books to get started.';
-        let emptyStateIcon = '📚';
-        let showPrimaryButton = true;
-        let showSecondaryButton = false;
+  if (books.length === 0 && !append) {
+    // Determine which empty state to show based on current filters
+    let emptyStateTitle = "No books found";
+    let emptyStateDescription =
+      "Try adjusting your filters or add books to get started.";
+    let emptyStateIcon = "📚";
+    let showPrimaryButton = true;
+    let showSecondaryButton = false;
 
-        // Check if user has any filters applied
-        const hasFilters = Object.keys(currentFilters).length > 0;
-        const hasSearch = currentFilters.search;
+    // Check if user has any filters applied
+    const hasFilters = Object.keys(currentFilters).length > 0;
+    const hasSearch = currentFilters.search;
 
-        if (hasSearch) {
-            emptyStateTitle = 'No matching books';
-            emptyStateDescription = `No books match "${escapeHtml(currentFilters.search)}". Try a different search term.`;
-            emptyStateIcon = '🔍';
-            showPrimaryButton = false;
-            showSecondaryButton = true;
-        } else if (hasFilters) {
-            emptyStateTitle = 'No books in this category';
-            emptyStateDescription = 'Try selecting a different category or add more books to your library.';
-            emptyStateIcon = '📂';
-            showPrimaryButton = false;
-            showSecondaryButton = true;
-        }
+    if (hasSearch) {
+      emptyStateTitle = "No matching books";
+      emptyStateDescription = `No books match "${escapeHtml(currentFilters.search)}". Try a different search term.`;
+      emptyStateIcon = "🔍";
+      showPrimaryButton = false;
+      showSecondaryButton = true;
+    } else if (hasFilters) {
+      emptyStateTitle = "No books in this category";
+      emptyStateDescription =
+        "Try selecting a different category or add more books to your library.";
+      emptyStateIcon = "📂";
+      showPrimaryButton = false;
+      showSecondaryButton = true;
+    }
 
-        grid.innerHTML = `
-            <div class="empty-state ${currentView === 'table' ? '' : 'empty-state-library'}" style="${currentView === 'table' ? '' : 'grid-column: 1 / -1;'}">
+    grid.innerHTML = `
+            <div class="empty-state ${currentView === "table" ? "" : "empty-state-library"}" style="${currentView === "table" ? "" : "grid-column: 1 / -1;"}">
                 <div class="empty-state-icon">${emptyStateIcon}</div>
                 <div class="empty-state-title">${emptyStateTitle}</div>
                 <div class="empty-state-description">${emptyStateDescription}</div>
                 <div class="empty-state-actions">
-                    ${showPrimaryButton ? `
+                    ${
+                      showPrimaryButton
+                        ? `
                         <button class="empty-state-btn empty-state-btn-primary" onclick="openAddBookModal()">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
@@ -268,52 +295,62 @@ function renderBooks(books, append = false) {
                             </svg>
                             Import Folder
                         </button>
-                    ` : ''}
-                    ${showSecondaryButton ? `
+                    `
+                        : ""
+                    }
+                    ${
+                      showSecondaryButton
+                        ? `
                         <button class="empty-state-btn empty-state-btn-secondary" onclick="clearFilters()">
                             Clear Filters
                         </button>
-                    ` : ''}
+                    `
+                        : ""
+                    }
                 </div>
             </div>
         `;
-        return;
-    }
+    return;
+  }
 
-    if (currentView === 'table') {
-        renderTableView(books, append);
-    } else {
-        renderGridView(books, append);
-    }
+  if (currentView === "table") {
+    renderTableView(books, append);
+  } else {
+    renderGridView(books, append);
+  }
 }
 
 /**
  * Clear all filters
  */
 function clearFilters() {
-    currentFilters = {};
-    currentPage = 1;
-    loadBooks();
+  currentFilters = {};
+  currentPage = 1;
+  loadBooks();
 }
 
 /**
  * Render books as grid
  */
 function renderGridView(books, append = false) {
-    const grid = document.getElementById('book-grid');
-    grid.className = 'book-grid';
+  const grid = document.getElementById("book-grid");
+  grid.className = "book-grid";
 
-    const html = books.map(book => {
-        const yearInfo = book.publish_date ? book.publish_date.substring(0, 4) : '';
-        const safeTitle = escapeHtml(book.title);
-        const safeAuthor = escapeHtml(book.author || 'Unknown Author');
+  const html = books
+    .map((book) => {
+      const yearInfo = book.publish_date
+        ? book.publish_date.substring(0, 4)
+        : "";
+      const safeTitle = escapeHtml(book.title);
+      const safeAuthor = escapeHtml(book.author || "Unknown Author");
 
-        return `
+      return `
         <div class="book-card-wrapper" role="listitem">
             <div class="book-card" data-book-id="${book.id}" tabindex="0" role="button" aria-label="Read ${safeTitle} by ${safeAuthor}">
                 <div class="book-card-cover">
-                    ${book.cover_path
-                ? `<img src="/covers/${encodeURIComponent(book.cover_path.split('/').pop())}"
+                    ${
+                      book.cover_path
+                        ? `<img src="/covers/${encodeURIComponent(book.cover_path.split("/").pop())}"
                        alt="${safeTitle}"
                        loading="lazy"
                        class="lazy-image"
@@ -321,26 +358,26 @@ function renderGridView(books, append = false) {
                        data-author="${safeAuthor}"
                        onload="this.classList.add('loaded')"
                        onerror="coverError(this)">`
-                : generatedCover(book.title, book.author)
-            }
+                        : generatedCover(book.title, book.author)
+                    }
                     <div class="book-card-progress">
                         <div class="book-card-progress-fill" style="width: ${book.progress || 0}%" data-progress="${Math.round(book.progress || 0)}%"></div>
                     </div>
-                    ${book.is_favorite ? '<div class="book-card-favorite" aria-label="Favorite">★</div>' : ''}
+                    ${book.is_favorite ? '<div class="book-card-favorite" aria-label="Favorite">★</div>' : ""}
                 </div>
                 <div class="book-card-info">
                     <div class="book-card-title" title="${safeTitle}">${safeTitle}</div>
                     <div class="book-card-author">${safeAuthor}</div>
                     <div class="book-card-rating" data-rating-group="${book.id}">
-                        ${[1,2,3,4,5].map(i => `<span class="star ${i <= (book.rating || 0) ? 'filled' : ''}" data-value="${i}" data-book-id="${book.id}">&#9733;</span>`).join('')}
+                        ${[1, 2, 3, 4, 5].map((i) => `<span class="star ${i <= (book.rating || 0) ? "filled" : ""}" data-value="${i}" data-book-id="${book.id}">&#9733;</span>`).join("")}
                     </div>
                     <div class="book-card-meta">
                         <span class="book-card-format">${book.format}</span>
-                        ${book.total_pages ? `<span class="book-card-pages">${book.total_pages}p</span>` : ''}
-                        ${yearInfo ? `<span class="book-card-year">${yearInfo}</span>` : ''}
+                        ${book.total_pages ? `<span class="book-card-pages">${book.total_pages}p</span>` : ""}
+                        ${yearInfo ? `<span class="book-card-year">${yearInfo}</span>` : ""}
                     </div>
-                    ${book.categories && book.categories.length ? `<div class="book-card-categories"><span class="category-pill">${escapeHtml(book.categories[0])}</span>${book.categories.length > 1 ? `<span class="category-pill category-pill-more">+${book.categories.length - 1}</span>` : ''}</div>` : ''}
-                    ${contentSnippets && contentSnippets[String(book.id)] ? `<div class="book-card-snippet" title="Open at this match" onclick="jumpToMatch(${book.id}, event)">${renderSnippet(contentSnippets[String(book.id)])}</div>` : ''}
+                    ${book.categories && book.categories.length ? `<div class="book-card-categories"><span class="category-pill">${escapeHtml(book.categories[0])}</span>${book.categories.length > 1 ? `<span class="category-pill category-pill-more">+${book.categories.length - 1}</span>` : ""}</div>` : ""}
+                    ${contentSnippets && contentSnippets[String(book.id)] ? `<div class="book-card-snippet" title="Open at this match" onclick="jumpToMatch(${book.id}, event)">${renderSnippet(contentSnippets[String(book.id)])}</div>` : ""}
                 </div>
             </div>
             <div class="book-card-actions">
@@ -348,100 +385,105 @@ function renderGridView(books, append = false) {
                 <button class="book-card-action-btn" data-action="cover" data-book-id="${book.id}" title="Change Cover">${SVG_IMAGE}</button>
                 <button class="book-card-action-btn" data-action="delete" data-book-id="${book.id}" title="Delete">${SVG_DELETE}</button>
                 <button class="book-card-action-btn" data-action="category" data-book-id="${book.id}" title="Categories">${SVG_TAG}</button>
-                ${book.calibre_id ? `<button class="book-card-action-btn" data-action="calibre-web" data-book-id="${book.id}" title="Open in Calibre-Web">${SVG_CALIBRE}</button>` : ''}
+                ${book.calibre_id ? `<button class="book-card-action-btn" data-action="calibre-web" data-book-id="${book.id}" title="Open in Calibre-Web">${SVG_CALIBRE}</button>` : ""}
                 <button class="book-card-action-btn" data-action="hide" data-book-id="${book.id}" title="Hide/Unhide">${SVG_LOCK}</button>
             </div>
         </div>
-    `}).join('');
+    `;
+    })
+    .join("");
 
-    requestAnimationFrame(() => {
-        if (append) {
-            grid.insertAdjacentHTML('beforeend', html);
-        } else {
-            grid.innerHTML = html;
-        }
-        initializeKeyboardNavigation();
-        // Force scrollbar recalculation after layout
-        const container = document.querySelector('.book-grid-container');
-        if (container) container.offsetHeight;
-    });
+  requestAnimationFrame(() => {
+    if (append) {
+      grid.insertAdjacentHTML("beforeend", html);
+    } else {
+      grid.innerHTML = html;
+    }
+    initializeKeyboardNavigation();
+    // Force scrollbar recalculation after layout
+    const container = document.querySelector(".book-grid-container");
+    if (container) container.offsetHeight;
+  });
 }
 
 /**
  * Set book rating (1-5 stars, 0 to clear)
  */
 async function setRating(bookId, rating) {
-    const container = document.querySelector(`.book-card-rating .star[data-book-id="${bookId}"]`)?.parentElement;
-    if (!container) return;
+  const container = document.querySelector(
+    `.book-card-rating .star[data-book-id="${bookId}"]`,
+  )?.parentElement;
+  if (!container) return;
 
-    // Optimistic update
-    container.querySelectorAll('.star').forEach(s => {
-        const val = parseInt(s.dataset.value);
-        s.classList.toggle('filled', val <= rating);
+  // Optimistic update
+  container.querySelectorAll(".star").forEach((s) => {
+    const val = parseInt(s.dataset.value);
+    s.classList.toggle("filled", val <= rating);
+  });
+
+  try {
+    await fetch(`/api/books/${bookId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating }),
     });
-
-    try {
-        await fetch(`/api/books/${bookId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rating })
-        });
-    } catch (e) {
-        console.error('Failed to save rating:', e);
-        // Revert on failure
-        loadBooks();
-    }
+  } catch (e) {
+    console.error("Failed to save rating:", e);
+    // Revert on failure
+    loadBooks();
+  }
 }
 
 /**
  * Upload a new cover image for a book
  */
 function uploadCover(bookId) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/jpeg,image/png,image/webp';
-    input.onchange = async () => {
-        const file = input.files[0];
-        if (!file) return;
-        const formData = new FormData();
-        formData.append('file', file);
-        try {
-            const res = await fetch(`/api/books/${bookId}/cover`, {
-                method: 'POST',
-                body: formData
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.detail || 'Upload failed');
-            }
-            showNotification('Cover updated!', 'success');
-        } catch (e) {
-            showNotification('Failed to upload cover: ' + e.message, 'error');
-        }
-    };
-    input.click();
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/jpeg,image/png,image/webp";
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch(`/api/books/${bookId}/cover`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Upload failed");
+      }
+      showNotification("Cover updated!", "success");
+    } catch (e) {
+      showNotification("Failed to upload cover: " + e.message, "error");
+    }
+  };
+  input.click();
 }
 
 /**
  * Render books as table
  */
 function tableRowHtml(book) {
-    return `
-        <tr class="book-table-row" onclick="openBook(${book.id})" tabindex="0" role="button" aria-label="Read ${escapeHtml(book.title)} by ${escapeHtml(book.author || 'Unknown Author')}">
+  return `
+        <tr class="book-table-row" onclick="openBook(${book.id})" tabindex="0" role="button" aria-label="Read ${escapeHtml(book.title)} by ${escapeHtml(book.author || "Unknown Author")}">
             <td class="table-col-cover">
                 <div class="table-cover">
-                    ${book.cover_path
-        ? `<img src="/covers/${encodeURIComponent(book.cover_path.split('/').pop())}" alt="${escapeHtml(book.title)}" data-title="${escapeHtml(book.title)}" data-author="${escapeHtml(book.author||'')}" onerror="coverError(this)">`
-        : generatedCover(book.title, book.author, true)
-    }
-                    ${book.is_favorite ? '<span class="table-favorite">★</span>' : ''}
+                    ${
+                      book.cover_path
+                        ? `<img src="/covers/${encodeURIComponent(book.cover_path.split("/").pop())}" alt="${escapeHtml(book.title)}" data-title="${escapeHtml(book.title)}" data-author="${escapeHtml(book.author || "")}" onerror="coverError(this)">`
+                        : generatedCover(book.title, book.author, true)
+                    }
+                    ${book.is_favorite ? '<span class="table-favorite">★</span>' : ""}
                 </div>
             </td>
             <td class="table-col-title">
                 <div class="table-title" title="${escapeHtml(book.title)}">${escapeHtml(book.title)}</div>
             </td>
             <td class="table-col-author">
-                <div class="table-author" title="${escapeHtml(book.author || 'Unknown')}">${escapeHtml(book.author || 'Unknown Author')}</div>
+                <div class="table-author" title="${escapeHtml(book.author || "Unknown")}">${escapeHtml(book.author || "Unknown Author")}</div>
             </td>
             <td class="table-col-format">
                 <span class="table-format">${book.format}</span>
@@ -453,7 +495,7 @@ function tableRowHtml(book) {
                 <span class="table-progress-text">${Math.round(book.progress || 0)}%</span>
             </td>
             <td class="table-col-pages">
-                <span class="table-pages">${book.total_pages ? `${book.current_page || 1} / ${book.total_pages}` : '-'}</span>
+                <span class="table-pages">${book.total_pages ? `${book.current_page || 1} / ${book.total_pages}` : "-"}</span>
             </td>
             <td class="table-col-actions">
                 <div class="table-actions">
@@ -463,7 +505,7 @@ function tableRowHtml(book) {
                         </svg>
                     </button>
                     <button class="table-action-btn" onclick="event.stopPropagation(); toggleFavorite(${book.id})" title="Toggle favorite">
-                        ${book.is_favorite ? '★' : '☆'}
+                        ${book.is_favorite ? "★" : "☆"}
                     </button>
                     <button class="table-action-btn table-action-delete" onclick="event.stopPropagation(); deleteBook(${book.id}, event)" title="Delete">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
@@ -476,18 +518,21 @@ function tableRowHtml(book) {
 }
 
 function renderTableView(books, append = false) {
-    const grid = document.getElementById('book-grid');
-    grid.className = 'book-table-container';
+  const grid = document.getElementById("book-grid");
+  grid.className = "book-table-container";
 
-    if (append) {
-        const tbody = grid.querySelector('tbody');
-        if (tbody) {
-            tbody.insertAdjacentHTML('beforeend', books.map(book => tableRowHtml(book)).join(''));
-            return;
-        }
+  if (append) {
+    const tbody = grid.querySelector("tbody");
+    if (tbody) {
+      tbody.insertAdjacentHTML(
+        "beforeend",
+        books.map((book) => tableRowHtml(book)).join(""),
+      );
+      return;
     }
+  }
 
-    grid.innerHTML = `
+  grid.innerHTML = `
         <table class="book-table">
             <thead>
                 <tr>
@@ -501,7 +546,7 @@ function renderTableView(books, append = false) {
                 </tr>
             </thead>
             <tbody>
-                ${books.map(book => tableRowHtml(book)).join('')}
+                ${books.map((book) => tableRowHtml(book)).join("")}
             </tbody>
         </table>
     `;
@@ -513,37 +558,40 @@ function renderTableView(books, append = false) {
  */
 let _sidebarCountsTs = 0;
 async function loadSidebarCounts() {
-    const now = Date.now();
-    if (now - _sidebarCountsTs < 5000) return;
-    _sidebarCountsTs = now;
-    try {
-        const resp = await fetch('/api/stats/sidebar');
-        if (resp.ok) {
-            updateCounts(await resp.json());
-        }
-    } catch { /* non-critical */ }
+  const now = Date.now();
+  if (now - _sidebarCountsTs < 5000) return;
+  _sidebarCountsTs = now;
+  try {
+    const resp = await fetch("/api/stats/sidebar");
+    if (resp.ok) {
+      updateCounts(await resp.json());
+    }
+  } catch {
+    /* non-critical */
+  }
 }
 
 /**
  * Update sidebar counts
  */
 function updateCounts(counts) {
-    if (counts) {
-        document.getElementById('count-all').textContent = counts.all || 0;
-        document.getElementById('count-recent').textContent = counts.recent || 0;
-        document.getElementById('count-favorites').textContent = counts.favorites || 0;
-        document.getElementById('count-reading').textContent = counts.reading || 0;
-        document.getElementById('count-deleted').textContent = counts.deleted || 0;
-        const hiddenCount = document.getElementById('count-hidden');
-        if (hiddenCount) hiddenCount.textContent = counts?.hidden || 0;
-    }
+  if (counts) {
+    document.getElementById("count-all").textContent = counts.all || 0;
+    document.getElementById("count-recent").textContent = counts.recent || 0;
+    document.getElementById("count-favorites").textContent =
+      counts.favorites || 0;
+    document.getElementById("count-reading").textContent = counts.reading || 0;
+    document.getElementById("count-deleted").textContent = counts.deleted || 0;
+    const hiddenCount = document.getElementById("count-hidden");
+    if (hiddenCount) hiddenCount.textContent = counts?.hidden || 0;
+  }
 }
 
 /**
  * Open a book in the reader
  */
 function openBook(bookId) {
-    window.location.href = `/reader/${bookId}`;
+  window.location.href = `/reader/${bookId}`;
 }
 
 /**
@@ -552,214 +600,237 @@ function openBook(bookId) {
  * came from Calibre and that Calibre-Web is configured); opens in a new tab.
  */
 async function openInCalibreWeb(bookId) {
-    try {
-        const res = await fetch(`/api/books/${bookId}/calibre-web-url`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!data.url) {
-            const reason = data.reason === 'calibre_web_url not configured'
-                ? 'Calibre-Web URL is not configured. Set it in Settings → Calibre.'
-                : 'This book was not imported from a Calibre library.';
-            alert(reason);
-            return;
-        }
-        window.open(data.url, '_blank', 'noopener');
-    } catch (e) {
-        alert('Could not open Calibre-Web link: ' + e);
+  try {
+    const res = await fetch(`/api/books/${bookId}/calibre-web-url`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.url) {
+      const reason =
+        data.reason === "calibre_web_url not configured"
+          ? "Calibre-Web URL is not configured. Set it in Settings → Calibre."
+          : "This book was not imported from a Calibre library.";
+      alert(reason);
+      return;
     }
+    window.open(data.url, "_blank", "noopener");
+  } catch (e) {
+    alert("Could not open Calibre-Web link: " + e);
+  }
 }
 
 /**
  * Filter by category (sidebar navigation)
  */
 function filterByCategory(category, event) {
-    // Update active state
-    document.querySelectorAll('.nav-item, .directory-header, .category-item, .nav-subitem').forEach(item => item.classList.remove('active'));
-    if (event && event.currentTarget) {
-        event.currentTarget.classList.add('active');
-    }
+  // Update active state
+  document
+    .querySelectorAll(
+      ".nav-item, .directory-header, .category-item, .nav-subitem",
+    )
+    .forEach((item) => item.classList.remove("active"));
+  if (event && event.currentTarget) {
+    event.currentTarget.classList.add("active");
+  }
 
-    // Clear filters and apply new
-    currentFilters = {};
+  // Clear filters and apply new
+  currentFilters = {};
 
-    switch (category) {
-        case 'all':
-            break;
-        case 'recent':
-            currentFilters.recent_only = true;
-            break;
-        case 'favorites':
-            currentFilters.favorite_only = true;
-            break;
-        case 'reading':
-            currentFilters.reading_only = true;
-            break;
-        case 'deleted':
-            currentFilters.deleted_only = true;
-            break;
-        case 'hidden':
-            // Per-book passwords: viewing the hidden list needs no password.
-            // Unhiding a specific book is what requires that book's password.
-            currentFilters.hidden_only = true;
-            currentFilters.show_hidden = true;
-            break;
-    }
+  switch (category) {
+    case "all":
+      break;
+    case "recent":
+      currentFilters.recent_only = true;
+      break;
+    case "favorites":
+      currentFilters.favorite_only = true;
+      break;
+    case "reading":
+      currentFilters.reading_only = true;
+      break;
+    case "deleted":
+      currentFilters.deleted_only = true;
+      break;
+    case "hidden":
+      // Per-book passwords: viewing the hidden list needs no password.
+      // Unhiding a specific book is what requires that book's password.
+      currentFilters.hidden_only = true;
+      currentFilters.show_hidden = true;
+      break;
+  }
 
-    currentPage = 1;
-    loadBooks();
+  currentPage = 1;
+  loadBooks();
 }
 
 /**
  * Filter by format (submenu)
  */
 function filterByFormat(format, event) {
-    // Update active state
-    document.querySelectorAll('.nav-item, .directory-header, .category-item, .nav-subitem').forEach(item => item.classList.remove('active'));
-    if (event && event.currentTarget) {
-        event.currentTarget.classList.add('active');
-    }
+  // Update active state
+  document
+    .querySelectorAll(
+      ".nav-item, .directory-header, .category-item, .nav-subitem",
+    )
+    .forEach((item) => item.classList.remove("active"));
+  if (event && event.currentTarget) {
+    event.currentTarget.classList.add("active");
+  }
 
-    // Reset filters and apply format
-    currentFilters = {};
-    if (format !== 'all') {
-        currentFilters.format_filter = format;
-    }
+  // Reset filters and apply format
+  currentFilters = {};
+  if (format !== "all") {
+    currentFilters.format_filter = format;
+  }
 
-    currentPage = 1;
-    loadBooks();
+  currentPage = 1;
+  loadBooks();
 }
 
 /**
  * Toggle format section expansion
  */
 function toggleFormatSection() {
-    const subitems = document.getElementById('format-subitems');
-    const expandIcon = document.getElementById('format-expand-icon');
+  const subitems = document.getElementById("format-subitems");
+  const expandIcon = document.getElementById("format-expand-icon");
 
-    subitems.classList.toggle('hidden');
-    expandIcon.classList.toggle('expanded');
+  subitems.classList.toggle("hidden");
+  expandIcon.classList.toggle("expanded");
 }
 
 /**
  * Refine facet section (series + rating, spec 012).
  */
 function toggleRefineSection() {
-    const subitems = document.getElementById('refine-subitems');
-    const expandIcon = document.getElementById('refine-expand-icon');
-    subitems.classList.toggle('hidden');
-    if (expandIcon) expandIcon.classList.toggle('expanded');
+  const subitems = document.getElementById("refine-subitems");
+  const expandIcon = document.getElementById("refine-expand-icon");
+  subitems.classList.toggle("hidden");
+  if (expandIcon) expandIcon.classList.toggle("expanded");
 }
 
 async function loadSeries() {
-    try {
-        const res = await fetch('/api/books/series');
-        if (!res.ok) return;
-        const series = await res.json();
-        const select = document.getElementById('series-filter');
-        if (!select) return;
-        const current = currentFilters.series || '';
-        select.innerHTML =
-            '<option value="">All series</option>' +
-            series
-                .map(
-                    s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)} (${s.count})</option>`
-                )
-                .join('');
-        select.value = current;
-    } catch (e) {
-        console.error('Failed to load series:', e);
-    }
+  try {
+    const res = await fetch("/api/books/series");
+    if (!res.ok) return;
+    const series = await res.json();
+    const select = document.getElementById("series-filter");
+    if (!select) return;
+    const current = currentFilters.series || "";
+    select.innerHTML =
+      '<option value="">All series</option>' +
+      series
+        .map(
+          (s) =>
+            `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)} (${s.count})</option>`,
+        )
+        .join("");
+    select.value = current;
+  } catch (e) {
+    console.error("Failed to load series:", e);
+  }
 }
 
 function applySeriesFilter(value) {
-    if (value) {
-        currentFilters.series = value;
-    } else {
-        delete currentFilters.series;
-    }
-    currentPage = 1;
-    loadBooks();
+  if (value) {
+    currentFilters.series = value;
+  } else {
+    delete currentFilters.series;
+  }
+  currentPage = 1;
+  loadBooks();
 }
 
 function applyRatingFilter(value) {
-    if (value) {
-        currentFilters.rating_min = value;
-    } else {
-        delete currentFilters.rating_min;
-    }
-    currentPage = 1;
-    loadBooks();
+  if (value) {
+    currentFilters.rating_min = value;
+  } else {
+    delete currentFilters.rating_min;
+  }
+  currentPage = 1;
+  loadBooks();
 }
 
 /**
  * Load formats from API
  */
 async function loadFormats() {
-    try {
-        const res = await fetch('/api/library/formats');
-        if (!res.ok) return;
-        _formats = await res.json();
-        renderFormatSidebar();
-    } catch (e) {
-        console.error('Failed to load formats:', e);
-    }
+  try {
+    const res = await fetch("/api/library/formats");
+    if (!res.ok) return;
+    _formats = await res.json();
+    renderFormatSidebar();
+  } catch (e) {
+    console.error("Failed to load formats:", e);
+  }
 }
 
 /**
  * Render format items in sidebar
  */
 function renderFormatSidebar() {
-    const list = document.getElementById('format-list');
-    if (!list) return;
+  const list = document.getElementById("format-list");
+  if (!list) return;
 
-    let html = `<div class="nav-subitem" onclick="filterByFormat('all', event)">All Formats</div>`;
-    html += _formats.map(f => `
+  let html = `<div class="nav-subitem" onclick="filterByFormat('all', event)">All Formats</div>`;
+  html += _formats
+    .map(
+      (f) => `
         <div class="nav-subitem" onclick="filterByFormat('${f.format}', event)">
             <span>${f.format}</span>
             <span class="nav-item-count">${f.book_count}</span>
         </div>
-    `).join('');
-    list.innerHTML = html;
+    `,
+    )
+    .join("");
+  list.innerHTML = html;
 }
 
 /**
  * Toggle sidebar collapse/expand
  */
 function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    sidebar.classList.toggle('collapsed');
+  const sidebar = document.getElementById("sidebar");
+  sidebar.classList.toggle("collapsed");
 
-    // Save state to localStorage
-    localStorage.setItem('sidebar-collapsed', sidebar.classList.contains('collapsed'));
+  // Save state to localStorage
+  localStorage.setItem(
+    "sidebar-collapsed",
+    sidebar.classList.contains("collapsed"),
+  );
 }
 
 /**
  * Initialize sidebar state from localStorage
  */
 function initializeSidebarState() {
-    const collapsed = localStorage.getItem('sidebar-collapsed') === 'true';
-    const sidebar = document.getElementById('sidebar');
-    if (collapsed && sidebar) {
-        sidebar.classList.add('collapsed');
-    }
+  const collapsed = localStorage.getItem("sidebar-collapsed") === "true";
+  const sidebar = document.getElementById("sidebar");
+  if (collapsed && sidebar) {
+    sidebar.classList.add("collapsed");
+  }
 }
 
 /**
  * Set view mode (grid/table)
  */
 function setView(view) {
-    currentView = view;
+  currentView = view;
 
-    // Update button states
-    document.getElementById('view-grid').classList.toggle('active', view === 'grid');
-    document.getElementById('view-table').classList.toggle('active', view === 'table');
-    document.getElementById('view-series').classList.toggle('active', view === 'series');
+  // Update button states
+  document
+    .getElementById("view-grid")
+    .classList.toggle("active", view === "grid");
+  document
+    .getElementById("view-table")
+    .classList.toggle("active", view === "table");
+  document
+    .getElementById("view-series")
+    .classList.toggle("active", view === "series");
 
-    if (view === 'series') {
-        loadSeriesView();
-    } else {
-        loadBooks();
-    }
+  if (view === "series") {
+    loadSeriesView();
+  } else {
+    loadBooks();
+  }
 }
 
 /**
@@ -767,660 +838,694 @@ function setView(view) {
  * clicking a card drills into that series in grid view, ordered by series_index.
  */
 async function loadSeriesView() {
-    const grid = document.getElementById('book-grid');
-    grid.className = 'book-grid';
-    showLoading();
-    try {
-        const res = await fetch('/api/series');
-        if (!res.ok) throw new Error('Failed to load series');
-        const series = await res.json();
-        renderSeriesView(series);
-    } catch (e) {
-        console.error('Failed to load series view:', e);
-        grid.innerHTML = `<div class="empty-state empty-state-library" style="grid-column: 1 / -1;">Could not load series.</div>`;
-    }
+  const grid = document.getElementById("book-grid");
+  grid.className = "book-grid";
+  showLoading();
+  try {
+    const res = await fetch("/api/series");
+    if (!res.ok) throw new Error("Failed to load series");
+    const series = await res.json();
+    renderSeriesView(series);
+  } catch (e) {
+    console.error("Failed to load series view:", e);
+    grid.innerHTML = `<div class="empty-state empty-state-library" style="grid-column: 1 / -1;">Could not load series.</div>`;
+  }
 }
 
 function renderSeriesView(series) {
-    const grid = document.getElementById('book-grid');
-    grid.className = 'book-grid';
-    hideLoading();
+  const grid = document.getElementById("book-grid");
+  grid.className = "book-grid";
+  hideLoading();
 
-    if (!series.length) {
-        grid.innerHTML = `<div class="empty-state empty-state-library" style="grid-column: 1 / -1;">No series in your library.</div>`;
-        return;
-    }
+  if (!series.length) {
+    grid.innerHTML = `<div class="empty-state empty-state-library" style="grid-column: 1 / -1;">No series in your library.</div>`;
+    return;
+  }
 
-    const html = series.map(s => {
-        const safeName = escapeHtml(s.name);
-        const safeAuthor = escapeHtml(s.author || '');
-        const cover = s.cover_path
-            ? `<img src="/covers/${encodeURIComponent(String(s.cover_path).split('/').pop())}"
+  const html = series
+    .map((s) => {
+      const safeName = escapeHtml(s.name);
+      const safeAuthor = escapeHtml(s.author || "");
+      const cover = s.cover_path
+        ? `<img src="/covers/${encodeURIComponent(String(s.cover_path).split("/").pop())}"
                    alt="${safeName}"
                    loading="lazy" class="lazy-image"
                    onload="this.classList.add('loaded')"
                    onerror="coverError(this)">`
-            : generatedCover(s.name, s.author);
-        return `
+        : generatedCover(s.name, s.author);
+      return `
         <div class="book-card-wrapper" role="listitem">
             <div class="book-card" data-series-name="${safeName}" tabindex="0" role="button"
                  aria-label="Open series ${safeName}, ${s.count} books" onclick="openSeries('${safeName.replace(/'/g, "\\'")}')">
                 <div class="book-card-cover">${cover}</div>
                 <div class="book-card-info">
                     <div class="book-card-title" title="${safeName}">${safeName}</div>
-                    <div class="book-card-author">${safeAuthor || '&nbsp;'}</div>
-                    <div class="book-card-meta"><span class="book-card-format">${s.count} ${s.count === 1 ? 'book' : 'books'}</span></div>
+                    <div class="book-card-author">${safeAuthor || "&nbsp;"}</div>
+                    <div class="book-card-meta"><span class="book-card-format">${s.count} ${s.count === 1 ? "book" : "books"}</span></div>
                 </div>
             </div>
         </div>`;
-    }).join('');
+    })
+    .join("");
 
-    requestAnimationFrame(() => {
-        grid.innerHTML = html;
-        initializeKeyboardNavigation();
-        const container = document.querySelector('.book-grid-container');
-        if (container) container.offsetHeight;
-    });
+  requestAnimationFrame(() => {
+    grid.innerHTML = html;
+    initializeKeyboardNavigation();
+    const container = document.querySelector(".book-grid-container");
+    if (container) container.offsetHeight;
+  });
 }
 
 /**
  * Drill into a series: switch to grid view filtered to that series.
  */
 function openSeries(name) {
-    currentView = 'grid';
-    document.getElementById('view-grid').classList.add('active');
-    document.getElementById('view-table').classList.remove('active');
-    document.getElementById('view-series').classList.remove('active');
-    currentFilters.series = name;
-    currentPage = 1;
-    loadBooks();
-    document.querySelector('.book-grid-container')?.scrollTo({ top: 0, behavior: 'smooth' });
+  currentView = "grid";
+  document.getElementById("view-grid").classList.add("active");
+  document.getElementById("view-table").classList.remove("active");
+  document.getElementById("view-series").classList.remove("active");
+  currentFilters.series = name;
+  currentPage = 1;
+  loadBooks();
+  document
+    .querySelector(".book-grid-container")
+    ?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 /**
  * Toggle favorite status
  */
 async function toggleFavorite(bookId) {
-    try {
-        const response = await fetch(`/api/books/${bookId}/favorite`, {
-            method: 'POST'
-        });
-        if (!response.ok) throw new Error('Failed to toggle favorite');
+  try {
+    const response = await fetch(`/api/books/${bookId}/favorite`, {
+      method: "POST",
+    });
+    if (!response.ok) throw new Error("Failed to toggle favorite");
 
-        // Reload books to update UI
-        loadBooks();
-    } catch (error) {
-        console.error('Failed to toggle favorite:', error);
-    }
+    // Reload books to update UI
+    loadBooks();
+  } catch (error) {
+    console.error("Failed to toggle favorite:", error);
+  }
 }
 
 /**
  * Open edit book modal
  */
 async function openEditModal(bookId) {
-    try {
-        const response = await fetch(`/api/books/${bookId}`);
-        if (!response.ok) throw new Error('Failed to fetch book details');
-        const book = await response.json();
+  try {
+    const response = await fetch(`/api/books/${bookId}`);
+    if (!response.ok) throw new Error("Failed to fetch book details");
+    const book = await response.json();
 
-        // Populate edit form
-        document.getElementById('edit-book-id').value = book.id;
-        document.getElementById('edit-title').value = book.title;
-        document.getElementById('edit-author').value = book.author || '';
-        document.getElementById('edit-is-favorite').checked = book.is_favorite;
+    // Populate edit form
+    document.getElementById("edit-book-id").value = book.id;
+    document.getElementById("edit-title").value = book.title;
+    document.getElementById("edit-author").value = book.author || "";
+    document.getElementById("edit-is-favorite").checked = book.is_favorite;
 
-        // Show modal
-        document.getElementById('edit-modal').classList.remove('hidden');
-    } catch (error) {
-        console.error('Failed to load book details:', error);
-        showError('Failed to load book details');
-    }
+    // Show modal
+    document.getElementById("edit-modal").classList.remove("hidden");
+  } catch (error) {
+    console.error("Failed to load book details:", error);
+    showError("Failed to load book details");
+  }
 }
 
 /**
  * Save book edits
  */
 async function saveBookEdits(event) {
-    event.preventDefault();
+  event.preventDefault();
 
-    const bookId = document.getElementById('edit-book-id').value;
-    const title = document.getElementById('edit-title').value.trim();
-    const author = document.getElementById('edit-author').value.trim();
-    const isFavorite = document.getElementById('edit-is-favorite').checked;
+  const bookId = document.getElementById("edit-book-id").value;
+  const title = document.getElementById("edit-title").value.trim();
+  const author = document.getElementById("edit-author").value.trim();
+  const isFavorite = document.getElementById("edit-is-favorite").checked;
 
-    // Form validation
-    const titleInput = document.getElementById('edit-title');
-    if (!validateRequired(titleInput, 'Title is required')) {
-        return;
+  // Form validation
+  const titleInput = document.getElementById("edit-title");
+  if (!validateRequired(titleInput, "Title is required")) {
+    return;
+  }
+
+  if (!validateMinLength(titleInput, 1, "Title must be at least 1 character")) {
+    return;
+  }
+
+  setButtonLoading(event.submitter, true);
+
+  try {
+    const response = await fetch(`/api/books/${bookId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: title,
+        author: author || null,
+        is_favorite: isFavorite,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to update book");
     }
 
-    if (!validateMinLength(titleInput, 1, 'Title must be at least 1 character')) {
-        return;
-    }
-
-    setButtonLoading(event.submitter, true);
-
-    try {
-        const response = await fetch(`/api/books/${bookId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: title,
-                author: author || null,
-                is_favorite: isFavorite
-            })
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to update book');
-        }
-
-        closeModal('edit-modal');
-        showNotification('Book updated successfully', 'success');
-        loadBooks();
-    } catch (error) {
-        console.error('Failed to update book:', error);
-        showNotification(error.message, 'error');
-    } finally {
-        setButtonLoading(event.submitter, false);
-    }
+    closeModal("edit-modal");
+    showNotification("Book updated successfully", "success");
+    loadBooks();
+  } catch (error) {
+    console.error("Failed to update book:", error);
+    showNotification(error.message, "error");
+  } finally {
+    setButtonLoading(event.submitter, false);
+  }
 }
 
 /**
  * Validate required field
  */
 function validateRequired(input, errorMessage) {
-    const value = input.value.trim();
-    const formGroup = input.closest('.form-group');
-    let errorElement = formGroup.querySelector('.form-error');
+  const value = input.value.trim();
+  const formGroup = input.closest(".form-group");
+  let errorElement = formGroup.querySelector(".form-error");
 
-    if (!value) {
-        input.classList.add('error');
-        input.classList.remove('success');
-        if (!errorElement) {
-            errorElement = document.createElement('div');
-            errorElement.className = 'form-error';
-            formGroup.appendChild(errorElement);
-        }
-        errorElement.textContent = errorMessage;
-        errorElement.classList.add('show');
-        return false;
+  if (!value) {
+    input.classList.add("error");
+    input.classList.remove("success");
+    if (!errorElement) {
+      errorElement = document.createElement("div");
+      errorElement.className = "form-error";
+      formGroup.appendChild(errorElement);
     }
+    errorElement.textContent = errorMessage;
+    errorElement.classList.add("show");
+    return false;
+  }
 
-    input.classList.remove('error');
-    input.classList.add('success');
-    if (errorElement) {
-        errorElement.classList.remove('show');
-    }
-    return true;
+  input.classList.remove("error");
+  input.classList.add("success");
+  if (errorElement) {
+    errorElement.classList.remove("show");
+  }
+  return true;
 }
 
 /**
  * Validate minimum length
  */
 function validateMinLength(input, minLength, errorMessage) {
-    const value = input.value.trim();
-    const formGroup = input.closest('.form-group');
-    let errorElement = formGroup.querySelector('.form-error');
+  const value = input.value.trim();
+  const formGroup = input.closest(".form-group");
+  let errorElement = formGroup.querySelector(".form-error");
 
-    if (value.length < minLength) {
-        input.classList.add('error');
-        input.classList.remove('success');
-        if (!errorElement) {
-            errorElement = document.createElement('div');
-            errorElement.className = 'form-error';
-            formGroup.appendChild(errorElement);
-        }
-        errorElement.textContent = errorMessage;
-        errorElement.classList.add('show');
-        return false;
+  if (value.length < minLength) {
+    input.classList.add("error");
+    input.classList.remove("success");
+    if (!errorElement) {
+      errorElement = document.createElement("div");
+      errorElement.className = "form-error";
+      formGroup.appendChild(errorElement);
     }
+    errorElement.textContent = errorMessage;
+    errorElement.classList.add("show");
+    return false;
+  }
 
-    input.classList.remove('error');
-    input.classList.add('success');
-    if (errorElement) {
-        errorElement.classList.remove('show');
-    }
-    return true;
+  input.classList.remove("error");
+  input.classList.add("success");
+  if (errorElement) {
+    errorElement.classList.remove("show");
+  }
+  return true;
 }
 
 /**
  * Set button loading state with inline spinner
  */
 function setButtonLoading(button, isLoading) {
-    if (!button) return;
+  if (!button) return;
 
-    if (isLoading) {
-        button.classList.add('btn-loading');
-        button.disabled = true;
-        const originalText = button.textContent;
-        button.dataset.originalText = originalText;
-        button.innerHTML = '<span class="btn-loading-spinner"></span><span class="btn-text">' + originalText + '</span>';
-    } else {
-        button.classList.remove('btn-loading');
-        button.disabled = false;
-        const originalText = button.dataset.originalText || 'Save';
-        button.textContent = originalText;
-        delete button.dataset.originalText;
-    }
+  if (isLoading) {
+    button.classList.add("btn-loading");
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.dataset.originalText = originalText;
+    button.innerHTML =
+      '<span class="btn-loading-spinner"></span><span class="btn-text">' +
+      originalText +
+      "</span>";
+  } else {
+    button.classList.remove("btn-loading");
+    button.disabled = false;
+    const originalText = button.dataset.originalText || "Save";
+    button.textContent = originalText;
+    delete button.dataset.originalText;
+  }
 }
 
 /**
  * Delete book with confirmation
  */
 async function deleteBook(bookId, event) {
-    // Get the button that triggered this (if from click event)
-    const button = event?.target.closest('button');
-    const originalContent = button?.innerHTML;
+  // Get the button that triggered this (if from click event)
+  const button = event?.target.closest("button");
+  const originalContent = button?.innerHTML;
 
-    if (!confirm('Are you sure you want to delete this book? This action cannot be undone.')) {
-        return;
-    }
+  if (
+    !confirm(
+      "Are you sure you want to delete this book? This action cannot be undone.",
+    )
+  ) {
+    return;
+  }
 
-    // Double confirmation for extra safety
-    if (!confirm('This will permanently delete the book from your library. Continue?')) {
-        return;
-    }
+  // Double confirmation for extra safety
+  if (
+    !confirm(
+      "This will permanently delete the book from your library. Continue?",
+    )
+  ) {
+    return;
+  }
 
-    // Show loading state on button
-    if (button) {
-        button.disabled = true;
-        button.innerHTML = '<span class="btn-spinner"></span>';
-        button.setAttribute('aria-busy', 'true');
-    }
+  // Show loading state on button
+  if (button) {
+    button.disabled = true;
+    button.innerHTML = '<span class="btn-spinner"></span>';
+    button.setAttribute("aria-busy", "true");
+  }
 
-    await deleteBookConfirmed(bookId, button, originalContent);
+  await deleteBookConfirmed(bookId, button, originalContent);
 }
 
 /**
  * Confirmed book deletion
  */
-async function deleteBookConfirmed(bookId, button = null, originalContent = '') {
-    try {
-        const response = await fetch(`/api/books/${bookId}`, {
-            method: 'DELETE'
-        });
+async function deleteBookConfirmed(
+  bookId,
+  button = null,
+  originalContent = "",
+) {
+  try {
+    const response = await fetch(`/api/books/${bookId}`, {
+      method: "DELETE",
+    });
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to delete book');
-        }
-
-        showNotification('Book deleted successfully', 'success');
-        loadBooks();
-    } catch (error) {
-        console.error('Failed to delete book:', error);
-        showError(error.message);
-
-        // Restore button state on error
-        if (button && originalContent) {
-            button.disabled = false;
-            button.innerHTML = originalContent;
-            button.removeAttribute('aria-busy');
-        }
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Failed to delete book");
     }
+
+    showNotification("Book deleted successfully", "success");
+    loadBooks();
+  } catch (error) {
+    console.error("Failed to delete book:", error);
+    showError(error.message);
+
+    // Restore button state on error
+    if (button && originalContent) {
+      button.disabled = false;
+      button.innerHTML = originalContent;
+      button.removeAttribute("aria-busy");
+    }
+  }
 }
 
 /**
  * Trigger library scan
  */
 async function scanLibrary() {
-    showLoading('Scanning library...');
-    document.getElementById('loading-overlay')?.classList.add('scanning');
+  showLoading("Scanning library...");
+  document.getElementById("loading-overlay")?.classList.add("scanning");
 
-    try {
-        const response = await fetch('/api/library/scan', { method: 'POST' });
-        const data = await response.json();
+  try {
+    const response = await fetch("/api/library/scan", { method: "POST" });
+    const data = await response.json();
 
-        if (data.scan_id) {
-            trackScanProgress(data.scan_id);
-        } else {
-            hideLoading();
-            showNotification('Scan complete', 'success');
-            loadBooks();
-        }
-    } catch (error) {
-        hideLoading();
-        console.error('Scan failed:', error);
-        showError('Scan failed. Please try again.');
+    if (data.scan_id) {
+      trackScanProgress(data.scan_id);
+    } else {
+      hideLoading();
+      showNotification("Scan complete", "success");
+      loadBooks();
     }
+  } catch (error) {
+    hideLoading();
+    console.error("Scan failed:", error);
+    showError("Scan failed. Please try again.");
+  }
 }
 
 function trackScanProgress(scanId) {
-    const progressInfo = document.getElementById('scan-progress-info');
-    const progressText = document.getElementById('scan-progress-text');
-    const progressFill = document.getElementById('scan-progress-fill');
-    const loadingText = document.getElementById('loading-text');
-    const cancelBtn = document.getElementById('scan-cancel-btn');
+  const progressInfo = document.getElementById("scan-progress-info");
+  const progressText = document.getElementById("scan-progress-text");
+  const progressFill = document.getElementById("scan-progress-fill");
+  const loadingText = document.getElementById("loading-text");
+  const cancelBtn = document.getElementById("scan-cancel-btn");
 
-    // Lazily build the richer live-stats block (phase, percentage, current file, rate/eta).
-    // Kept inside the existing overlay so no template churn is required.
-    let phaseEl = document.getElementById('scan-progress-phase');
-    let pctEl = document.getElementById('scan-progress-pct');
-    let fileEl = document.getElementById('scan-progress-file');
-    let statsEl = document.getElementById('scan-progress-stats');
-    if (progressInfo && !phaseEl) {
-        // Big phase label
-        phaseEl = document.createElement('div');
-        phaseEl.id = 'scan-progress-phase';
-        phaseEl.style.cssText = 'font-size:13px;font-weight:700;color:var(--accent-blue,#4285f4);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em;';
-        progressInfo.insertBefore(phaseEl, progressText);
-        // Large percentage readout
-        pctEl = document.createElement('div');
-        pctEl.id = 'scan-progress-pct';
-        pctEl.style.cssText = 'font-size:28px;font-weight:700;color:var(--text-primary,#222);line-height:1;margin:6px 0;';
-        progressInfo.insertBefore(pctEl, progressText);
-        fileEl = document.createElement('div');
-        fileEl.id = 'scan-progress-file';
-        fileEl.style.cssText = 'font-size:11px;color:#999;max-width:320px;margin:4px auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-        progressInfo.insertBefore(fileEl, progressText.nextSibling);
-        statsEl = document.createElement('div');
-        statsEl.id = 'scan-progress-stats';
-        statsEl.style.cssText = 'font-size:12px;color:#666;margin-top:6px;font-variant-numeric:tabular-nums;';
-        progressInfo.appendChild(statsEl);
-    }
+  // Lazily build the richer live-stats block (phase, percentage, current file, rate/eta).
+  // Kept inside the existing overlay so no template churn is required.
+  let phaseEl = document.getElementById("scan-progress-phase");
+  let pctEl = document.getElementById("scan-progress-pct");
+  let fileEl = document.getElementById("scan-progress-file");
+  let statsEl = document.getElementById("scan-progress-stats");
+  if (progressInfo && !phaseEl) {
+    // Big phase label
+    phaseEl = document.createElement("div");
+    phaseEl.id = "scan-progress-phase";
+    phaseEl.style.cssText =
+      "font-size:13px;font-weight:700;color:var(--accent-blue,#4285f4);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em;";
+    progressInfo.insertBefore(phaseEl, progressText);
+    // Large percentage readout
+    pctEl = document.createElement("div");
+    pctEl.id = "scan-progress-pct";
+    pctEl.style.cssText =
+      "font-size:28px;font-weight:700;color:var(--text-primary,#222);line-height:1;margin:6px 0;";
+    progressInfo.insertBefore(pctEl, progressText);
+    fileEl = document.createElement("div");
+    fileEl.id = "scan-progress-file";
+    fileEl.style.cssText =
+      "font-size:11px;color:#999;max-width:320px;margin:4px auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+    progressInfo.insertBefore(fileEl, progressText.nextSibling);
+    statsEl = document.createElement("div");
+    statsEl.id = "scan-progress-stats";
+    statsEl.style.cssText =
+      "font-size:12px;color:#666;margin-top:6px;font-variant-numeric:tabular-nums;";
+    progressInfo.appendChild(statsEl);
+  }
 
-    if (progressInfo) progressInfo.style.display = 'block';
-    if (loadingText) loadingText.textContent = 'Scanning library...';
+  if (progressInfo) progressInfo.style.display = "block";
+  if (loadingText) loadingText.textContent = "Scanning library...";
 
-    const PHASE_LABELS = {
-        discovering: 'Discovering files',
-        importing: 'Importing books',
-        checking_nas: 'Checking NAS',
-        scanning_nas: 'Scanning NAS',
-        committing: 'Committing',
-        finalizing: 'Finalizing',
-        done: 'Done',
-        failed: 'Failed',
-        cancelled: 'Cancelled',
-    };
+  const PHASE_LABELS = {
+    discovering: "Discovering files",
+    importing: "Importing books",
+    checking_nas: "Checking NAS",
+    scanning_nas: "Scanning NAS",
+    committing: "Committing",
+    finalizing: "Finalizing",
+    done: "Done",
+    failed: "Failed",
+    cancelled: "Cancelled",
+  };
 
-    function fmtEta(sec) {
-        if (!sec || sec <= 0 || !isFinite(sec)) return '';
-        if (sec < 60) return Math.ceil(sec) + 's left';
-        return Math.ceil(sec / 60) + 'm left';
-    }
-    function fmtNum(n) {
-        return Number(n).toLocaleString();
-    }
+  function fmtEta(sec) {
+    if (!sec || sec <= 0 || !isFinite(sec)) return "";
+    if (sec < 60) return Math.ceil(sec) + "s left";
+    return Math.ceil(sec / 60) + "m left";
+  }
+  function fmtNum(n) {
+    return Number(n).toLocaleString();
+  }
 
-    // ---- Cancel button wiring --------------------------------------------
-    let cancelling = false;
-    if (cancelBtn) {
-        cancelBtn.style.display = 'inline-block';
-        cancelBtn.classList.remove('disabled');
-        cancelBtn.textContent = 'Cancel scan';
-        cancelBtn.onclick = async () => {
-            if (cancelling) return;
-            cancelling = true;
-            cancelBtn.classList.add('disabled');
-            cancelBtn.textContent = 'Cancelling...';
-            try {
-                const res = await fetch(`/api/library/scan-cancel/${scanId}`, { method: 'POST' });
-                if (!res.ok) {
-                    cancelling = false;
-                    cancelBtn.classList.remove('disabled');
-                    cancelBtn.textContent = 'Cancel scan';
-                    showNotification('Could not cancel scan', 'error');
-                }
-            } catch (e) {
-                cancelling = false;
-                cancelBtn.classList.remove('disabled');
-                cancelBtn.textContent = 'Cancel scan';
-            }
-        };
-    }
-
-    const evtSource = new EventSource(`/api/library/scan-progress/${scanId}`);
-
-    evtSource.onmessage = (event) => {
-        try {
-            const p = JSON.parse(event.data);
-            const phase = p.phase || '';
-            const known = p.total_found > 0;
-
-            if (phaseEl) phaseEl.textContent = PHASE_LABELS[phase] || (phase || 'Scanning');
-
-            let pct = 0;
-            if (known) {
-                pct = Math.min(100, Math.round((p.processed / p.total_found) * 100));
-                progressText.textContent = `${fmtNum(p.processed)} / ${fmtNum(p.total_found)} files — ${fmtNum(p.imported)} added, ${fmtNum(p.skipped)} skipped`;
-                if (progressFill) {
-                    progressFill.style.width = pct + '%';
-                    progressFill.classList.remove('indeterminate');
-                }
-            } else {
-                progressText.textContent = `Found ${fmtNum(p.processed)} files...`;
-                pct = null; // unknown — show shimmer instead of a fake number
-                if (progressFill) {
-                    progressFill.style.width = '100%';
-                    progressFill.classList.add('indeterminate');
-                }
-            }
-            if (pctEl) pctEl.textContent = (pct === null) ? '…' : (pct + '%');
-
-            if (fileEl) {
-                fileEl.textContent = p.current_file ? `📄 ${p.current_file}` : '';
-                fileEl.title = p.current_file || '';
-            }
-            if (statsEl) {
-                const bits = [];
-                if (p.elapsed) bits.push(`${Number(p.elapsed).toFixed(0)}s`);
-                if (p.rate) bits.push(`${p.rate}/s`);
-                if (known && p.eta) bits.push(fmtEta(p.eta));
-                if (p.errors) bits.push(`${p.errors} err`);
-                statsEl.textContent = bits.join('  ·  ');
-            }
-
-            // Reflect backend cancel acknowledgement in the button.
-            if (cancelBtn && p.cancel_requested && p.status === 'running') {
-                cancelBtn.classList.add('disabled');
-                cancelBtn.textContent = 'Cancelling...';
-            }
-
-            if (p.status === 'completed') {
-                evtSource.close();
-                _resetScanOverlay();
-                if (progressInfo) progressInfo.style.display = 'none';
-                hideLoading();
-                showNotification(
-                    `Scan complete: ${fmtNum(p.imported)} added, ${fmtNum(p.skipped)} skipped, ${p.errors} errors`,
-                    'success'
-                );
-                loadBooks();
-            } else if (p.status === 'failed') {
-                evtSource.close();
-                _resetScanOverlay();
-                if (progressInfo) progressInfo.style.display = 'none';
-                hideLoading();
-                showError(`Scan failed: ${p.message}`);
-            } else if (p.status === 'cancelled') {
-                evtSource.close();
-                _resetScanOverlay();
-                if (progressInfo) progressInfo.style.display = 'none';
-                hideLoading();
-                showNotification(
-                    `Scan cancelled — ${fmtNum(p.imported)} added before cancel, ${fmtNum(p.skipped)} skipped`,
-                    'info'
-                );
-                loadBooks();
-            }
-        } catch (e) {
-            console.warn('Failed to parse SSE event:', e);
+  // ---- Cancel button wiring --------------------------------------------
+  let cancelling = false;
+  if (cancelBtn) {
+    cancelBtn.style.display = "inline-block";
+    cancelBtn.classList.remove("disabled");
+    cancelBtn.textContent = "Cancel scan";
+    cancelBtn.onclick = async () => {
+      if (cancelling) return;
+      cancelling = true;
+      cancelBtn.classList.add("disabled");
+      cancelBtn.textContent = "Cancelling...";
+      try {
+        const res = await fetch(`/api/library/scan-cancel/${scanId}`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          cancelling = false;
+          cancelBtn.classList.remove("disabled");
+          cancelBtn.textContent = "Cancel scan";
+          showNotification("Could not cancel scan", "error");
         }
+      } catch (e) {
+        cancelling = false;
+        cancelBtn.classList.remove("disabled");
+        cancelBtn.textContent = "Cancel scan";
+      }
     };
+  }
 
-    let erroredOnce = false;
-    evtSource.onerror = () => {
-        // EventSource auto-reconnects; only give up after a real failure to avoid
-        // abandoning a live scan on a transient blip.
-        if (!erroredOnce) {
-            erroredOnce = true;
-            return;
+  const evtSource = new EventSource(`/api/library/scan-progress/${scanId}`);
+
+  evtSource.onmessage = (event) => {
+    try {
+      const p = JSON.parse(event.data);
+      const phase = p.phase || "";
+      const known = p.total_found > 0;
+
+      if (phaseEl)
+        phaseEl.textContent = PHASE_LABELS[phase] || phase || "Scanning";
+
+      let pct = 0;
+      if (known) {
+        pct = Math.min(100, Math.round((p.processed / p.total_found) * 100));
+        progressText.textContent = `${fmtNum(p.processed)} / ${fmtNum(p.total_found)} files — ${fmtNum(p.imported)} added, ${fmtNum(p.skipped)} skipped`;
+        if (progressFill) {
+          progressFill.style.width = pct + "%";
+          progressFill.classList.remove("indeterminate");
         }
+      } else {
+        progressText.textContent = `Found ${fmtNum(p.processed)} files...`;
+        pct = null; // unknown — show shimmer instead of a fake number
+        if (progressFill) {
+          progressFill.style.width = "100%";
+          progressFill.classList.add("indeterminate");
+        }
+      }
+      if (pctEl) pctEl.textContent = pct === null ? "…" : pct + "%";
+
+      if (fileEl) {
+        fileEl.textContent = p.current_file ? `📄 ${p.current_file}` : "";
+        fileEl.title = p.current_file || "";
+      }
+      if (statsEl) {
+        const bits = [];
+        if (p.elapsed) bits.push(`${Number(p.elapsed).toFixed(0)}s`);
+        if (p.rate) bits.push(`${p.rate}/s`);
+        if (known && p.eta) bits.push(fmtEta(p.eta));
+        if (p.errors) bits.push(`${p.errors} err`);
+        statsEl.textContent = bits.join("  ·  ");
+      }
+
+      // Reflect backend cancel acknowledgement in the button.
+      if (cancelBtn && p.cancel_requested && p.status === "running") {
+        cancelBtn.classList.add("disabled");
+        cancelBtn.textContent = "Cancelling...";
+      }
+
+      if (p.status === "completed") {
         evtSource.close();
         _resetScanOverlay();
-        if (progressInfo) progressInfo.style.display = 'none';
+        if (progressInfo) progressInfo.style.display = "none";
         hideLoading();
+        showNotification(
+          `Scan complete: ${fmtNum(p.imported)} added, ${fmtNum(p.skipped)} skipped, ${p.errors} errors`,
+          "success",
+        );
         loadBooks();
-    };
+      } else if (p.status === "failed") {
+        evtSource.close();
+        _resetScanOverlay();
+        if (progressInfo) progressInfo.style.display = "none";
+        hideLoading();
+        showError(`Scan failed: ${p.message}`);
+      } else if (p.status === "cancelled") {
+        evtSource.close();
+        _resetScanOverlay();
+        if (progressInfo) progressInfo.style.display = "none";
+        hideLoading();
+        showNotification(
+          `Scan cancelled — ${fmtNum(p.imported)} added before cancel, ${fmtNum(p.skipped)} skipped`,
+          "info",
+        );
+        loadBooks();
+      }
+    } catch (e) {
+      console.warn("Failed to parse SSE event:", e);
+    }
+  };
+
+  let erroredOnce = false;
+  evtSource.onerror = () => {
+    // EventSource auto-reconnects; only give up after a real failure to avoid
+    // abandoning a live scan on a transient blip.
+    if (!erroredOnce) {
+      erroredOnce = true;
+      return;
+    }
+    evtSource.close();
+    _resetScanOverlay();
+    if (progressInfo) progressInfo.style.display = "none";
+    hideLoading();
+    loadBooks();
+  };
 }
 
 function _resetScanOverlay() {
-    document.getElementById('loading-overlay')?.classList.remove('scanning');
-    const cancelBtn = document.getElementById('scan-cancel-btn');
-    if (cancelBtn) { cancelBtn.style.display = 'none'; cancelBtn.classList.remove('disabled'); }
+  document.getElementById("loading-overlay")?.classList.remove("scanning");
+  const cancelBtn = document.getElementById("scan-cancel-btn");
+  if (cancelBtn) {
+    cancelBtn.style.display = "none";
+    cancelBtn.classList.remove("disabled");
+  }
 }
 
 /**
  * Modal functions
  */
 function openAddBookModal() {
-    document.getElementById('upload-modal').classList.remove('hidden');
+  document.getElementById("upload-modal").classList.remove("hidden");
 }
 
 function openImportModal() {
-    document.getElementById('import-modal').classList.remove('hidden');
+  document.getElementById("import-modal").classList.remove("hidden");
 }
 
 function closeModal(modalId) {
-    document.getElementById(modalId).classList.add('hidden');
+  document.getElementById(modalId).classList.add("hidden");
 }
 
 function openSettings() {
-    window.location.href = '/settings';
+  window.location.href = "/settings";
 }
 
 function openHelp() {
-    alert('Reader help:\n\n• Arrow keys: Navigate chapters\n• Escape: Close panels\n• +/- keys: Zoom in/out');
+  alert(
+    "Reader help:\n\n• Arrow keys: Navigate chapters\n• Escape: Close panels\n• +/- keys: Zoom in/out",
+  );
 }
 
 /**
  * Switch between upload methods
  */
 function switchAddMethod(method) {
-    const uploadGroup = document.getElementById('upload-method-group');
-    const pathGroup = document.getElementById('path-method-group');
-    const fileInput = document.getElementById('file-input');
-    const pathInput = document.getElementById('file-path-input');
-    const tabs = document.querySelectorAll('.add-method-tab');
+  const uploadGroup = document.getElementById("upload-method-group");
+  const pathGroup = document.getElementById("path-method-group");
+  const fileInput = document.getElementById("file-input");
+  const pathInput = document.getElementById("file-path-input");
+  const tabs = document.querySelectorAll(".add-method-tab");
 
-    // Update tabs
-    tabs.forEach(tab => {
-        if (tab.dataset.method === method) {
-            tab.classList.add('active');
-        } else {
-            tab.classList.remove('active');
-        }
-    });
-
-    if (method === 'upload') {
-        uploadGroup.classList.remove('hidden');
-        pathGroup.classList.add('hidden');
-        fileInput.required = true;
-        pathInput.required = false;
+  // Update tabs
+  tabs.forEach((tab) => {
+    if (tab.dataset.method === method) {
+      tab.classList.add("active");
     } else {
-        uploadGroup.classList.add('hidden');
-        pathGroup.classList.remove('hidden');
-        fileInput.required = false;
-        pathInput.required = true;
+      tab.classList.remove("active");
     }
+  });
+
+  if (method === "upload") {
+    uploadGroup.classList.remove("hidden");
+    pathGroup.classList.add("hidden");
+    fileInput.required = true;
+    pathInput.required = false;
+  } else {
+    uploadGroup.classList.add("hidden");
+    pathGroup.classList.remove("hidden");
+    fileInput.required = false;
+    pathInput.required = true;
+  }
 }
 
 /**
  * Handle file upload
  */
 async function handleUpload(event) {
-    event.preventDefault();
-    const form = event.target;
-    const method = document.querySelector('.add-method-tab.active').dataset.method;
+  event.preventDefault();
+  const form = event.target;
+  const method = document.querySelector(".add-method-tab.active").dataset
+    .method;
 
-    showLoading();
-    closeModal('upload-modal');
+  showLoading();
+  closeModal("upload-modal");
 
-    try {
-        let response;
+  try {
+    let response;
 
-        if (method === 'upload') {
-            // Upload file
-            const formData = new FormData(form);
-            response = await fetch('/api/library/upload', {
-                method: 'POST',
-                body: formData
-            });
-        } else {
-            // Import from path
-            const filePath = form.file_path.value;
-            response = await fetch('/api/library/import-file', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ file_path: filePath })
-            });
-        }
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Operation failed');
-        }
-
-        const book = await response.json();
-        showNotification(`Successfully added: ${book.title}`, 'success');
-        loadBooks();
-    } catch (error) {
-        console.error('Add book error:', error);
-        showError(`Failed to add book: ${error.message}`);
-    } finally {
-        hideLoading();
-        form.reset();
+    if (method === "upload") {
+      // Upload file
+      const formData = new FormData(form);
+      response = await fetch("/api/library/upload", {
+        method: "POST",
+        body: formData,
+      });
+    } else {
+      // Import from path
+      const filePath = form.file_path.value;
+      response = await fetch("/api/library/import-file", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ file_path: filePath }),
+      });
     }
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Operation failed");
+    }
+
+    const book = await response.json();
+    showNotification(`Successfully added: ${book.title}`, "success");
+    loadBooks();
+  } catch (error) {
+    console.error("Add book error:", error);
+    showError(`Failed to add book: ${error.message}`);
+  } finally {
+    hideLoading();
+    form.reset();
+  }
 }
 
 /**
  * Handle directory import
  */
 async function handleImport(event) {
-    event.preventDefault();
-    const form = event.target;
-    const path = new FormData(form).get('path');
+  event.preventDefault();
+  const form = event.target;
+  const path = new FormData(form).get("path");
 
-    showLoading('Starting import...');
-    closeModal('import-modal');
+  showLoading("Starting import...");
+  closeModal("import-modal");
 
-    try {
-        const response = await fetch('/api/library/import-dir', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ path: path })
-        });
+  try {
+    const response = await fetch("/api/library/import-dir", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ path: path }),
+    });
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Import failed');
-        }
-
-        const data = await response.json();
-
-        if (data.scan_id) {
-            trackScanProgress(data.scan_id);
-        } else {
-            showNotification(`Import complete: ${data.imported || 0} added, ${data.skipped || 0} skipped`, 'success');
-            hideLoading();
-            loadBooks();
-        }
-    } catch (error) {
-        console.error('Import error:', error);
-        showError(`Import failed: ${error.message}`);
-        hideLoading();
-    } finally {
-        form.reset();
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Import failed");
     }
-}
 
+    const data = await response.json();
+
+    if (data.scan_id) {
+      trackScanProgress(data.scan_id);
+    } else {
+      showNotification(
+        `Import complete: ${data.imported || 0} added, ${data.skipped || 0} skipped`,
+        "success",
+      );
+      hideLoading();
+      loadBooks();
+    }
+  } catch (error) {
+    console.error("Import error:", error);
+    showError(`Import failed: ${error.message}`);
+    hideLoading();
+  } finally {
+    form.reset();
+  }
+}
 
 // ============================================
 // FILESYSTEM BROWSER (Local Directory Index)
@@ -1432,91 +1537,99 @@ let _fsSelectedPath = null;
  * Switch between library-path import and local filesystem browser
  */
 function switchImportMethod(method) {
-    const tabs = document.querySelectorAll('#import-modal .add-method-tab');
-    tabs.forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.method === method);
-    });
+  const tabs = document.querySelectorAll("#import-modal .add-method-tab");
+  tabs.forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.method === method);
+  });
 
-    const libraryGroup = document.getElementById('import-library-group');
-    const localGroup = document.getElementById('import-local-group');
+  const libraryGroup = document.getElementById("import-library-group");
+  const localGroup = document.getElementById("import-local-group");
 
-    if (method === 'local') {
-        libraryGroup.style.display = 'none';
-        localGroup.style.display = 'block';
-        fsBrowse('/');
-    } else {
-        libraryGroup.style.display = 'block';
-        localGroup.style.display = 'none';
-    }
+  if (method === "local") {
+    libraryGroup.style.display = "none";
+    localGroup.style.display = "block";
+    fsBrowse("/");
+  } else {
+    libraryGroup.style.display = "block";
+    localGroup.style.display = "none";
+  }
 }
 
 /**
  * Browse filesystem directory
  */
 async function fsBrowse(path) {
-    const browserEl = document.getElementById('fs-browser');
-    const pathInput = document.getElementById('fs-path-input');
+  const browserEl = document.getElementById("fs-browser");
+  const pathInput = document.getElementById("fs-path-input");
 
-    if (!path || path.trim() === '') path = '/';
-    pathInput.value = path;
+  if (!path || path.trim() === "") path = "/";
+  pathInput.value = path;
 
-    browserEl.innerHTML = '<div style="padding:12px;color:var(--text-secondary,#999);font-size:13px;">Loading...</div>';
+  browserEl.innerHTML =
+    '<div style="padding:12px;color:var(--text-secondary,#999);font-size:13px;">Loading...</div>';
 
-    try {
-        const res = await fetch(`/api/library/browse-fs?path=${encodeURIComponent(path)}`);
-        if (!res.ok) {
-            const err = await res.json();
-            browserEl.innerHTML = `<div style="padding:12px;color:#f87171;font-size:13px;">${escapeHtml(err.detail || 'Failed to browse')}</div>`;
-            return;
-        }
-        const dirs = await res.json();
+  try {
+    const res = await fetch(
+      `/api/library/browse-fs?path=${encodeURIComponent(path)}`,
+    );
+    if (!res.ok) {
+      const err = await res.json();
+      browserEl.innerHTML = `<div style="padding:12px;color:#f87171;font-size:13px;">${escapeHtml(err.detail || "Failed to browse")}</div>`;
+      return;
+    }
+    const dirs = await res.json();
 
-        let html = '';
-        // Parent directory link (if not at root)
-        const parentDir = path.replace(/\/[^/]+$/, '') || '/';
-        if (path !== '/') {
-            html += `<div class="fs-dir-item" onclick="fsBrowse('${escapeAttr(parentDir)}')" title="${escapeHtml(parentDir)}">
+    let html = "";
+    // Parent directory link (if not at root)
+    const parentDir = path.replace(/\/[^/]+$/, "") || "/";
+    if (path !== "/") {
+      html += `<div class="fs-dir-item" onclick="fsBrowse('${escapeAttr(parentDir)}')" title="${escapeHtml(parentDir)}">
                 <span class="fs-dir-icon">&#x25B2;</span>
                 <span style="flex:1;color:var(--text-secondary,#999);">..</span>
             </div>`;
-        }
+    }
 
-        if (dirs.length === 0) {
-            html += '<div style="padding:12px;color:var(--text-secondary,#999);font-size:13px;">No subdirectories found</div>';
-        }
+    if (dirs.length === 0) {
+      html +=
+        '<div style="padding:12px;color:var(--text-secondary,#999);font-size:13px;">No subdirectories found</div>';
+    }
 
-        dirs.forEach(d => {
-            const icon = d.permission_denied ? '&#x1F512;' : '&#x1F4C1;';
-            const dimClass = d.permission_denied ? 'fs-dir-locked' : '';
-            const navHandler = d.permission_denied ? '' : `ondblclick="fsBrowse('${escapeAttr(d.path)}')"`;
-            html += `<div class="fs-dir-item ${dimClass}" ${navHandler} title="${escapeHtml(d.path)}">
+    dirs.forEach((d) => {
+      const icon = d.permission_denied ? "&#x1F512;" : "&#x1F4C1;";
+      const dimClass = d.permission_denied ? "fs-dir-locked" : "";
+      const navHandler = d.permission_denied
+        ? ""
+        : `ondblclick="fsBrowse('${escapeAttr(d.path)}')"`;
+      html += `<div class="fs-dir-item ${dimClass}" ${navHandler} title="${escapeHtml(d.path)}">
                 <span class="fs-dir-icon">${icon}</span>
                 <span style="flex:1;" onclick="fsSelect('${escapeAttr(d.path)}', this)">${escapeHtml(d.name)}</span>
-                ${d.has_subdirs ? '<span style="color:var(--text-secondary,#999);font-size:11px;">&#x25B6;</span>' : ''}
+                ${d.has_subdirs ? '<span style="color:var(--text-secondary,#999);font-size:11px;">&#x25B6;</span>' : ""}
             </div>`;
-        });
+    });
 
-        browserEl.innerHTML = html;
-
-    } catch (e) {
-        console.error('FS browse error:', e);
-        browserEl.innerHTML = '<div style="padding:12px;color:#f87171;font-size:13px;">Failed to browse filesystem</div>';
-    }
+    browserEl.innerHTML = html;
+  } catch (e) {
+    console.error("FS browse error:", e);
+    browserEl.innerHTML =
+      '<div style="padding:12px;color:#f87171;font-size:13px;">Failed to browse filesystem</div>';
+  }
 }
 
 /**
  * Select a directory for indexing (single click)
  */
 function fsSelect(path, el) {
-    _fsSelectedPath = path;
+  _fsSelectedPath = path;
 
-    // Highlight selected
-    document.querySelectorAll('.fs-dir-item').forEach(i => i.classList.remove('fs-dir-selected'));
-    el.closest('.fs-dir-item').classList.add('fs-dir-selected');
+  // Highlight selected
+  document
+    .querySelectorAll(".fs-dir-item")
+    .forEach((i) => i.classList.remove("fs-dir-selected"));
+  el.closest(".fs-dir-item").classList.add("fs-dir-selected");
 
-    // Update display
-    document.getElementById('fs-selected-path').textContent = `Selected: ${path}`;
-    document.getElementById('fs-index-btn').disabled = false;
+  // Update display
+  document.getElementById("fs-selected-path").textContent = `Selected: ${path}`;
+  document.getElementById("fs-index-btn").disabled = false;
 }
 
 /**
@@ -1527,51 +1640,54 @@ function fsSelect(path, el) {
  * Index the selected local directory
  */
 async function fsIndexSelected() {
-    if (!_fsSelectedPath) {
-        showNotification('Select a directory first', 'error');
-        return;
+  if (!_fsSelectedPath) {
+    showNotification("Select a directory first", "error");
+    return;
+  }
+
+  showLoading("Indexing directory...");
+  closeModal("import-modal");
+
+  try {
+    const response = await fetch("/api/library/index-local-dir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path: _fsSelectedPath }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || "Index failed");
     }
 
-    showLoading('Indexing directory...');
-    closeModal('import-modal');
+    const data = await response.json();
 
-    try {
-        const response = await fetch('/api/library/index-local-dir', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path: _fsSelectedPath }),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Index failed');
-        }
-
-        const data = await response.json();
-
-        if (data.scan_id) {
-            trackScanProgress(data.scan_id);
-        } else {
-            showNotification(`Index complete`, 'success');
-            hideLoading();
-            loadBooks();
-        }
-    } catch (error) {
-        console.error('Index error:', error);
-        showError(`Index failed: ${error.message}`);
-        hideLoading();
+    if (data.scan_id) {
+      trackScanProgress(data.scan_id);
+    } else {
+      showNotification(`Index complete`, "success");
+      hideLoading();
+      loadBooks();
     }
+  } catch (error) {
+    console.error("Index error:", error);
+    showError(`Index failed: ${error.message}`);
+    hideLoading();
+  }
 }
 
 /**
  * Render skeleton loading cards
  */
 function renderSkeletons(count = 12) {
-    const grid = document.getElementById('book-grid');
+  const grid = document.getElementById("book-grid");
 
-    if (currentView === 'table') {
-        grid.className = 'book-table-container';
-        grid.innerHTML = Array(count).fill(0).map(() => `
+  if (currentView === "table") {
+    grid.className = "book-table-container";
+    grid.innerHTML = Array(count)
+      .fill(0)
+      .map(
+        () => `
             <div class="skeleton table-skeleton-row">
                 <div class="skeleton table-skeleton-cover"></div>
                 <div class="skeleton table-skeleton-title"></div>
@@ -1581,10 +1697,15 @@ function renderSkeletons(count = 12) {
                 <div class="skeleton table-skeleton-pages"></div>
                 <div class="skeleton table-skeleton-actions"></div>
             </div>
-        `).join('');
-    } else {
-        grid.className = 'book-grid';
-        grid.innerHTML = Array(count).fill(0).map(() => `
+        `,
+      )
+      .join("");
+  } else {
+    grid.className = "book-grid";
+    grid.innerHTML = Array(count)
+      .fill(0)
+      .map(
+        () => `
             <div class="book-card-wrapper" role="listitem" aria-hidden="true">
                 <div class="book-card-skeleton" aria-hidden="true">
                     <div class="skeleton book-card-skeleton-cover"></div>
@@ -1598,24 +1719,26 @@ function renderSkeletons(count = 12) {
                     </div>
                 </div>
             </div>
-        `).join('');
-    }
+        `,
+      )
+      .join("");
+  }
 }
 
 /**
  * Loading overlay functions
  */
 function showLoading(text) {
-    const overlay = document.getElementById('loading-overlay');
-    overlay.classList.remove('hidden');
-    const loadingText = document.getElementById('loading-text');
-    if (loadingText && text) loadingText.textContent = text;
-    // Render skeleton cards immediately for better UX
-    renderSkeletons(pageSize);
+  const overlay = document.getElementById("loading-overlay");
+  overlay.classList.remove("hidden");
+  const loadingText = document.getElementById("loading-text");
+  if (loadingText && text) loadingText.textContent = text;
+  // Render skeleton cards immediately for better UX
+  renderSkeletons(pageSize);
 }
 
 function hideLoading() {
-    document.getElementById('loading-overlay').classList.add('hidden');
+  document.getElementById("loading-overlay").classList.add("hidden");
 }
 
 /**
@@ -1623,45 +1746,47 @@ function hideLoading() {
  * visible instead of flashing the full-screen overlay. Lazily created.
  */
 function _getTopProgress() {
-    let bar = document.getElementById('top-progress-bar');
-    if (!bar) {
-        bar = document.createElement('div');
-        bar.id = 'top-progress-bar';
-        bar.className = 'top-progress';
-        const fill = document.createElement('div');
-        fill.className = 'top-progress-fill';
-        bar.appendChild(fill);
-        document.body.appendChild(bar);
-    }
-    return bar;
+  let bar = document.getElementById("top-progress-bar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "top-progress-bar";
+    bar.className = "top-progress";
+    const fill = document.createElement("div");
+    fill.className = "top-progress-fill";
+    bar.appendChild(fill);
+    document.body.appendChild(bar);
+  }
+  return bar;
 }
 function showTopProgress() {
-    const bar = _getTopProgress();
-    bar.classList.add('visible');
-    const fill = bar.querySelector('.top-progress-fill');
-    if (fill) {
-        fill.classList.remove('done');
-        fill.style.width = '30%';
-        // Nudge to ~80% to convey in-flight work; completes on hideTopProgress().
-        setTimeout(() => { if (!fill.classList.contains('done')) fill.style.width = '80%'; }, 100);
-    }
+  const bar = _getTopProgress();
+  bar.classList.add("visible");
+  const fill = bar.querySelector(".top-progress-fill");
+  if (fill) {
+    fill.classList.remove("done");
+    fill.style.width = "30%";
+    // Nudge to ~80% to convey in-flight work; completes on hideTopProgress().
+    setTimeout(() => {
+      if (!fill.classList.contains("done")) fill.style.width = "80%";
+    }, 100);
+  }
 }
 function hideTopProgress() {
-    const bar = _getTopProgress();
-    const fill = bar.querySelector('.top-progress-fill');
-    if (fill) {
-        fill.classList.add('done');
-        fill.style.width = '100%';
-    }
-    setTimeout(() => bar.classList.remove('visible'), 250);
+  const bar = _getTopProgress();
+  const fill = bar.querySelector(".top-progress-fill");
+  if (fill) {
+    fill.classList.add("done");
+    fill.style.width = "100%";
+  }
+  setTimeout(() => bar.classList.remove("visible"), 250);
 }
 
 /**
  * Show error message
  */
 function showError(message) {
-    // Use notification system instead of alert for better accessibility
-    showNotification(message, 'error', 0, { showProgress: false });
+  // Use notification system instead of alert for better accessibility
+  showNotification(message, "error", 0, { showProgress: false });
 }
 
 /**
@@ -1673,234 +1798,256 @@ function showError(message) {
  * @param {boolean} options.showProgress - Show progress bar
  * @param {Array} options.actions - Array of action buttons: [{label, onClick, primary}]
  */
-function showNotification(message, type = 'info', duration = 5000, options = {}) {
-    const { showProgress = false, actions = [] } = options;
+function showNotification(
+  message,
+  type = "info",
+  duration = 5000,
+  options = {},
+) {
+  const { showProgress = false, actions = [] } = options;
 
-    // Ensure notification container exists
-    let container = document.querySelector('.notification-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'notification-container';
-        container.setAttribute('role', 'status');
-        container.setAttribute('aria-live', 'polite');
-        container.setAttribute('aria-atomic', 'true');
-        document.body.appendChild(container);
-    }
+  // Ensure notification container exists
+  let container = document.querySelector(".notification-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "notification-container";
+    container.setAttribute("role", "status");
+    container.setAttribute("aria-live", "polite");
+    container.setAttribute("aria-atomic", "true");
+    document.body.appendChild(container);
+  }
 
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.setAttribute('role', type === 'error' ? 'alert' : 'status');
-    notification.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+  const notification = document.createElement("div");
+  notification.className = `notification notification-${type}`;
+  notification.setAttribute("role", type === "error" ? "alert" : "status");
+  notification.setAttribute(
+    "aria-live",
+    type === "error" ? "assertive" : "polite",
+  );
 
-    // Build notification HTML
-    let html = `
+  // Build notification HTML
+  let html = `
         <span class="notification-icon"></span>
         <span class="notification-content">
             <span class="notification-message">${escapeHtml(message)}</span>
-            ${actions.length > 0 ? `
+            ${
+              actions.length > 0
+                ? `
                 <div class="notification-actions">
-                    ${actions.map(action => `
-                        <button class="notification-action-btn ${action.primary ? 'notification-action-btn-primary' : 'notification-action-btn-secondary'}"
+                    ${actions
+                      .map(
+                        (action) => `
+                        <button class="notification-action-btn ${action.primary ? "notification-action-btn-primary" : "notification-action-btn-secondary"}"
                                 data-action-index="${actions.indexOf(action)}">
                             ${escapeHtml(action.label)}
                         </button>
-                    `).join('')}
+                    `,
+                      )
+                      .join("")}
                 </div>
-            ` : ''}
+            `
+                : ""
+            }
         </span>
         <button class="notification-close" aria-label="Close notification">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
             </svg>
         </button>
-        ${showProgress ? `
+        ${
+          showProgress
+            ? `
             <div class="notification-progress">
                 <div class="notification-progress-fill"></div>
             </div>
-        ` : ''}
+        `
+            : ""
+        }
     `;
 
-    notification.innerHTML = html;
-    container.appendChild(notification);
+  notification.innerHTML = html;
+  container.appendChild(notification);
 
-    // Close button handler
-    const closeBtn = notification.querySelector('.notification-close');
-    closeBtn.addEventListener('click', () => {
+  // Close button handler
+  const closeBtn = notification.querySelector(".notification-close");
+  closeBtn.addEventListener("click", () => {
+    dismissNotification(notification);
+  });
+
+  // Action button handlers
+  if (actions.length > 0) {
+    const actionButtons = notification.querySelectorAll(
+      ".notification-action-btn",
+    );
+    actionButtons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const index = parseInt(e.target.dataset.actionIndex);
+        if (actions[index]?.onClick) {
+          actions[index].onClick();
+        }
         dismissNotification(notification);
+      });
     });
+  }
 
-    // Action button handlers
-    if (actions.length > 0) {
-        const actionButtons = notification.querySelectorAll('.notification-action-btn');
-        actionButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const index = parseInt(e.target.dataset.actionIndex);
-                if (actions[index]?.onClick) {
-                    actions[index].onClick();
-                }
-                dismissNotification(notification);
-            });
-        });
-    }
-
-    // Progress bar animation
-    let progressFill;
-    let progressAnimation;
-    if (showProgress && duration > 0) {
-        progressFill = notification.querySelector('.notification-progress-fill');
-        progressFill.style.transition = `transform ${duration}ms linear`;
-        requestAnimationFrame(() => {
-            progressFill.style.transform = 'scaleX(0)';
-        });
-    }
-
-    // Trigger animation
+  // Progress bar animation
+  let progressFill;
+  let progressAnimation;
+  if (showProgress && duration > 0) {
+    progressFill = notification.querySelector(".notification-progress-fill");
+    progressFill.style.transition = `transform ${duration}ms linear`;
     requestAnimationFrame(() => {
-        notification.classList.add('show');
+      progressFill.style.transform = "scaleX(0)";
     });
+  }
 
-    // Auto-dismiss
-    if (duration > 0) {
-        setTimeout(() => {
-            dismissNotification(notification);
-        }, duration);
-    }
+  // Trigger animation
+  requestAnimationFrame(() => {
+    notification.classList.add("show");
+  });
 
-    return notification;
+  // Auto-dismiss
+  if (duration > 0) {
+    setTimeout(() => {
+      dismissNotification(notification);
+    }, duration);
+  }
+
+  return notification;
 }
 
 /**
  * Dismiss notification with animation
  */
 function dismissNotification(notification) {
-    notification.classList.add('hiding');
-    notification.classList.remove('show');
+  notification.classList.add("hiding");
+  notification.classList.remove("show");
 
-    setTimeout(() => {
-        if (notification.parentElement) {
-            notification.remove();
-        }
-    }, 400);
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.remove();
+    }
+  }, 400);
 }
 
 /**
  * Initialize search with debouncing, clear button, and filter chips
  */
 function initializeSearch() {
-    const searchInput = document.getElementById('search');
-    const searchClear = document.getElementById('search-clear');
-    const searchLoading = document.getElementById('search-loading');
-    const searchFilters = document.getElementById('search-filters');
-    const filterChips = document.querySelectorAll('.search-filter-chip');
+  const searchInput = document.getElementById("search");
+  const searchClear = document.getElementById("search-clear");
+  const searchLoading = document.getElementById("search-loading");
+  const searchFilters = document.getElementById("search-filters");
+  const filterChips = document.querySelectorAll(".search-filter-chip");
 
-    // Track search filter type
-    let searchFilterType = 'all';
+  // Track search filter type
+  let searchFilterType = "all";
 
-    // Filter chip click handlers
-    filterChips.forEach(chip => {
-        chip.addEventListener('click', () => {
-            filterChips.forEach(c => c.classList.remove('active'));
-            chip.classList.add('active');
-            searchFilterType = chip.dataset.filter;
-            currentFilters.search_type = searchFilterType;
+  // Filter chip click handlers
+  filterChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      filterChips.forEach((c) => c.classList.remove("active"));
+      chip.classList.add("active");
+      searchFilterType = chip.dataset.filter;
+      currentFilters.search_type = searchFilterType;
 
-            // Trigger search with new filter
-            if (searchInput.value.trim()) {
-                currentPage = 1;
-                loadBooks();
-            }
-        });
-    });
-
-    // Clear button handler
-    searchClear.addEventListener('click', () => {
-        searchInput.value = '';
-        delete currentFilters.search;
-        delete currentFilters.search_type;
-        searchFilters.style.display = 'none';
-        searchClear.style.display = 'none';
-        searchInput.focus();
+      // Trigger search with new filter
+      if (searchInput.value.trim()) {
         currentPage = 1;
         loadBooks();
+      }
     });
+  });
 
-    let timeout;
+  // Clear button handler
+  searchClear.addEventListener("click", () => {
+    searchInput.value = "";
+    delete currentFilters.search;
+    delete currentFilters.search_type;
+    searchFilters.style.display = "none";
+    searchClear.style.display = "none";
+    searchInput.focus();
+    currentPage = 1;
+    loadBooks();
+  });
 
-    searchInput.addEventListener('input', (e) => {
-        clearTimeout(timeout);
+  let timeout;
 
-        const searchTerm = e.target.value.trim();
+  searchInput.addEventListener("input", (e) => {
+    clearTimeout(timeout);
 
-        // Show/hide clear button
-        searchClear.style.display = searchTerm ? 'flex' : 'none';
+    const searchTerm = e.target.value.trim();
 
-        // Show/hide filter chips
-        searchFilters.style.display = searchTerm ? 'flex' : 'none';
+    // Show/hide clear button
+    searchClear.style.display = searchTerm ? "flex" : "none";
 
-        // Show loading indicator after short delay
-        timeout = setTimeout(() => {
-            if (searchTerm) {
-                searchLoading.style.display = 'block';
-                currentFilters.search = searchTerm;
-                currentFilters.search_type = searchFilterType;
-            } else {
-                searchLoading.style.display = 'none';
-                delete currentFilters.search;
-                delete currentFilters.search_type;
-            }
-            currentPage = 1;
-            loadBooks().finally(() => {
-                searchLoading.style.display = 'none';
-            });
-        }, 300);
-    });
+    // Show/hide filter chips
+    searchFilters.style.display = searchTerm ? "flex" : "none";
 
-    // Handle escape key to clear search
-    searchInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && searchInput.value) {
-            searchClear.click();
-        }
-    });
+    // Show loading indicator after short delay
+    timeout = setTimeout(() => {
+      if (searchTerm) {
+        searchLoading.style.display = "block";
+        currentFilters.search = searchTerm;
+        currentFilters.search_type = searchFilterType;
+      } else {
+        searchLoading.style.display = "none";
+        delete currentFilters.search;
+        delete currentFilters.search_type;
+      }
+      currentPage = 1;
+      loadBooks().finally(() => {
+        searchLoading.style.display = "none";
+      });
+    }, 300);
+  });
+
+  // Handle escape key to clear search
+  searchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && searchInput.value) {
+      searchClear.click();
+    }
+  });
 }
 
 /**
  * Initialize format filter
  */
 function initializeFormatFilter() {
-    const formatSelect = document.getElementById('format-filter');
+  const formatSelect = document.getElementById("format-filter");
 
-    // Add null check to prevent crash if element does not exist
-    if (!formatSelect) return;
-    formatSelect.addEventListener('change', (e) => {
-        const format = e.target.value;
-        if (format) {
-            currentFilters.format_filter = format;
-        } else {
-            delete currentFilters.format_filter;
-        }
-        currentPage = 1;
-        loadBooks();
-    });
+  // Add null check to prevent crash if element does not exist
+  if (!formatSelect) return;
+  formatSelect.addEventListener("change", (e) => {
+    const format = e.target.value;
+    if (format) {
+      currentFilters.format_filter = format;
+    } else {
+      delete currentFilters.format_filter;
+    }
+    currentPage = 1;
+    loadBooks();
+  });
 }
 
 /**
  * File input display update
  */
 function initializeFileInput() {
-    const fileInput = document.getElementById('file-input');
-    const fileDisplay = document.getElementById('file-input-display');
-    const fileText = document.getElementById('file-input-text');
+  const fileInput = document.getElementById("file-input");
+  const fileDisplay = document.getElementById("file-input-display");
+  const fileText = document.getElementById("file-input-text");
 
-    fileInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            fileDisplay.classList.add('has-file');
-            fileText.textContent = file.name;
-        } else {
-            fileDisplay.classList.remove('has-file');
-            fileText.textContent = 'Drop file here or click to browse';
-        }
-    });
+  fileInput.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      fileDisplay.classList.add("has-file");
+      fileText.textContent = file.name;
+    } else {
+      fileDisplay.classList.remove("has-file");
+      fileText.textContent = "Drop file here or click to browse";
+    }
+  });
 }
 
 /**
@@ -1910,38 +2057,38 @@ function initializeFileInput() {
  * Close modals on overlay click
  */
 function initializeModalClose() {
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) {
-                overlay.classList.add('hidden');
-            }
-        });
+  document.querySelectorAll(".modal-overlay").forEach((overlay) => {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) {
+        overlay.classList.add("hidden");
+      }
     });
+  });
 }
 
 /**
  * Initialize filters from URL params
  */
 function initializeFiltersFromURL() {
-    const urlParams = new URLSearchParams(window.location.search);
+  const urlParams = new URLSearchParams(window.location.search);
 
-    if (urlParams.has('favorites')) {
-        currentFilters.favorite_only = true;
-    }
+  if (urlParams.has("favorites")) {
+    currentFilters.favorite_only = true;
+  }
 
-    if (urlParams.has('recent')) {
-        currentFilters.recent_only = true;
-    }
+  if (urlParams.has("recent")) {
+    currentFilters.recent_only = true;
+  }
 
-    if (urlParams.has('search')) {
-        currentFilters.search = urlParams.get('search');
-        document.getElementById('search').value = urlParams.get('search');
-    }
+  if (urlParams.has("search")) {
+    currentFilters.search = urlParams.get("search");
+    document.getElementById("search").value = urlParams.get("search");
+  }
 
-    if (urlParams.has('format')) {
-        currentFilters.format_filter = urlParams.get('format');
-        document.getElementById('format-filter').value = urlParams.get('format');
-    }
+  if (urlParams.has("format")) {
+    currentFilters.format_filter = urlParams.get("format");
+    document.getElementById("format-filter").value = urlParams.get("format");
+  }
 }
 
 /**
@@ -1952,34 +2099,34 @@ function initializeFiltersFromURL() {
  * (calibre_hidden). The param is stripped after showing so a refresh won't repeat.
  */
 function initializeCalibreDeepLinkNotice() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const pending = urlParams.get('calibre_pending');
-    const hidden = urlParams.has('calibre_hidden');
+  const urlParams = new URLSearchParams(window.location.search);
+  const pending = urlParams.get("calibre_pending");
+  const hidden = urlParams.has("calibre_hidden");
 
-    if (pending === null && !hidden) return;
+  if (pending === null && !hidden) return;
 
-    urlParams.delete('calibre_pending');
-    urlParams.delete('calibre_hidden');
-    const clean = urlParams.toString();
-    window.history.replaceState({}, document.title, clean ? `/?${clean}` : '/');
+  urlParams.delete("calibre_pending");
+  urlParams.delete("calibre_hidden");
+  const clean = urlParams.toString();
+  window.history.replaceState({}, document.title, clean ? `/?${clean}` : "/");
 
-    const toast = document.createElement('div');
-    toast.style.cssText =
-        'position:fixed;bottom:24px;right:24px;background:#1e293b;color:#f1f5f9;' +
-        'padding:16px 20px;border-radius:12px;z-index:10000;min-width:320px;max-width:420px;' +
-        'box-shadow:0 8px 32px rgba(0,0,0,0.3);font-size:13px;line-height:1.4;';
-    if (hidden) {
-        toast.innerHTML =
-            '<div style="font-weight:600;margin-bottom:4px;">Book is hidden</div>' +
-            '<div>The book you tried to open is hidden in eLibrary Manager.</div>';
-    } else {
-        toast.innerHTML =
-            "<div style=\"font-weight:600;margin-bottom:4px;\">Calibre book not imported</div>" +
-            '<div>This Calibre book isn’t in your eLM library yet. Run a Calibre import to read it here.</div>' +
-            '<a href="/settings" style="display:inline-block;margin-top:10px;color:#60a5fa;text-decoration:none;font-weight:600;">Open Settings →</a>';
-    }
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 8000);
+  const toast = document.createElement("div");
+  toast.style.cssText =
+    "position:fixed;bottom:24px;right:24px;background:#1e293b;color:#f1f5f9;" +
+    "padding:16px 20px;border-radius:12px;z-index:10000;min-width:320px;max-width:420px;" +
+    "box-shadow:0 8px 32px rgba(0,0,0,0.3);font-size:13px;line-height:1.4;";
+  if (hidden) {
+    toast.innerHTML =
+      '<div style="font-weight:600;margin-bottom:4px;">Book is hidden</div>' +
+      "<div>The book you tried to open is hidden in eLibrary Manager.</div>";
+  } else {
+    toast.innerHTML =
+      '<div style="font-weight:600;margin-bottom:4px;">Calibre book not imported</div>' +
+      "<div>This Calibre book isn’t in your eLM library yet. Run a Calibre import to read it here.</div>" +
+      '<a href="/settings" style="display:inline-block;margin-top:10px;color:#60a5fa;text-decoration:none;font-weight:600;">Open Settings →</a>';
+  }
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 8000);
 }
 
 // ============================================
@@ -1990,124 +2137,135 @@ function initializeCalibreDeepLinkNotice() {
  * Initialize keyboard navigation for book grid
  */
 function initializeKeyboardNavigation() {
-    // Remove existing listener to avoid duplicates
-    document.removeEventListener('keydown', handleGridKeyboardNavigation);
-    document.addEventListener('keydown', handleGridKeyboardNavigation);
+  // Remove existing listener to avoid duplicates
+  document.removeEventListener("keydown", handleGridKeyboardNavigation);
+  document.addEventListener("keydown", handleGridKeyboardNavigation);
 }
 
 /**
  * Handle keyboard navigation for book grid
  */
 function handleGridKeyboardNavigation(e) {
-    // Don't trigger if typing in input fields or modals are open
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
-        e.target.tagName === 'SELECT' || e.target.closest('.modal-overlay')) {
-        return;
-    }
+  // Don't trigger if typing in input fields or modals are open
+  if (
+    e.target.tagName === "INPUT" ||
+    e.target.tagName === "TEXTAREA" ||
+    e.target.tagName === "SELECT" ||
+    e.target.closest(".modal-overlay")
+  ) {
+    return;
+  }
 
-    // Check if a book card is focused
-    const focusedCard = document.activeElement;
-    if (!focusedCard.classList.contains('book-card')) {
-        return;
-    }
+  // Check if a book card is focused
+  const focusedCard = document.activeElement;
+  if (!focusedCard.classList.contains("book-card")) {
+    return;
+  }
 
-    switch (e.key) {
-        case 'ArrowRight':
-            e.preventDefault();
-            navigateGrid(1);
-            break;
-        case 'ArrowLeft':
-            e.preventDefault();
-            navigateGrid(-1);
-            break;
-        case 'ArrowDown':
-            e.preventDefault();
-            navigateGrid(getGridWidth());
-            break;
-        case 'ArrowUp':
-            e.preventDefault();
-            navigateGrid(-getGridWidth());
-            break;
-        case 'Enter':
-        case ' ':
-            e.preventDefault();
-            focusedCard.click();
-            break;
-    }
+  switch (e.key) {
+    case "ArrowRight":
+      e.preventDefault();
+      navigateGrid(1);
+      break;
+    case "ArrowLeft":
+      e.preventDefault();
+      navigateGrid(-1);
+      break;
+    case "ArrowDown":
+      e.preventDefault();
+      navigateGrid(getGridWidth());
+      break;
+    case "ArrowUp":
+      e.preventDefault();
+      navigateGrid(-getGridWidth());
+      break;
+    case "Enter":
+    case " ":
+      e.preventDefault();
+      focusedCard.click();
+      break;
+  }
 }
 
 /**
  * Get grid width (number of columns)
  */
 function getGridWidth() {
-    const gridContainer = document.querySelector('.book-grid-container');
-    if (!gridContainer) return 1;
+  const gridContainer = document.querySelector(".book-grid-container");
+  if (!gridContainer) return 1;
 
-    const cardWidth = 200; // Approximate card width including gap
-    return Math.max(1, Math.floor(gridContainer.offsetWidth / cardWidth));
+  const cardWidth = 200; // Approximate card width including gap
+  return Math.max(1, Math.floor(gridContainer.offsetWidth / cardWidth));
 }
 
 /**
  * Navigate to adjacent card in grid
  */
 function navigateGrid(direction) {
-    const cards = Array.from(document.querySelectorAll('.book-card'));
-    const currentIndex = cards.indexOf(document.activeElement);
+  const cards = Array.from(document.querySelectorAll(".book-card"));
+  const currentIndex = cards.indexOf(document.activeElement);
 
-    if (currentIndex === -1) {
-        // No card focused, focus first one
-        cards[0]?.focus();
-        return;
-    }
+  if (currentIndex === -1) {
+    // No card focused, focus first one
+    cards[0]?.focus();
+    return;
+  }
 
-    let newIndex = currentIndex + direction;
+  let newIndex = currentIndex + direction;
 
-    // Wrap navigation
-    if (newIndex < 0) {
-        newIndex = cards.length - 1;
-    } else if (newIndex >= cards.length) {
-        newIndex = 0;
-    }
+  // Wrap navigation
+  if (newIndex < 0) {
+    newIndex = cards.length - 1;
+  } else if (newIndex >= cards.length) {
+    newIndex = 0;
+  }
 
-    cards[newIndex]?.focus();
+  cards[newIndex]?.focus();
 }
 
 // ============================================
 // KEYBOARD SHORTCUTS (Icecream-style)
 // ============================================
 
-document.addEventListener('keydown', (e) => {
-    // Don't trigger if typing in input fields
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
-        return;
-    }
+document.addEventListener("keydown", (e) => {
+  // Don't trigger if typing in input fields
+  if (
+    e.target.tagName === "INPUT" ||
+    e.target.tagName === "TEXTAREA" ||
+    e.target.tagName === "SELECT"
+  ) {
+    return;
+  }
 
-    // Ctrl/Cmd + F or bare "/": Focus search
-    if (((e.ctrlKey || e.metaKey) && e.key === 'f') || e.key === '/') {
-        e.preventDefault();
-        const s = document.getElementById('search');
-        if (s) { s.focus(); s.select(); }
-        return;
+  // Ctrl/Cmd + F or bare "/": Focus search
+  if (((e.ctrlKey || e.metaKey) && e.key === "f") || e.key === "/") {
+    e.preventDefault();
+    const s = document.getElementById("search");
+    if (s) {
+      s.focus();
+      s.select();
     }
+    return;
+  }
 
-    // Ctrl/Cmd + B: Toggle sidebar
-    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
-        e.preventDefault();
-        toggleSidebar();
-    }
+  // Ctrl/Cmd + B: Toggle sidebar
+  if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+    e.preventDefault();
+    toggleSidebar();
+  }
 
-    // Escape: Close modals
-    if (e.key === 'Escape') {
-        document.querySelectorAll('.modal-overlay').forEach(modal => {
-            modal.classList.add('hidden');
-        });
-    }
+  // Escape: Close modals
+  if (e.key === "Escape") {
+    document.querySelectorAll(".modal-overlay").forEach((modal) => {
+      modal.classList.add("hidden");
+    });
+  }
 
-    // Ctrl/Cmd + N: Add new book
-    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        e.preventDefault();
-        openAddBookModal();
-    }
+  // Ctrl/Cmd + N: Add new book
+  if ((e.ctrlKey || e.metaKey) && e.key === "n") {
+    e.preventDefault();
+    openAddBookModal();
+  }
 });
 
 // ============================================
@@ -2118,100 +2276,112 @@ document.addEventListener('keydown', (e) => {
  * Event delegation for book grid — single handler instead of per-card onclick
  */
 function initializeGridDelegation() {
-    const grid = document.getElementById('book-grid');
-    if (!grid) return;
+  const grid = document.getElementById("book-grid");
+  if (!grid) return;
 
-    grid.addEventListener('click', (e) => {
-        // Check for action buttons first
-        const actionBtn = e.target.closest('[data-action]');
-        if (actionBtn) {
-            e.stopPropagation();
-            const action = actionBtn.dataset.action;
-            const bookId = parseInt(actionBtn.dataset.bookId);
-            switch (action) {
-                case 'edit': openEditModal(bookId); break;
-                case 'cover': uploadCover(bookId); break;
-                case 'delete': deleteBook(bookId, e); break;
-                case 'category': showCategoryMenu(bookId, e); break;
-                case 'hide': toggleBookHidden(bookId); break;
-                case 'calibre-web': openInCalibreWeb(bookId); break;
-            }
-            return;
-        }
+  grid.addEventListener("click", (e) => {
+    // Check for action buttons first
+    const actionBtn = e.target.closest("[data-action]");
+    if (actionBtn) {
+      e.stopPropagation();
+      const action = actionBtn.dataset.action;
+      const bookId = parseInt(actionBtn.dataset.bookId);
+      switch (action) {
+        case "edit":
+          openEditModal(bookId);
+          break;
+        case "cover":
+          uploadCover(bookId);
+          break;
+        case "delete":
+          deleteBook(bookId, e);
+          break;
+        case "category":
+          showCategoryMenu(bookId, e);
+          break;
+        case "hide":
+          toggleBookHidden(bookId);
+          break;
+        case "calibre-web":
+          openInCalibreWeb(bookId);
+          break;
+      }
+      return;
+    }
 
-        // Check for star rating
-        const star = e.target.closest('.star[data-book-id]');
-        if (star) {
-            e.stopPropagation();
-            setRating(parseInt(star.dataset.bookId), parseInt(star.dataset.value));
-            return;
-        }
+    // Check for star rating
+    const star = e.target.closest(".star[data-book-id]");
+    if (star) {
+      e.stopPropagation();
+      setRating(parseInt(star.dataset.bookId), parseInt(star.dataset.value));
+      return;
+    }
 
-        // Check for book card click
-        const card = e.target.closest('.book-card[data-book-id]');
-        if (card) {
-            openBook(parseInt(card.dataset.bookId));
-        }
-    });
+    // Check for book card click
+    const card = e.target.closest(".book-card[data-book-id]");
+    if (card) {
+      openBook(parseInt(card.dataset.bookId));
+    }
+  });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    initializeFiltersFromURL();
-    initializeCalibreDeepLinkNotice();
-    initializeSearch();
-    initializeFormatFilter();
-    initializeFileInput();
-    initializeModalClose();
-    initializeSidebarState();
-    initializeRippleEffects();
-    initializeLazyLoading();
-    initializeSort();
-    initializeGridDelegation();
-    loadBooks();
-    loadContinueReading();
-    loadCategories();
-    loadDirectories();
-    loadFormats();
-    loadSeries();
-    initHiddenBooks();
+document.addEventListener("DOMContentLoaded", () => {
+  initializeFiltersFromURL();
+  initializeCalibreDeepLinkNotice();
+  initializeSearch();
+  initializeFormatFilter();
+  initializeFileInput();
+  initializeModalClose();
+  initializeSidebarState();
+  initializeRippleEffects();
+  initializeLazyLoading();
+  initializeSort();
+  initializeGridDelegation();
+  loadBooks();
+  loadContinueReading();
+  loadCategories();
+  loadDirectories();
+  loadFormats();
+  loadSeries();
+  initHiddenBooks();
 
-    // Infinite scroll
-    const scrollContainer = document.querySelector('.book-grid-container');
-    if (scrollContainer) {
-        let scrollTimer = null;
-        scrollContainer.addEventListener('scroll', () => {
-            clearTimeout(scrollTimer);
-            scrollTimer = setTimeout(() => {
-                const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-                if (scrollHeight - scrollTop - clientHeight < 400) {
-                    loadMoreBooks();
-                }
-            }, 150);
-        });
-    }
+  // Infinite scroll
+  const scrollContainer = document.querySelector(".book-grid-container");
+  if (scrollContainer) {
+    let scrollTimer = null;
+    scrollContainer.addEventListener("scroll", () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+        if (scrollHeight - scrollTop - clientHeight < 400) {
+          loadMoreBooks();
+        }
+      }, 150);
+    });
+  }
 });
 
 /**
  * Sort functions
  */
 function changeSortOrder(value) {
-    const [sortBy, sortOrder] = value.split(':');
-    currentFilters.sort_by = sortBy;
-    currentFilters.sort_order = sortOrder;
-    localStorage.setItem('library-sort', value);
-    currentPage = 1;
-    loadBooks();
+  const [sortBy, sortOrder] = value.split(":");
+  currentFilters.sort_by = sortBy;
+  currentFilters.sort_order = sortOrder;
+  localStorage.setItem("library-sort", value);
+  currentPage = 1;
+  loadBooks();
 }
 
 function initializeSort() {
-    const saved = localStorage.getItem('library-sort') || 'added_date:desc';
-    const sel = document.getElementById('sort-select');
-    if (sel) {
-        sel.value = saved;
-        const [sortBy, sortOrder] = saved.split(':');
-        currentFilters.sort_by = sortBy;
-        currentFilters.sort_order = sortOrder;
-    }
+  const saved = localStorage.getItem("library-sort") || "added_date:desc";
+  const sel = document.getElementById("sort-select");
+  if (sel) {
+    sel.value = saved;
+    const [sortBy, sortOrder] = saved.split(":");
+    currentFilters.sort_by = sortBy;
+    currentFilters.sort_order = sortOrder;
+  }
 }
 
 /**
@@ -2219,66 +2389,71 @@ function initializeSort() {
  * For browsers that don't support native loading="lazy"
  */
 function initializeLazyLoading() {
-    // Check if browser supports native lazy loading
-    if ('loading' in HTMLImageElement.prototype) {
-        return; // Browser supports native lazy loading
-    }
+  // Check if browser supports native lazy loading
+  if ("loading" in HTMLImageElement.prototype) {
+    return; // Browser supports native lazy loading
+  }
 
-    // Intersection Observer fallback for older browsers
-    const imageObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                const img = entry.target;
-                if (img.dataset.src) {
-                    img.src = img.dataset.src;
-                    img.classList.add('loaded');
-                    observer.unobserve(img);
-                }
-            }
-        });
-    }, {
-        rootMargin: '50px 0px', // Start loading 50px before viewport
-        threshold: 0.01
-    });
-
-    // Observe all lazy images
-    const lazyImages = document.querySelectorAll('img.lazy-image');
-    lazyImages.forEach(img => {
-        // Store original src in data-src for Observer
-        if (!img.dataset.src && img.src) {
-            img.dataset.src = img.src;
-            img.src = ''; // Clear src until needed
+  // Intersection Observer fallback for older browsers
+  const imageObserver = new IntersectionObserver(
+    (entries, observer) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          const img = entry.target;
+          if (img.dataset.src) {
+            img.src = img.dataset.src;
+            img.classList.add("loaded");
+            observer.unobserve(img);
+          }
         }
-        imageObserver.observe(img);
-    });
+      });
+    },
+    {
+      rootMargin: "50px 0px", // Start loading 50px before viewport
+      threshold: 0.01,
+    },
+  );
+
+  // Observe all lazy images
+  const lazyImages = document.querySelectorAll("img.lazy-image");
+  lazyImages.forEach((img) => {
+    // Store original src in data-src for Observer
+    if (!img.dataset.src && img.src) {
+      img.dataset.src = img.src;
+      img.src = ""; // Clear src until needed
+    }
+    imageObserver.observe(img);
+  });
 }
 
 /**
  * Initialize ripple effects for buttons
  */
 function initializeRippleEffects() {
-    document.addEventListener('click', (e) => {
-        const button = e.target.closest('.btn, .book-card-action-btn, .ic-toolbar-btn');
-        if (!button) return;
+  document.addEventListener("click", (e) => {
+    const button = e.target.closest(
+      ".btn, .book-card-action-btn, .ic-toolbar-btn",
+    );
+    if (!button) return;
 
-        const ripple = document.createElement('span');
-        ripple.classList.add('ripple');
+    const ripple = document.createElement("span");
+    ripple.classList.add("ripple");
 
-        const rect = button.getBoundingClientRect();
-        const size = Math.max(rect.width, rect.height);
-        const x = e.clientX - rect.left - size / 2;
-        const y = e.clientY - rect.top - size / 2;
+    const rect = button.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
 
-        ripple.style.width = ripple.style.height = `${size}px`;
-        ripple.style.left = `${x}px`;
-        ripple.style.top = `${y}px`;
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${x}px`;
+    ripple.style.top = `${y}px`;
 
-        button.appendChild(ripple);
+    button.appendChild(ripple);
 
-        ripple.addEventListener('animationend', () => {
-            ripple.remove();
-        });
+    ripple.addEventListener("animationend", () => {
+      ripple.remove();
     });
+  });
 }
 
 /**
@@ -2295,36 +2470,40 @@ let _formats = [];
  * Toggle category section expand/collapse
  */
 function toggleCategorySection() {
-    const subitems = document.getElementById('category-subitems');
-    const icon = document.getElementById('category-expand-icon');
-    subitems.classList.toggle('hidden');
-    if (icon) {
-        icon.style.transform = subitems.classList.contains('hidden') ? '' : 'rotate(180deg)';
-    }
+  const subitems = document.getElementById("category-subitems");
+  const icon = document.getElementById("category-expand-icon");
+  subitems.classList.toggle("hidden");
+  if (icon) {
+    icon.style.transform = subitems.classList.contains("hidden")
+      ? ""
+      : "rotate(180deg)";
+  }
 }
 
 /**
  * Load categories from API and render in sidebar
  */
 async function loadCategories() {
-    try {
-        const res = await fetch('/api/categories');
-        if (!res.ok) return;
-        _categories = await res.json();
-        renderCategorySidebar();
-    } catch (e) {
-        console.error('Failed to load categories:', e);
-    }
+  try {
+    const res = await fetch("/api/categories");
+    if (!res.ok) return;
+    _categories = await res.json();
+    renderCategorySidebar();
+  } catch (e) {
+    console.error("Failed to load categories:", e);
+  }
 }
 
 /**
  * Render categories in sidebar
  */
 function renderCategorySidebar() {
-    const list = document.getElementById('category-list');
-    if (!list) return;
+  const list = document.getElementById("category-list");
+  if (!list) return;
 
-    list.innerHTML = _categories.map(cat => `
+  list.innerHTML = _categories
+    .map(
+      (cat) => `
         <div class="nav-subitem category-item" onclick="filterByCategoryId(${cat.id}, event)" data-category-id="${cat.id}">
             <span class="category-dot" style="background:${cat.color}"></span>
             <span class="category-name">${escapeHtml(cat.name)}</span>
@@ -2333,92 +2512,113 @@ function renderCategorySidebar() {
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
         </div>
-    `).join('');
+    `,
+    )
+    .join("");
 }
 
 /**
  * Filter books by category
  */
 function filterByCategoryId(categoryId, event) {
-    if (event) {
-        document.querySelectorAll('.nav-item, .directory-header, .category-item, .nav-subitem').forEach(n => n.classList.remove('active'));
-        if (event.currentTarget) event.currentTarget.classList.add('active');
-    }
-    // Reset filters and apply category
-    currentFilters = {};
-    currentFilters.category_id = categoryId;
-    currentPage = 1;
-    loadBooks();
+  if (event) {
+    document
+      .querySelectorAll(
+        ".nav-item, .directory-header, .category-item, .nav-subitem",
+      )
+      .forEach((n) => n.classList.remove("active"));
+    if (event.currentTarget) event.currentTarget.classList.add("active");
+  }
+  // Reset filters and apply category
+  currentFilters = {};
+  currentFilters.category_id = categoryId;
+  currentPage = 1;
+  loadBooks();
 }
 
 /**
  * Prompt to create a new category
  */
 async function createCategoryPrompt() {
-    const name = prompt('Enter category name:');
-    if (!name || !name.trim()) return;
+  const name = prompt("Enter category name:");
+  if (!name || !name.trim()) return;
 
-    const colors = ['#8b5cf6', '#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#06b6d4', '#f97316'];
-    const color = colors[Math.floor(Math.random() * colors.length)];
+  const colors = [
+    "#8b5cf6",
+    "#ef4444",
+    "#f59e0b",
+    "#10b981",
+    "#3b82f6",
+    "#ec4899",
+    "#06b6d4",
+    "#f97316",
+  ];
+  const color = colors[Math.floor(Math.random() * colors.length)];
 
-    try {
-        const res = await fetch('/api/categories', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: name.trim(), color })
-        });
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.detail || 'Failed to create category');
-        }
-        showNotification('Category created!', 'success');
-        loadCategories();
-    } catch (e) {
-        showNotification('Failed: ' + e.message, 'error');
+  try {
+    const res = await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), color }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || "Failed to create category");
     }
+    showNotification("Category created!", "success");
+    loadCategories();
+  } catch (e) {
+    showNotification("Failed: " + e.message, "error");
+  }
 }
 
 /**
  * Delete a category
  */
 async function deleteCategory(categoryId) {
-    const cat = _categories.find(c => c.id === categoryId);
-    if (!confirm(`Delete category "${cat?.name || 'this category'}"?`)) return;
+  const cat = _categories.find((c) => c.id === categoryId);
+  if (!confirm(`Delete category "${cat?.name || "this category"}"?`)) return;
 
-    try {
-        await fetch(`/api/categories/${categoryId}`, { method: 'DELETE' });
-        showNotification('Category deleted', 'success');
-        if (currentFilters.category_id === categoryId) {
-            delete currentFilters.category_id;
-            loadBooks();
-        }
-        loadCategories();
-    } catch (e) {
-        showNotification('Failed to delete category', 'error');
+  try {
+    await fetch(`/api/categories/${categoryId}`, { method: "DELETE" });
+    showNotification("Category deleted", "success");
+    if (currentFilters.category_id === categoryId) {
+      delete currentFilters.category_id;
+      loadBooks();
     }
+    loadCategories();
+  } catch (e) {
+    showNotification("Failed to delete category", "error");
+  }
 }
 
 /**
  * Show category assignment menu for a book
  */
 async function showCategoryMenu(bookId, event) {
-    event.stopPropagation();
+  event.stopPropagation();
 
-    const existing = document.getElementById('category-menu');
-    if (existing) existing.remove();
+  const existing = document.getElementById("category-menu");
+  if (existing) existing.remove();
 
-    await loadCategories();
+  await loadCategories();
 
-    const menu = document.createElement('div');
-    menu.id = 'category-menu';
-    menu.className = 'category-context-menu';
-    menu.innerHTML = _categories.map(cat => `
+  const menu = document.createElement("div");
+  menu.id = "category-menu";
+  menu.className = "category-context-menu";
+  menu.innerHTML =
+    _categories
+      .map(
+        (cat) => `
         <label class="category-menu-item">
             <input type="checkbox" data-category-id="${cat.id}">
             <span class="category-dot" style="background:${cat.color}"></span>
             ${escapeHtml(cat.name)}
         </label>
-    `).join('') + `
+    `,
+      )
+      .join("") +
+    `
         <div class="category-menu-divider"></div>
         <div class="category-menu-item category-menu-create" onclick="createCategoryPrompt(); document.getElementById('category-menu').remove();">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
@@ -2426,56 +2626,64 @@ async function showCategoryMenu(bookId, event) {
         </div>
     `;
 
-    const card = event.target.closest('.book-card-wrapper');
-    if (card) {
-        const rect = card.getBoundingClientRect();
-        menu.style.top = rect.bottom + 'px';
-        menu.style.left = rect.left + 'px';
+  const card = event.target.closest(".book-card-wrapper");
+  if (card) {
+    const rect = card.getBoundingClientRect();
+    menu.style.top = rect.bottom + "px";
+    menu.style.left = rect.left + "px";
+  }
+  document.body.appendChild(menu);
+
+  // Load current assignments
+  try {
+    const res = await fetch(`/api/books/${bookId}`);
+    if (res.ok) {
+      const book = await res.json();
+      const assigned = new Set(
+        (book.categories || [])
+          .map((name) => {
+            const cat = _categories.find((c) => c.name === name);
+            return cat?.id;
+          })
+          .filter(Boolean),
+      );
+
+      menu.querySelectorAll("input[data-category-id]").forEach((input) => {
+        input.checked = assigned.has(parseInt(input.dataset.categoryId));
+      });
     }
-    document.body.appendChild(menu);
+  } catch (e) {
+    /* ignore */
+  }
 
-    // Load current assignments
-    try {
-        const res = await fetch(`/api/books/${bookId}`);
-        if (res.ok) {
-            const book = await res.json();
-            const assigned = new Set((book.categories || []).map(name => {
-                const cat = _categories.find(c => c.name === name);
-                return cat?.id;
-            }).filter(Boolean));
-
-            menu.querySelectorAll('input[data-category-id]').forEach(input => {
-                input.checked = assigned.has(parseInt(input.dataset.categoryId));
-            });
-        }
-    } catch (e) { /* ignore */ }
-
-    // Handle checkbox changes
-    menu.querySelectorAll('input[data-category-id]').forEach(input => {
-        input.addEventListener('change', async () => {
-            const checked = Array.from(menu.querySelectorAll('input:checked')).map(i => parseInt(i.dataset.categoryId));
-            try {
-                await fetch(`/api/books/${bookId}/categories`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ category_ids: checked })
-                });
-                loadCategories();
-            } catch (e) {
-                console.error('Failed to update categories:', e);
-            }
+  // Handle checkbox changes
+  menu.querySelectorAll("input[data-category-id]").forEach((input) => {
+    input.addEventListener("change", async () => {
+      const checked = Array.from(menu.querySelectorAll("input:checked")).map(
+        (i) => parseInt(i.dataset.categoryId),
+      );
+      try {
+        await fetch(`/api/books/${bookId}/categories`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ category_ids: checked }),
         });
+        loadCategories();
+      } catch (e) {
+        console.error("Failed to update categories:", e);
+      }
     });
+  });
 
-    // Close on click outside
-    setTimeout(() => {
-        document.addEventListener('click', function closeMenu(e) {
-            if (!menu.contains(e.target)) {
-                menu.remove();
-                document.removeEventListener('click', closeMenu);
-            }
-        });
-    }, 10);
+  // Close on click outside
+  setTimeout(() => {
+    document.addEventListener("click", function closeMenu(e) {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener("click", closeMenu);
+      }
+    });
+  }, 10);
 }
 
 // ============================================
@@ -2486,69 +2694,73 @@ async function showCategoryMenu(bookId, event) {
  * Toggle the directory expandable section in sidebar
  */
 function toggleDirectorySection() {
-    const subitems = document.getElementById('directory-subitems');
-    const icon = document.getElementById('directory-expand-icon');
-    subitems.classList.toggle('hidden');
-    if (icon) {
-        icon.style.transform = subitems.classList.contains('hidden') ? '' : 'rotate(180deg)';
-    }
+  const subitems = document.getElementById("directory-subitems");
+  const icon = document.getElementById("directory-expand-icon");
+  subitems.classList.toggle("hidden");
+  if (icon) {
+    icon.style.transform = subitems.classList.contains("hidden")
+      ? ""
+      : "rotate(180deg)";
+  }
 }
 
 // Directory tree state
-let _dirChildren = new Map();  // path -> children array
-let _dirExpanded = new Set();  // set of expanded paths
+let _dirChildren = new Map(); // path -> children array
+let _dirExpanded = new Set(); // set of expanded paths
 let _dirIdCounter = 0;
 
 /**
  * Load root directories from API
  */
 async function loadDirectories() {
-    try {
-        const res = await fetch('/api/library/directories');
-        if (!res.ok) return;
-        _directories = await res.json();
-        renderDirectorySidebar();
-    } catch (e) {
-        console.error('Failed to load directories:', e);
-    }
+  try {
+    const res = await fetch("/api/library/directories");
+    if (!res.ok) return;
+    _directories = await res.json();
+    renderDirectorySidebar();
+  } catch (e) {
+    console.error("Failed to load directories:", e);
+  }
 }
 
 /**
  * Render root-level directory tree in sidebar
  */
 function renderDirectorySidebar() {
-    const list = document.getElementById('directory-list');
-    if (!list) return;
+  const list = document.getElementById("directory-list");
+  if (!list) return;
 
-    if (_directories.length === 0) {
-        list.innerHTML = '<div style="padding:8px 12px;color:#999;font-size:12px;">No directories found</div>';
-        return;
-    }
+  if (_directories.length === 0) {
+    list.innerHTML =
+      '<div style="padding:8px 12px;color:#999;font-size:12px;">No directories found</div>';
+    return;
+  }
 
-    list.innerHTML = _directories.map(dir => _renderDirNode(dir)).join('');
+  list.innerHTML = _directories.map((dir) => _renderDirNode(dir)).join("");
 }
 
 /**
  * Render a single directory node (header + children container)
  */
 function _renderDirNode(dir) {
-    const id = `dir-children-${++_dirIdCounter}`;
-    const hasSubdirs = dir.has_subdirs;
-    const isExpanded = _dirExpanded.has(dir.directory);
-    const children = _dirChildren.get(dir.directory);
-    const arrowClass = hasSubdirs ? '' : 'no-children';
-    const expandedClass = isExpanded ? 'expanded' : '';
+  const id = `dir-children-${++_dirIdCounter}`;
+  const hasSubdirs = dir.has_subdirs;
+  const isExpanded = _dirExpanded.has(dir.directory);
+  const children = _dirChildren.get(dir.directory);
+  const arrowClass = hasSubdirs ? "" : "no-children";
+  const expandedClass = isExpanded ? "expanded" : "";
 
-    let childrenHtml = '';
-    if (isExpanded && children && children.length > 0) {
-        childrenHtml = `<div class="dir-children" id="${id}">`
-            + children.map(c => _renderDirNode(c)).join('')
-            + `</div>`;
-    } else if (hasSubdirs) {
-        childrenHtml = `<div class="dir-children hidden" id="${id}"></div>`;
-    }
+  let childrenHtml = "";
+  if (isExpanded && children && children.length > 0) {
+    childrenHtml =
+      `<div class="dir-children" id="${id}">` +
+      children.map((c) => _renderDirNode(c)).join("") +
+      `</div>`;
+  } else if (hasSubdirs) {
+    childrenHtml = `<div class="dir-children hidden" id="${id}"></div>`;
+  }
 
-    return `<div class="directory-node" data-path="${escapeHtml(dir.directory)}">
+  return `<div class="directory-node" data-path="${escapeHtml(dir.directory)}">
         <div class="directory-header" onclick="filterByDirectory('${escapeAttr(dir.directory)}', event)"
              title="${escapeHtml(dir.directory)}">
             <span class="dir-arrow ${arrowClass} ${expandedClass}"
@@ -2564,72 +2776,85 @@ function _renderDirNode(dir) {
  * Escape string for HTML attribute (single quotes)
  */
 function escapeAttr(str) {
-    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  return str
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;");
 }
 
 /**
  * Toggle expand/collapse of a directory node
  */
 async function toggleDirExpand(path, arrowEl) {
-    if (_dirExpanded.has(path)) {
-        // Collapse
-        _dirExpanded.delete(path);
-        if (arrowEl) arrowEl.classList.remove('expanded');
-        const node = arrowEl ? arrowEl.closest('.directory-node') : null;
-        const childrenDiv = node ? node.querySelector(':scope > .dir-children') : null;
-        if (childrenDiv) childrenDiv.classList.add('hidden');
-        return;
-    }
+  if (_dirExpanded.has(path)) {
+    // Collapse
+    _dirExpanded.delete(path);
+    if (arrowEl) arrowEl.classList.remove("expanded");
+    const node = arrowEl ? arrowEl.closest(".directory-node") : null;
+    const childrenDiv = node
+      ? node.querySelector(":scope > .dir-children")
+      : null;
+    if (childrenDiv) childrenDiv.classList.add("hidden");
+    return;
+  }
 
-    // Expand
-    _dirExpanded.add(path);
-    if (arrowEl) arrowEl.classList.add('expanded');
+  // Expand
+  _dirExpanded.add(path);
+  if (arrowEl) arrowEl.classList.add("expanded");
 
-    const node = arrowEl ? arrowEl.closest('.directory-node') : null;
-    let childrenDiv = node ? node.querySelector(':scope > .dir-children') : null;
+  const node = arrowEl ? arrowEl.closest(".directory-node") : null;
+  let childrenDiv = node ? node.querySelector(":scope > .dir-children") : null;
 
-    // Lazy load children if not yet fetched
-    if (!_dirChildren.has(path)) {
-        try {
-            const res = await fetch(`/api/library/directories?parent=${encodeURIComponent(path)}`);
-            if (res.ok) {
-                const children = await res.json();
-                _dirChildren.set(path, children);
+  // Lazy load children if not yet fetched
+  if (!_dirChildren.has(path)) {
+    try {
+      const res = await fetch(
+        `/api/library/directories?parent=${encodeURIComponent(path)}`,
+      );
+      if (res.ok) {
+        const children = await res.json();
+        _dirChildren.set(path, children);
 
-                if (!childrenDiv && children.length > 0) {
-                    // Create children container
-                    childrenDiv = document.createElement('div');
-                    childrenDiv.className = 'dir-children';
-                    const header = node.querySelector(':scope > .directory-header');
-                    header.after(childrenDiv);
-                }
-                if (childrenDiv) {
-                    childrenDiv.innerHTML = children.map(c => _renderDirNode(c)).join('');
-                    childrenDiv.classList.remove('hidden');
-                }
-            }
-        } catch (e) {
-            console.error('Failed to load directory children:', e);
+        if (!childrenDiv && children.length > 0) {
+          // Create children container
+          childrenDiv = document.createElement("div");
+          childrenDiv.className = "dir-children";
+          const header = node.querySelector(":scope > .directory-header");
+          header.after(childrenDiv);
         }
-    } else {
-        // Already loaded, just show
-        if (childrenDiv) childrenDiv.classList.remove('hidden');
+        if (childrenDiv) {
+          childrenDiv.innerHTML = children
+            .map((c) => _renderDirNode(c))
+            .join("");
+          childrenDiv.classList.remove("hidden");
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load directory children:", e);
     }
+  } else {
+    // Already loaded, just show
+    if (childrenDiv) childrenDiv.classList.remove("hidden");
+  }
 }
 
 /**
  * Filter books by directory
  */
 function filterByDirectory(directory, event) {
-    if (event) {
-        document.querySelectorAll('.nav-item, .directory-header, .category-item, .nav-subitem').forEach(n => n.classList.remove('active'));
-        if (event.currentTarget) event.currentTarget.classList.add('active');
-    }
-    // Reset filters and apply directory
-    currentFilters = {};
-    currentFilters.directory_filter = directory;
-    currentPage = 1;
-    loadBooks();
+  if (event) {
+    document
+      .querySelectorAll(
+        ".nav-item, .directory-header, .category-item, .nav-subitem",
+      )
+      .forEach((n) => n.classList.remove("active"));
+    if (event.currentTarget) event.currentTarget.classList.add("active");
+  }
+  // Reset filters and apply directory
+  currentFilters = {};
+  currentFilters.directory_filter = directory;
+  currentPage = 1;
+  loadBooks();
 }
 
 // ============================================
@@ -2644,80 +2869,84 @@ function filterByDirectory(directory, event) {
 let _hiddenAction = null; // {mode: 'hide'|'unhide', bookId:int, input:HTMLInputElement}
 
 async function initHiddenBooks() {
-    // Show the sidebar "Hidden" nav item whenever any books are hidden.
-    try {
-        const res = await fetch('/api/hidden/status');
-        const data = await res.json();
-        const navItem = document.getElementById('nav-hidden');
-        if (navItem) navItem.style.display = (data.hidden_count > 0) ? 'flex' : 'none';
-    } catch (e) {
-        console.error('Failed to check hidden status:', e);
-    }
+  // Show the sidebar "Hidden" nav item whenever any books are hidden.
+  try {
+    const res = await fetch("/api/hidden/status");
+    const data = await res.json();
+    const navItem = document.getElementById("nav-hidden");
+    if (navItem)
+      navItem.style.display = data.hidden_count > 0 ? "flex" : "none";
+  } catch (e) {
+    console.error("Failed to check hidden status:", e);
+  }
 }
 
 /** Open the modal in either "set new password" (hide) or "enter password" (unhide) mode. */
 function _openHiddenModal(mode, bookId) {
-    const modal = document.getElementById('hidden-password-modal');
-    const setGroup = document.getElementById('hidden-password-set-group');
-    const verifyGroup = document.getElementById('hidden-password-verify-group');
-    const titleEl = document.getElementById('hidden-modal-title');
-    const submitBtn = document.getElementById('hidden-password-submit');
-    const resetLink = document.getElementById('hidden-password-reset-link');
+  const modal = document.getElementById("hidden-password-modal");
+  const setGroup = document.getElementById("hidden-password-set-group");
+  const verifyGroup = document.getElementById("hidden-password-verify-group");
+  const titleEl = document.getElementById("hidden-modal-title");
+  const submitBtn = document.getElementById("hidden-password-submit");
+  const resetLink = document.getElementById("hidden-password-reset-link");
 
-    if (mode === 'hide') {
-        setGroup.style.display = 'block';
-        verifyGroup.style.display = 'none';
-        titleEl.textContent = 'Hide Book';
-        const inp = document.getElementById('hidden-password-set');
-        inp.value = '';
-        inp.focus();
-        _hiddenAction = { mode: 'hide', bookId, input: inp };
-        if (submitBtn) submitBtn.textContent = 'Hide book';
-        if (resetLink) resetLink.style.display = 'none';
-    } else {
-        setGroup.style.display = 'none';
-        verifyGroup.style.display = 'block';
-        titleEl.textContent = 'Unhide Book';
-        const inp = document.getElementById('hidden-password-verify');
-        inp.value = '';
-        inp.focus();
-        _hiddenAction = { mode: 'unhide', bookId, input: inp };
-        if (submitBtn) submitBtn.textContent = 'Unhide book';
-        if (resetLink) resetLink.style.display = '';
-    }
-    modal.classList.remove('hidden');
+  if (mode === "hide") {
+    setGroup.style.display = "block";
+    verifyGroup.style.display = "none";
+    titleEl.textContent = "Hide Book";
+    const inp = document.getElementById("hidden-password-set");
+    inp.value = "";
+    inp.focus();
+    _hiddenAction = { mode: "hide", bookId, input: inp };
+    if (submitBtn) submitBtn.textContent = "Hide book";
+    if (resetLink) resetLink.style.display = "none";
+  } else {
+    setGroup.style.display = "none";
+    verifyGroup.style.display = "block";
+    titleEl.textContent = "Unhide Book";
+    const inp = document.getElementById("hidden-password-verify");
+    inp.value = "";
+    inp.focus();
+    _hiddenAction = { mode: "unhide", bookId, input: inp };
+    if (submitBtn) submitBtn.textContent = "Unhide book";
+    if (resetLink) resetLink.style.display = "";
+  }
+  modal.classList.remove("hidden");
 }
 
 /** Submit handler wired to the modal's primary button. */
 async function submitHiddenPassword() {
-    if (!_hiddenAction) return;
-    const { mode, bookId, input } = _hiddenAction;
-    const password = input.value;
-    if (!password) {
-        showNotification('Please enter a password', 'error');
-        input.focus();
-        return;
+  if (!_hiddenAction) return;
+  const { mode, bookId, input } = _hiddenAction;
+  const password = input.value;
+  if (!password) {
+    showNotification("Please enter a password", "error");
+    input.focus();
+    return;
+  }
+  const endpoint =
+    mode === "hide"
+      ? `/api/books/${bookId}/hide`
+      : `/api/books/${bookId}/unhide`;
+  try {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showNotification(data.detail || "Failed", "error");
+      return;
     }
-    const endpoint = mode === 'hide' ? `/api/books/${bookId}/hide` : `/api/books/${bookId}/unhide`;
-    try {
-        const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password })
-        });
-        const data = await res.json();
-        if (!res.ok) {
-            showNotification(data.detail || 'Failed', 'error');
-            return;
-        }
-        closeModal('hidden-password-modal');
-        _hiddenAction = null;
-        showNotification(data.message, 'success');
-        loadBooks();
-        initHiddenBooks();
-    } catch (e) {
-        showNotification('Failed to update hidden status', 'error');
-    }
+    closeModal("hidden-password-modal");
+    _hiddenAction = null;
+    showNotification(data.message, "success");
+    loadBooks();
+    initHiddenBooks();
+  } catch (e) {
+    showNotification("Failed to update hidden status", "error");
+  }
 }
 
 /**
@@ -2725,14 +2954,17 @@ async function submitHiddenPassword() {
  * Looks up the book's is_hidden to decide which modal mode to open.
  */
 async function toggleBookHidden(bookId) {
-    try {
-        const res = await fetch(`/api/books/${bookId}`);
-        if (!res.ok) { showNotification('Book not found', 'error'); return; }
-        const book = await res.json();
-        _openHiddenModal(book.is_hidden ? 'unhide' : 'hide', bookId);
-    } catch (e) {
-        showNotification('Failed to check book status', 'error');
+  try {
+    const res = await fetch(`/api/books/${bookId}`);
+    if (!res.ok) {
+      showNotification("Book not found", "error");
+      return;
     }
+    const book = await res.json();
+    _openHiddenModal(book.is_hidden ? "unhide" : "hide", bookId);
+  } catch (e) {
+    showNotification("Failed to check book status", "error");
+  }
 }
 
 /**
@@ -2740,103 +2972,120 @@ async function toggleBookHidden(bookId) {
  * Triggered by the "Forgot a password?" link in the unhide modal.
  */
 async function unhideAllBooks() {
-    if (!confirm(
-        'This will remove the password from EVERY hidden book and unhide them all.\n\n' +
-        'Use this only if you\'ve forgotten a per-book password. Continue?'
-    )) return;
-    try {
-        const res = await fetch('/api/hidden/unhide-all', { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) {
-            showNotification(data.detail || 'Failed to reset', 'error');
-            return;
-        }
-        closeModal('hidden-password-modal');
-        _hiddenAction = null;
-        showNotification(data.message, 'success');
-        loadBooks();
-        initHiddenBooks();
-    } catch (e) {
-        showNotification('Failed to unhide all books', 'error');
+  if (
+    !confirm(
+      "This will remove the password from EVERY hidden book and unhide them all.\n\n" +
+        "Use this only if you've forgotten a per-book password. Continue?",
+    )
+  )
+    return;
+  try {
+    const res = await fetch("/api/hidden/unhide-all", { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      showNotification(data.detail || "Failed to reset", "error");
+      return;
     }
+    closeModal("hidden-password-modal");
+    _hiddenAction = null;
+    showNotification(data.message, "success");
+    loadBooks();
+    initHiddenBooks();
+  } catch (e) {
+    showNotification("Failed to unhide all books", "error");
+  }
 }
 
 async function autoCategorizeAll() {
-    const btn = document.getElementById('btn-auto-categorize');
-    if (!confirm('Auto-categorize all books using AI? This may take a moment.')) return;
+  const btn = document.getElementById("btn-auto-categorize");
+  if (!confirm("Auto-categorize all books using AI? This may take a moment."))
+    return;
 
-    btn.disabled = true;
-    const origHTML = btn.innerHTML;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="animation:spin 1s linear infinite"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> 0/?';
+  btn.disabled = true;
+  const origHTML = btn.innerHTML;
+  btn.innerHTML =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="animation:spin 1s linear infinite"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> 0/?';
 
-    // Show progress toast
-    const toastId = 'cat-progress-toast';
-    let toast = document.getElementById(toastId);
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = toastId;
-        toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:#1e293b;color:#f1f5f9;padding:16px 20px;border-radius:12px;z-index:10000;min-width:320px;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.3);font-size:13px;';
-        document.body.appendChild(toast);
-    }
-    toast.innerHTML = '<div style="font-weight:600;margin-bottom:8px;">Auto-Categorizing...</div>'
-        + '<div id="cat-progress-bar" style="height:6px;background:#334155;border-radius:3px;overflow:hidden;margin-bottom:8px;">'
-        + '<div id="cat-progress-fill" style="height:100%;background:#3b82f6;border-radius:3px;width:0%;transition:width 0.3s ease;"></div></div>'
-        + '<div id="cat-progress-text" style="color:#94a3b8;">Starting...</div>';
-    toast.style.display = 'block';
+  // Show progress toast
+  const toastId = "cat-progress-toast";
+  let toast = document.getElementById(toastId);
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = toastId;
+    toast.style.cssText =
+      "position:fixed;bottom:24px;right:24px;background:#1e293b;color:#f1f5f9;padding:16px 20px;border-radius:12px;z-index:10000;min-width:320px;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.3);font-size:13px;";
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML =
+    '<div style="font-weight:600;margin-bottom:8px;">Auto-Categorizing...</div>' +
+    '<div id="cat-progress-bar" style="height:6px;background:#334155;border-radius:3px;overflow:hidden;margin-bottom:8px;">' +
+    '<div id="cat-progress-fill" style="height:100%;background:#3b82f6;border-radius:3px;width:0%;transition:width 0.3s ease;"></div></div>' +
+    '<div id="cat-progress-text" style="color:#94a3b8;">Starting...</div>';
+  toast.style.display = "block";
 
-    try {
-        const res = await fetch('/api/library/auto-categorize-stream');
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
+  try {
+    const res = await fetch("/api/library/auto-categorize-stream");
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
 
-            for (const line of lines) {
-                if (!line.startsWith('data: ')) continue;
-                try {
-                    const event = JSON.parse(line.slice(6));
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
 
-                    if (event.type === 'start') {
-                        document.getElementById('cat-progress-text').textContent = `Found ${event.total} books...`;
-                    } else if (event.type === 'progress') {
-                        const pct = Math.round((event.current / event.total) * 100);
-                        document.getElementById('cat-progress-fill').style.width = pct + '%';
-                        const catStr = event.categories.length > 0 ? event.categories.join(', ') : 'no match';
-                        document.getElementById('cat-progress-text').innerHTML =
-                            `<strong>${event.current}/${event.total}</strong> &mdash; `
-                            + `<span style="color:#e2e8f0;">${event.book.substring(0, 40)}</span>`
-                            + ` <span style="color:#3b82f6;">${catStr}</span>`;
-                        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="animation:spin 1s linear infinite"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> ${event.current}/${event.total}`;
-                    } else if (event.type === 'error') {
-                        const pct = Math.round((event.current / event.total) * 100);
-                        document.getElementById('cat-progress-fill').style.width = pct + '%';
-                        document.getElementById('cat-progress-text').innerHTML =
-                            `<span style="color:#f87171;">Skip:</span> ${event.book.substring(0, 40)} &mdash; ${event.error.substring(0, 50)}`;
-                    } else if (event.type === 'done') {
-                        document.getElementById('cat-progress-fill').style.width = '100%';
-                        document.getElementById('cat-progress-text').innerHTML =
-                            `<span style="color:#34d399;">Done!</span> ${event.categorized} books categorized, ${event.categories_added} categories added`;
-                        setTimeout(() => { toast.style.display = 'none'; }, 5000);
-                        loadBooks();
-                        loadCategories();
-                    }
-                } catch (e) { /* skip malformed */ }
-            }
+          if (event.type === "start") {
+            document.getElementById("cat-progress-text").textContent =
+              `Found ${event.total} books...`;
+          } else if (event.type === "progress") {
+            const pct = Math.round((event.current / event.total) * 100);
+            document.getElementById("cat-progress-fill").style.width =
+              pct + "%";
+            const catStr =
+              event.categories.length > 0
+                ? event.categories.join(", ")
+                : "no match";
+            document.getElementById("cat-progress-text").innerHTML =
+              `<strong>${event.current}/${event.total}</strong> &mdash; ` +
+              `<span style="color:#e2e8f0;">${event.book.substring(0, 40)}</span>` +
+              ` <span style="color:#3b82f6;">${catStr}</span>`;
+            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="animation:spin 1s linear infinite"><path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg> ${event.current}/${event.total}`;
+          } else if (event.type === "error") {
+            const pct = Math.round((event.current / event.total) * 100);
+            document.getElementById("cat-progress-fill").style.width =
+              pct + "%";
+            document.getElementById("cat-progress-text").innerHTML =
+              `<span style="color:#f87171;">Skip:</span> ${event.book.substring(0, 40)} &mdash; ${event.error.substring(0, 50)}`;
+          } else if (event.type === "done") {
+            document.getElementById("cat-progress-fill").style.width = "100%";
+            document.getElementById("cat-progress-text").innerHTML =
+              `<span style="color:#34d399;">Done!</span> ${event.categorized} books categorized, ${event.categories_added} categories added`;
+            setTimeout(() => {
+              toast.style.display = "none";
+            }, 5000);
+            loadBooks();
+            loadCategories();
+          }
+        } catch (e) {
+          /* skip malformed */
         }
-    } catch (e) {
-        toast.style.display = 'none';
-        showNotification('Auto-categorization failed — check AI settings', 'error');
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = origHTML;
+      }
     }
+  } catch (e) {
+    toast.style.display = "none";
+    showNotification("Auto-categorization failed — check AI settings", "error");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origHTML;
+  }
 }
 
 /* ========================================
@@ -2847,44 +3096,47 @@ async function autoCategorizeAll() {
  * Toggle stats section in sidebar
  */
 function toggleSection(sectionName) {
-    if (sectionName === 'stats') {
-        const subitems = document.getElementById('stats-subitems');
-        const expandIcon = document.getElementById('stats-expand-icon');
-        const wasHidden = subitems.classList.contains('hidden');
-        subitems.classList.toggle('hidden');
-        if (expandIcon) expandIcon.classList.toggle('expanded');
-        if (wasHidden) loadReadingStats();
-    }
+  if (sectionName === "stats") {
+    const subitems = document.getElementById("stats-subitems");
+    const expandIcon = document.getElementById("stats-expand-icon");
+    const wasHidden = subitems.classList.contains("hidden");
+    subitems.classList.toggle("hidden");
+    if (expandIcon) expandIcon.classList.toggle("expanded");
+    if (wasHidden) loadReadingStats();
+  }
 }
 
 /**
  * Fetch and render reading statistics
  */
 async function loadReadingStats() {
-    const container = document.getElementById('stats-content');
-    if (!container) return;
+  const container = document.getElementById("stats-content");
+  if (!container) return;
 
-    try {
-        const resp = await fetch('/api/stats/reading');
-        if (!resp.ok) {
-            container.innerHTML = '<div class="stats-loading">Failed to load stats</div>';
-            return;
-        }
-        const stats = await resp.json();
-        renderStats(container, stats);
-    } catch (e) {
-        console.error('Failed to load reading stats:', e);
-        container.innerHTML = '<div class="stats-loading">Failed to load stats</div>';
+  try {
+    const resp = await fetch("/api/stats/reading");
+    if (!resp.ok) {
+      container.innerHTML =
+        '<div class="stats-loading">Failed to load stats</div>';
+      return;
     }
+    const stats = await resp.json();
+    renderStats(container, stats);
+  } catch (e) {
+    console.error("Failed to load reading stats:", e);
+    container.innerHTML =
+      '<div class="stats-loading">Failed to load stats</div>';
+  }
 }
 
 /**
  * Render stats into the sidebar container
  */
 function renderStats(container, stats) {
-    const streakSVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>';
+  const streakSVG =
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z"/></svg>';
 
-    let html = `
+  let html = `
         <div class="stats-grid">
             <div class="stats-card">
                 <div class="stats-card-value">${stats.total_books}</div>
@@ -2912,43 +3164,43 @@ function renderStats(container, stats) {
             </div>
         </div>`;
 
-    if (stats.reading_streak > 0) {
-        html += `
+  if (stats.reading_streak > 0) {
+    html += `
         <div class="stats-streak">
             ${streakSVG}
             <span>${stats.reading_streak} day streak</span>
         </div>`;
-    }
+  }
 
-    if (stats.estimated_reading_hours > 0) {
-        html += `
+  if (stats.estimated_reading_hours > 0) {
+    html += `
         <div style="padding:4px 12px 8px;font-size:12px;color:var(--text-secondary,#5A5A5A);text-align:center;">
             ~${stats.estimated_reading_hours}h estimated reading time
         </div>`;
-    }
+  }
 
-    // Format distribution
-    if (stats.format_distribution && stats.format_distribution.length > 0) {
-        html += `<div class="stats-section-title">Formats</div><div class="stats-formats">`;
-        stats.format_distribution.forEach(function(f) {
-            html += `<span class="stats-format-badge">${escapeHtml(f.format)} (${f.count})</span>`;
-        });
-        html += `</div>`;
-    }
+  // Format distribution
+  if (stats.format_distribution && stats.format_distribution.length > 0) {
+    html += `<div class="stats-section-title">Formats</div><div class="stats-formats">`;
+    stats.format_distribution.forEach(function (f) {
+      html += `<span class="stats-format-badge">${escapeHtml(f.format)} (${f.count})</span>`;
+    });
+    html += `</div>`;
+  }
 
-    // Top authors
-    if (stats.top_authors && stats.top_authors.length > 0) {
-        html += `<div class="stats-section-title">Top Authors</div><div class="stats-authors-list">`;
-        stats.top_authors.forEach(function(a) {
-            html += `<div class="stats-author-item">
+  // Top authors
+  if (stats.top_authors && stats.top_authors.length > 0) {
+    html += `<div class="stats-section-title">Top Authors</div><div class="stats-authors-list">`;
+    stats.top_authors.forEach(function (a) {
+      html += `<div class="stats-author-item">
                 <span class="stats-author-name">${escapeHtml(a.author)}</span>
                 <span class="stats-author-count">${a.count} books</span>
             </div>`;
-        });
-        html += `</div>`;
-    }
+    });
+    html += `</div>`;
+  }
 
-    container.innerHTML = html;
+  container.innerHTML = html;
 }
 
 // Make toggleSection global

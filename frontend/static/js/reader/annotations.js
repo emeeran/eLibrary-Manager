@@ -9,176 +9,182 @@ let currentSelectionRange = null;
  * Handle text selection
  */
 function handleTextSelection() {
-    const selection = window.getSelection();
-    const text = selection.toString().trim();
-    const menu = document.getElementById('ic-selection-menu');
+  const selection = window.getSelection();
+  const text = selection.toString().trim();
+  const menu = document.getElementById("ic-selection-menu");
 
-    if (text && text.length > 2) {
-        currentSelectionRange = selection.getRangeAt(0).cloneRange();
+  if (text && text.length > 2) {
+    currentSelectionRange = selection.getRangeAt(0).cloneRange();
 
-        const rect = currentSelectionRange.getBoundingClientRect();
-        menu.style.display = 'flex';
+    const rect = currentSelectionRange.getBoundingClientRect();
+    menu.style.display = "flex";
 
-        // Position centered above selection
-        let left = rect.left + (rect.width / 2) - (menu.offsetWidth / 2);
-        let top = rect.top - menu.offsetHeight - 10;
+    // Position centered above selection
+    let left = rect.left + rect.width / 2 - menu.offsetWidth / 2;
+    let top = rect.top - menu.offsetHeight - 10;
 
-        // If above selection is clipped, place below
-        if (top < 80) {
-            top = rect.bottom + 10;
-        }
-
-        // Viewport boundary checks
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-
-        if (left < 10) left = 10;
-        if (left + menu.offsetWidth > viewportWidth - 10) {
-            left = viewportWidth - menu.offsetWidth - 10;
-        }
-        if (top + menu.offsetHeight > viewportHeight - 10) {
-            top = rect.top - menu.offsetHeight - 10;
-        }
-
-        menu.style.left = `${left}px`;
-        menu.style.top = `${top}px`;
-    } else {
-        if (menu) menu.style.display = 'none';
-        currentSelectionRange = null;
+    // If above selection is clipped, place below
+    if (top < 80) {
+      top = rect.bottom + 10;
     }
+
+    // Viewport boundary checks
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    if (left < 10) left = 10;
+    if (left + menu.offsetWidth > viewportWidth - 10) {
+      left = viewportWidth - menu.offsetWidth - 10;
+    }
+    if (top + menu.offsetHeight > viewportHeight - 10) {
+      top = rect.top - menu.offsetHeight - 10;
+    }
+
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+  } else {
+    if (menu) menu.style.display = "none";
+    currentSelectionRange = null;
+  }
 }
 
 /**
  * Get character offset of selection start within chapter content div
  */
 function getSelectionOffsets() {
-    const contentArea = document.getElementById('ic-chapter-text');
-    if (!contentArea || !currentSelectionRange) return { start: 0, end: 0 };
+  const contentArea = document.getElementById("ic-chapter-text");
+  if (!contentArea || !currentSelectionRange) return { start: 0, end: 0 };
 
-    const preRange = document.createRange();
-    preRange.selectNodeContents(contentArea);
-    preRange.setEnd(currentSelectionRange.startContainer, currentSelectionRange.startOffset);
-    const start = preRange.toString().length;
+  const preRange = document.createRange();
+  preRange.selectNodeContents(contentArea);
+  preRange.setEnd(
+    currentSelectionRange.startContainer,
+    currentSelectionRange.startOffset,
+  );
+  const start = preRange.toString().length;
 
-    const endRange = document.createRange();
-    endRange.selectNodeContents(contentArea);
-    endRange.setEnd(currentSelectionRange.endContainer, currentSelectionRange.endOffset);
-    const end = endRange.toString().length;
+  const endRange = document.createRange();
+  endRange.selectNodeContents(contentArea);
+  endRange.setEnd(
+    currentSelectionRange.endContainer,
+    currentSelectionRange.endOffset,
+  );
+  const end = endRange.toString().length;
 
-    return { start, end };
+  return { start, end };
 }
 
 /**
  * Apply highlight and save to API
  */
 async function applyHighlight(color) {
-    if (!currentSelectionRange) return;
+  if (!currentSelectionRange) return;
 
-    const selectedText = currentSelectionRange.toString().trim();
-    const offsets = getSelectionOffsets();
+  const selectedText = currentSelectionRange.toString().trim();
+  const offsets = getSelectionOffsets();
 
-    const span = document.createElement('span');
-    span.className = `ic-highlight hl-${color}`;
+  const span = document.createElement("span");
+  span.className = `ic-highlight hl-${color}`;
 
-    try {
-        currentSelectionRange.surroundContents(span);
-    } catch (e) {
-        console.warn('Cross-node highlighting not fully supported');
-    }
+  try {
+    currentSelectionRange.surroundContents(span);
+  } catch (e) {
+    console.warn("Cross-node highlighting not fully supported");
+  }
 
-    window.getSelection().removeAllRanges();
-    document.getElementById('ic-selection-menu').style.display = 'none';
+  window.getSelection().removeAllRanges();
+  document.getElementById("ic-selection-menu").style.display = "none";
 
-    // Save annotation to API
-    try {
-        await fetch(`/api/books/${IcecreamReader.bookId}/annotations`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chapter_index: IcecreamReader.currentChapter,
-                start_position: offsets.start,
-                end_position: offsets.end,
-                text: selectedText,
-                color: color
-            })
-        });
-    } catch (e) {
-        console.error('Failed to save annotation:', e);
-    }
+  // Save annotation to API
+  try {
+    await fetch(`/api/books/${IcecreamReader.bookId}/annotations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chapter_index: IcecreamReader.currentChapter,
+        start_position: offsets.start,
+        end_position: offsets.end,
+        text: selectedText,
+        color: color,
+      }),
+    });
+  } catch (e) {
+    console.error("Failed to save annotation:", e);
+  }
 
-    renderNotes();
+  renderNotes();
 }
 
 /**
  * Add note to selection and save to API
  */
 async function addSelectionNote() {
-    if (!currentSelectionRange) return;
+  if (!currentSelectionRange) return;
 
-    const noteText = prompt("Enter your note:");
-    if (!noteText) return;
+  const noteText = prompt("Enter your note:");
+  if (!noteText) return;
 
-    const selectedText = currentSelectionRange.toString().trim();
-    const offsets = getSelectionOffsets();
+  const selectedText = currentSelectionRange.toString().trim();
+  const offsets = getSelectionOffsets();
 
-    // Apply visual highlight
-    const span = document.createElement('span');
-    span.className = 'ic-highlight hl-yellow';
-    try {
-        currentSelectionRange.surroundContents(span);
-    } catch (e) {
-        console.warn('Cross-node highlighting not fully supported');
-    }
+  // Apply visual highlight
+  const span = document.createElement("span");
+  span.className = "ic-highlight hl-yellow";
+  try {
+    currentSelectionRange.surroundContents(span);
+  } catch (e) {
+    console.warn("Cross-node highlighting not fully supported");
+  }
 
-    window.getSelection().removeAllRanges();
-    document.getElementById('ic-selection-menu').style.display = 'none';
+  window.getSelection().removeAllRanges();
+  document.getElementById("ic-selection-menu").style.display = "none";
 
-    // Save annotation with note to API
-    try {
-        await fetch(`/api/books/${IcecreamReader.bookId}/annotations`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chapter_index: IcecreamReader.currentChapter,
-                start_position: offsets.start,
-                end_position: offsets.end,
-                text: selectedText,
-                color: 'yellow',
-                note: noteText
-            })
-        });
+  // Save annotation with note to API
+  try {
+    await fetch(`/api/books/${IcecreamReader.bookId}/annotations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chapter_index: IcecreamReader.currentChapter,
+        start_position: offsets.start,
+        end_position: offsets.end,
+        text: selectedText,
+        color: "yellow",
+        note: noteText,
+      }),
+    });
 
-        // Also save as a note
-        await fetch(`/api/books/${IcecreamReader.bookId}/notes`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chapter_index: IcecreamReader.currentChapter,
-                position_in_chapter: offsets.start,
-                content: noteText,
-                color: 'yellow',
-                quoted_text: selectedText
-            })
-        });
-    } catch (e) {
-        console.error('Failed to save note:', e);
-    }
+    // Also save as a note
+    await fetch(`/api/books/${IcecreamReader.bookId}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chapter_index: IcecreamReader.currentChapter,
+        position_in_chapter: offsets.start,
+        content: noteText,
+        color: "yellow",
+        quoted_text: selectedText,
+      }),
+    });
+  } catch (e) {
+    console.error("Failed to save note:", e);
+  }
 
-    renderNotes();
-    showNotesPanel();
+  renderNotes();
+  showNotesPanel();
 }
 
 /**
  * Copy selection
  */
 function copySelection() {
-    const text = window.getSelection().toString();
-    if (text) {
-        navigator.clipboard.writeText(text).then(() => {
-            showToast('Copied to clipboard');
-            document.getElementById('ic-selection-menu').style.display = 'none';
-        });
-    }
+  const text = window.getSelection().toString();
+  if (text) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast("Copied to clipboard");
+      document.getElementById("ic-selection-menu").style.display = "none";
+    });
+  }
 }
 
 /**
@@ -189,8 +195,8 @@ function copySelection() {
  * loads to keep navigation fast.
  */
 function notesPanelIsVisible() {
-    const panel = document.getElementById('ic-notes-sidebar');
-    return !!panel && !panel.classList.contains('collapsed');
+  const panel = document.getElementById("ic-notes-sidebar");
+  return !!panel && !panel.classList.contains("collapsed");
 }
 
 /**
@@ -201,98 +207,104 @@ function notesPanelIsVisible() {
  * open — see notesPanelIsVisible().
  */
 async function loadAnnotations() {
-    if (notesPanelIsVisible()) {
-        renderNotes();
-    }
+  if (notesPanelIsVisible()) {
+    renderNotes();
+  }
 
-    try {
-        const response = await fetch(
-            `/api/books/${IcecreamReader.bookId}/annotations?chapter_index=${IcecreamReader.currentChapter}`
-        );
-        if (!response.ok) return;
-        const data = await response.json();
-        const annotations = data.annotations || [];
+  try {
+    const response = await fetch(
+      `/api/books/${IcecreamReader.bookId}/annotations?chapter_index=${IcecreamReader.currentChapter}`,
+    );
+    if (!response.ok) return;
+    const data = await response.json();
+    const annotations = data.annotations || [];
 
-        if (annotations.length === 0) return;
+    if (annotations.length === 0) return;
 
-        const contentArea = document.getElementById('ic-chapter-text');
-        if (!contentArea) return;
+    const contentArea = document.getElementById("ic-chapter-text");
+    if (!contentArea) return;
 
-        // Re-apply highlights by searching for annotation text in content
-        annotations.forEach(anno => {
-            const text = anno.text;
-            if (!text || text.length < 3) return;
+    // Re-apply highlights by searching for annotation text in content
+    annotations.forEach((anno) => {
+      const text = anno.text;
+      if (!text || text.length < 3) return;
 
-            const walker = document.createTreeWalker(
-                contentArea,
-                NodeFilter.SHOW_TEXT,
-                null
-            );
+      const walker = document.createTreeWalker(
+        contentArea,
+        NodeFilter.SHOW_TEXT,
+        null,
+      );
 
-            const textNodes = [];
-            while (walker.nextNode()) textNodes.push(walker.currentNode);
+      const textNodes = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
 
-            for (const node of textNodes) {
-                const idx = node.textContent.indexOf(text);
-                if (idx === -1) continue;
+      for (const node of textNodes) {
+        const idx = node.textContent.indexOf(text);
+        if (idx === -1) continue;
 
-                try {
-                    const range = document.createRange();
-                    range.setStart(node, idx);
-                    range.setEnd(node, idx + text.length);
+        try {
+          const range = document.createRange();
+          range.setStart(node, idx);
+          range.setEnd(node, idx + text.length);
 
-                    const span = document.createElement('span');
-                    span.className = `ic-highlight hl-${anno.color}`;
-                    span.dataset.annotationId = anno.id;
-                    range.surroundContents(span);
-                } catch (e) {
-                    // Skip cross-node matches
-                }
-                break;
-            }
-        });
-    } catch (e) {
-        console.error('Failed to load annotations:', e);
-    }
+          const span = document.createElement("span");
+          span.className = `ic-highlight hl-${anno.color}`;
+          span.dataset.annotationId = anno.id;
+          range.surroundContents(span);
+        } catch (e) {
+          // Skip cross-node matches
+        }
+        break;
+      }
+    });
+  } catch (e) {
+    console.error("Failed to load annotations:", e);
+  }
 }
 
 /**
  * Render notes panel — combines notes and annotations from API
  */
 async function renderNotes() {
-    const list = document.getElementById('ic-notes-list');
-    if (!list) return;
+  const list = document.getElementById("ic-notes-list");
+  if (!list) return;
 
-    try {
-        const [notesRes, annotationsRes] = await Promise.all([
-            fetch(`/api/books/${IcecreamReader.bookId}/notes`),
-            fetch(`/api/books/${IcecreamReader.bookId}/annotations`)
-        ]);
+  try {
+    const [notesRes, annotationsRes] = await Promise.all([
+      fetch(`/api/books/${IcecreamReader.bookId}/notes`),
+      fetch(`/api/books/${IcecreamReader.bookId}/annotations`),
+    ]);
 
-        const notesData = notesRes.ok ? await notesRes.json() : { notes: [] };
-        const annosData = annotationsRes.ok ? await annotationsRes.json() : { annotations: [] };
+    const notesData = notesRes.ok ? await notesRes.json() : { notes: [] };
+    const annosData = annotationsRes.ok
+      ? await annotationsRes.json()
+      : { annotations: [] };
 
-        const notes = (notesData.notes || []).map(n => ({ ...n, _type: 'note' }));
-        const annotations = (annosData.annotations || []).map(a => ({ ...a, _type: 'annotation' }));
+    const notes = (notesData.notes || []).map((n) => ({ ...n, _type: "note" }));
+    const annotations = (annosData.annotations || []).map((a) => ({
+      ...a,
+      _type: "annotation",
+    }));
 
-        const allItems = [...notes, ...annotations].sort(
-            (a, b) => new Date(b.created_at) - new Date(a.created_at)
-        );
+    const allItems = [...notes, ...annotations].sort(
+      (a, b) => new Date(b.created_at) - new Date(a.created_at),
+    );
 
-        if (allItems.length === 0) {
-            list.innerHTML = `
+    if (allItems.length === 0) {
+      list.innerHTML = `
                 <div class="ic-sidebar-empty">
                     <div class="ic-sidebar-empty-icon">${EmptyStateIcons.note}</div>
                     <div class="ic-sidebar-empty-text">No notes or highlights yet</div>
                     <div class="ic-sidebar-empty-hint">Select text in the reader to add notes</div>
                 </div>`;
-            return;
-        }
+      return;
+    }
 
-        list.innerHTML = allItems.map(item => {
-            if (item._type === 'note') {
-                return `
-                    <div class="ic-note-item" style="border-left-color: var(--ic-highlight-${item.color || 'yellow'})">
+    list.innerHTML = allItems
+      .map((item) => {
+        if (item._type === "note") {
+          return `
+                    <div class="ic-note-item" style="border-left-color: var(--ic-highlight-${item.color || "yellow"})">
                         <div class="ic-note-header">
                             <span class="ic-note-badge">Note</span>
                             <button class="ic-note-delete" onclick="deleteNote(${item.id})" title="Delete">
@@ -301,16 +313,16 @@ async function renderNotes() {
                                 </svg>
                             </button>
                         </div>
-                        ${item.quoted_text ? `<div class="ic-note-quote">${escapeHtml(item.quoted_text)}</div>` : ''}
+                        ${item.quoted_text ? `<div class="ic-note-quote">${escapeHtml(item.quoted_text)}</div>` : ""}
                         <div class="ic-note-comment">${escapeHtml(item.content)}</div>
                         <div class="ic-note-meta">
                             Chapter ${item.chapter_index + 1} &bull; ${new Date(item.created_at).toLocaleDateString()}
                         </div>
                     </div>
                 `;
-            } else {
-                return `
-                    <div class="ic-note-item" style="border-left-color: var(--ic-highlight-${item.color || 'yellow'})">
+        } else {
+          return `
+                    <div class="ic-note-item" style="border-left-color: var(--ic-highlight-${item.color || "yellow"})">
                         <div class="ic-note-header">
                             <span class="ic-note-badge">Highlight</span>
                             <button class="ic-note-delete" onclick="deleteAnnotation(${item.id})" title="Delete">
@@ -320,44 +332,46 @@ async function renderNotes() {
                             </button>
                         </div>
                         <div class="ic-note-text">${escapeHtml(item.text)}</div>
-                        ${item.note ? `<div class="ic-note-comment">${escapeHtml(item.note)}</div>` : ''}
+                        ${item.note ? `<div class="ic-note-comment">${escapeHtml(item.note)}</div>` : ""}
                         <div class="ic-note-meta">
                             Chapter ${item.chapter_index + 1} &bull; ${new Date(item.created_at).toLocaleDateString()}
                         </div>
                     </div>
                 `;
-            }
-        }).join('');
-    } catch (e) {
-        console.error('Failed to render notes:', e);
-        list.innerHTML = '<div class="ic-sidebar-empty">Failed to load notes.</div>';
-    }
+        }
+      })
+      .join("");
+  } catch (e) {
+    console.error("Failed to render notes:", e);
+    list.innerHTML =
+      '<div class="ic-sidebar-empty">Failed to load notes.</div>';
+  }
 }
 
 /**
  * Delete annotation via API
  */
 async function deleteAnnotation(annotationId) {
-    try {
-        await fetch(`/api/annotations/${annotationId}`, { method: 'DELETE' });
-        showToast('Highlight removed');
-        loadAnnotations();
-    } catch (e) {
-        console.error('Failed to delete annotation:', e);
-    }
+  try {
+    await fetch(`/api/annotations/${annotationId}`, { method: "DELETE" });
+    showToast("Highlight removed");
+    loadAnnotations();
+  } catch (e) {
+    console.error("Failed to delete annotation:", e);
+  }
 }
 
 /**
  * Delete note via API
  */
 async function deleteNote(noteId) {
-    try {
-        await fetch(`/api/notes/${noteId}`, { method: 'DELETE' });
-        showToast('Note deleted');
-        renderNotes();
-    } catch (e) {
-        console.error('Failed to delete note:', e);
-    }
+  try {
+    await fetch(`/api/notes/${noteId}`, { method: "DELETE" });
+    showToast("Note deleted");
+    renderNotes();
+  } catch (e) {
+    console.error("Failed to delete note:", e);
+  }
 }
 
 /* Bookmarks ---------------------------------------------------------- */
@@ -378,29 +392,29 @@ const BOOKMARK_TITLE_MAX = 120;
  * Returns null when there is nothing usable to bookmark.
  */
 function resolveSelectionForBookmark() {
-    const liveSel = window.getSelection();
-    let liveText = liveSel ? liveSel.toString().trim() : '';
-    let range = null;
+  const liveSel = window.getSelection();
+  let liveText = liveSel ? liveSel.toString().trim() : "";
+  let range = null;
 
-    if (liveText.length > 2 && liveSel.rangeCount) {
-        range = liveSel.getRangeAt(0);
-        currentSelectionRange = range.cloneRange();
-    } else if (currentSelectionRange) {
-        // Use the last captured selection (e.g. bubble button clicked).
-        liveText = currentSelectionRange.toString().trim();
-        range = currentSelectionRange;
-    }
+  if (liveText.length > 2 && liveSel.rangeCount) {
+    range = liveSel.getRangeAt(0);
+    currentSelectionRange = range.cloneRange();
+  } else if (currentSelectionRange) {
+    // Use the last captured selection (e.g. bubble button clicked).
+    liveText = currentSelectionRange.toString().trim();
+    range = currentSelectionRange;
+  }
 
-    if (!range || liveText.length <= 2) return null;
+  if (!range || liveText.length <= 2) return null;
 
-    // Offsets must be computed against the chapter content area; temporarily
-    // point getSelectionOffsets at the resolved range.
-    const saved = currentSelectionRange;
-    currentSelectionRange = range;
-    const offsets = getSelectionOffsets();
-    currentSelectionRange = saved;
+  // Offsets must be computed against the chapter content area; temporarily
+  // point getSelectionOffsets at the resolved range.
+  const saved = currentSelectionRange;
+  currentSelectionRange = range;
+  const offsets = getSelectionOffsets();
+  currentSelectionRange = saved;
 
-    return { text: liveText, start: offsets.start };
+  return { text: liveText, start: offsets.start };
 }
 
 /**
@@ -415,109 +429,123 @@ function resolveSelectionForBookmark() {
  * (same behavior as the existing addBookmark()).
  */
 async function bookmarkSelection() {
-    const sel = resolveSelectionForBookmark();
+  const sel = resolveSelectionForBookmark();
 
-    // No usable selection → bookmark whole chapter at position 0.
-    if (!sel) {
-        await addBookmark();
-        return;
+  // No usable selection → bookmark whole chapter at position 0.
+  if (!sel) {
+    await addBookmark();
+    return;
+  }
+
+  const title =
+    sel.text.length > BOOKMARK_TITLE_MAX
+      ? sel.text.slice(0, BOOKMARK_TITLE_MAX - 1).trimEnd() + "…"
+      : sel.text;
+
+  try {
+    const response = await fetch(
+      `/api/books/${IcecreamReader.bookId}/bookmarks`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chapter_index: IcecreamReader.currentChapter,
+          position_in_chapter: sel.start,
+          title: title,
+        }),
+      },
+    );
+
+    if (response.status === 409) {
+      showToast("Already bookmarked");
+    } else if (!response.ok) {
+      throw new Error("Failed to add bookmark");
+    } else {
+      showToast("Selection bookmarked");
     }
 
-    const title = sel.text.length > BOOKMARK_TITLE_MAX
-        ? sel.text.slice(0, BOOKMARK_TITLE_MAX - 1).trimEnd() + '…'
-        : sel.text;
+    // Clear the selection + hide the bubble.
+    window.getSelection().removeAllRanges();
+    const menu = document.getElementById("ic-selection-menu");
+    if (menu) menu.style.display = "none";
+    currentSelectionRange = null;
 
-    try {
-        const response = await fetch(`/api/books/${IcecreamReader.bookId}/bookmarks`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chapter_index: IcecreamReader.currentChapter,
-                position_in_chapter: sel.start,
-                title: title
-            })
-        });
-
-        if (response.status === 409) {
-            showToast('Already bookmarked');
-        } else if (!response.ok) {
-            throw new Error('Failed to add bookmark');
-        } else {
-            showToast('Selection bookmarked');
-        }
-
-        // Clear the selection + hide the bubble.
-        window.getSelection().removeAllRanges();
-        const menu = document.getElementById('ic-selection-menu');
-        if (menu) menu.style.display = 'none';
-        currentSelectionRange = null;
-
-        renderBookmarks();
-    } catch (e) {
-        console.error('Failed to bookmark selection:', e);
-        showToast('Failed to add bookmark');
-    }
+    renderBookmarks();
+  } catch (e) {
+    console.error("Failed to bookmark selection:", e);
+    showToast("Failed to add bookmark");
+  }
 }
 
 /**
  * Add bookmark via API
  */
 async function addBookmark() {
-    const chapterName = document.getElementById('ic-chapter-title').textContent || `Chapter ${IcecreamReader.currentChapter + 1}`;
+  const chapterName =
+    document.getElementById("ic-chapter-title").textContent ||
+    `Chapter ${IcecreamReader.currentChapter + 1}`;
 
-    try {
-        const response = await fetch(`/api/books/${IcecreamReader.bookId}/bookmarks`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chapter_index: IcecreamReader.currentChapter,
-                position_in_chapter: 0,
-                title: chapterName
-            })
-        });
+  try {
+    const response = await fetch(
+      `/api/books/${IcecreamReader.bookId}/bookmarks`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chapter_index: IcecreamReader.currentChapter,
+          position_in_chapter: 0,
+          title: chapterName,
+        }),
+      },
+    );
 
-        if (response.status === 409) {
-            showToast('Already bookmarked');
-            return;
-        }
-
-        if (!response.ok) throw new Error('Failed to add bookmark');
-
-        showToast('Bookmark added');
-        renderBookmarks();
-    } catch (e) {
-        console.error('Failed to add bookmark:', e);
-        showToast('Failed to add bookmark');
+    if (response.status === 409) {
+      showToast("Already bookmarked");
+      return;
     }
+
+    if (!response.ok) throw new Error("Failed to add bookmark");
+
+    showToast("Bookmark added");
+    renderBookmarks();
+  } catch (e) {
+    console.error("Failed to add bookmark:", e);
+    showToast("Failed to add bookmark");
+  }
 }
 
 /**
  * Render bookmarks from API
  */
 async function renderBookmarks() {
-    const list = document.getElementById('ic-bookmarks-list');
-    if (!list) return;
+  const list = document.getElementById("ic-bookmarks-list");
+  if (!list) return;
 
-    try {
-        const response = await fetch(`/api/books/${IcecreamReader.bookId}/bookmarks`);
-        if (!response.ok) throw new Error('Failed to load bookmarks');
-        const data = await response.json();
-        const bookmarks = data.bookmarks || [];
+  try {
+    const response = await fetch(
+      `/api/books/${IcecreamReader.bookId}/bookmarks`,
+    );
+    if (!response.ok) throw new Error("Failed to load bookmarks");
+    const data = await response.json();
+    const bookmarks = data.bookmarks || [];
 
-        if (bookmarks.length === 0) {
-            list.innerHTML = `
+    if (bookmarks.length === 0) {
+      list.innerHTML = `
                 <div class="ic-sidebar-empty">
                     <div class="ic-sidebar-empty-icon">${EmptyStateIcons.bookmark}</div>
                     <div class="ic-sidebar-empty-text">No bookmarks yet</div>
                     <div class="ic-sidebar-empty-hint">Click "Add bookmark" to save your place</div>
                 </div>`;
-            return;
-        }
+      return;
+    }
 
-        list.innerHTML = bookmarks.reverse().map(b => `
+    list.innerHTML = bookmarks
+      .reverse()
+      .map(
+        (b) => `
             <div class="ic-bookmark-item">
                 <div class="ic-bookmark-content" onclick="loadChapter(${b.chapter_index})">
-                    <div style="font-size: 13px; font-weight: 500;">${escapeHtml(b.title || 'Chapter ' + (b.chapter_index + 1))}</div>
+                    <div style="font-size: 13px; font-weight: 500;">${escapeHtml(b.title || "Chapter " + (b.chapter_index + 1))}</div>
                     <div style="font-size: 11px; color: #999;">${new Date(b.created_at).toLocaleDateString()}</div>
                 </div>
                 <button class="ic-bookmark-delete" onclick="deleteBookmark(${b.id})" title="Delete">
@@ -526,22 +554,25 @@ async function renderBookmarks() {
                     </svg>
                 </button>
             </div>
-        `).join('');
-    } catch (e) {
-        console.error('Failed to render bookmarks:', e);
-        list.innerHTML = '<div class="ic-sidebar-empty">Failed to load bookmarks.</div>';
-    }
+        `,
+      )
+      .join("");
+  } catch (e) {
+    console.error("Failed to render bookmarks:", e);
+    list.innerHTML =
+      '<div class="ic-sidebar-empty">Failed to load bookmarks.</div>';
+  }
 }
 
 /**
  * Delete bookmark via API
  */
 async function deleteBookmark(bookmarkId) {
-    try {
-        await fetch(`/api/bookmarks/${bookmarkId}`, { method: 'DELETE' });
-        showToast('Bookmark removed');
-        renderBookmarks();
-    } catch (e) {
-        console.error('Failed to delete bookmark:', e);
-    }
+  try {
+    await fetch(`/api/bookmarks/${bookmarkId}`, { method: "DELETE" });
+    showToast("Bookmark removed");
+    renderBookmarks();
+  } catch (e) {
+    console.error("Failed to delete bookmark:", e);
+  }
 }

@@ -193,8 +193,7 @@ class BookRepository:
         try:
             result = await self.session.execute(
                 __import__("sqlalchemy").text(
-                    "SELECT 1 FROM sqlite_master "
-                    "WHERE type='table' AND name='books_content_fts'"
+                    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='books_content_fts'"
                 )
             )
             return result.scalar() is not None
@@ -359,9 +358,7 @@ class BookRepository:
         search_ilike: ... = None
         if search:
             search_pattern = f"%{search}%"
-            search_ilike = or_(
-                Book.title.ilike(search_pattern), Book.author.ilike(search_pattern)
-            )
+            search_ilike = or_(Book.title.ilike(search_pattern), Book.author.ilike(search_pattern))
         return query, search_ilike
 
     async def list_with_count(

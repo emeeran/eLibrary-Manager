@@ -205,7 +205,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     calibre_path_db = all_settings.get("calibre_library_path", "")
     calibre_interval_db = 0
     try:
-        calibre_interval_db = int(all_settings.get("calibre_auto_sync_interval_minutes", "0") or "0")
+        calibre_interval_db = int(
+            all_settings.get("calibre_auto_sync_interval_minutes", "0") or "0"
+        )
     except (TypeError, ValueError):
         calibre_interval_db = 0
     if calibre_interval_db > 0 and calibre_path_db:

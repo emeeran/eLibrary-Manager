@@ -693,9 +693,7 @@ async def list_books(
     page_size = max(1, min(page_size, 100))
 
     # Series facet: comma-separated names → list (spec 012).
-    series_filter = (
-        [s.strip() for s in series.split(",") if s.strip()] if series else None
-    )
+    series_filter = [s.strip() for s in series.split(",") if s.strip()] if series else None
     rating_min = rating_min if (rating_min and 1 <= rating_min <= 5) else None
 
     service = LibraryService(db)
@@ -834,9 +832,7 @@ async def restore_book(book_id: int, db: AsyncSession = Depends(get_db)) -> dict
 
     from app.models import Book
 
-    result = await db.execute(
-        update(Book).where(Book.id == book_id).values(is_deleted=False)
-    )
+    result = await db.execute(update(Book).where(Book.id == book_id).values(is_deleted=False))
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Book not found")
     await db.commit()

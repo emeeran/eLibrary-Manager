@@ -66,6 +66,7 @@ async def test_fallback_to_secondary_on_primary_failure():
 @pytest.mark.asyncio
 async def test_all_providers_fail_raises(monkeypatch):
     """Every provider failing surfaces a single AIServiceError."""
+
     async def _no_sleep(_):
         return None
 
@@ -97,6 +98,7 @@ async def test_unhealthy_provider_is_skipped():
 async def test_retry_then_success(monkeypatch):
     """Transient failures are retried; success on the 3rd attempt."""
     sleeps = []
+
     async def _track_sleep(d):
         sleeps.append(d)
 
@@ -115,6 +117,7 @@ async def test_retry_then_success(monkeypatch):
 @pytest.mark.asyncio
 async def test_retry_exhausted_falls_through_to_next_provider(monkeypatch):
     """After exhausting retries on the primary, the next provider is tried."""
+
     async def _no_sleep(_):
         return None
 

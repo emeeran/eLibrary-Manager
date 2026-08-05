@@ -44,14 +44,14 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
 
     # Total books (non-hidden, non-deleted)
     total_result = await db.execute(
-        select(func.count(Book.id)).where(Book.is_hidden == False)  # noqa: E712
+        select(func.count(Book.id)).where(Book.is_hidden.is_(False))
     )
     total_books = total_result.scalar() or 0
 
     # Books read (progress > 0)
     read_result = await db.execute(
         select(func.count(Book.id)).where(
-            Book.is_hidden == False,  # noqa: E712
+            Book.is_hidden.is_(False),
             Book.progress > 0,
         )
     )
@@ -60,7 +60,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     # Books completed (progress >= 95)
     completed_result = await db.execute(
         select(func.count(Book.id)).where(
-            Book.is_hidden == False,  # noqa: E712
+            Book.is_hidden.is_(False),
             Book.progress >= 95,
         )
     )
@@ -69,7 +69,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     # Books read this week (last_read_date within 7 days)
     week_result = await db.execute(
         select(func.count(Book.id)).where(
-            Book.is_hidden == False,  # noqa: E712
+            Book.is_hidden.is_(False),
             Book.last_read_date >= week_ago,
         )
     )
@@ -78,7 +78,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     # Books read this month (last_read_date within 30 days)
     month_result = await db.execute(
         select(func.count(Book.id)).where(
-            Book.is_hidden == False,  # noqa: E712
+            Book.is_hidden.is_(False),
             Book.last_read_date >= month_ago,
         )
     )
@@ -86,7 +86,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
 
     # Average progress across all non-hidden books
     avg_result = await db.execute(
-        select(func.avg(Book.progress)).where(Book.is_hidden == False)  # noqa: E712
+        select(func.avg(Book.progress)).where(Book.is_hidden.is_(False))
     )
     avg_progress = round(avg_result.scalar() or 0, 1)
 
@@ -94,7 +94,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     # Each day with a last_read_date counts as ~30 min reading
     reading_time_result = await db.execute(
         select(func.count(func.distinct(func.date(Book.last_read_date)))).where(
-            Book.is_hidden == False,  # noqa: E712
+            Book.is_hidden.is_(False),
             Book.last_read_date.isnot(None),
         )
     )
@@ -105,7 +105,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     authors_result = await db.execute(
         select(Book.author, func.count(Book.id).label("count"))
         .where(
-            Book.is_hidden == False,  # noqa: E712
+            Book.is_hidden.is_(False),
             Book.author.isnot(None),
             Book.author != "",
             Book.progress > 0,
@@ -119,7 +119,7 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     # Format distribution
     format_result = await db.execute(
         select(Book.format, func.count(Book.id).label("count"))
-        .where(Book.is_hidden == False)  # noqa: E712
+        .where(Book.is_hidden.is_(False))
         .group_by(Book.format)
         .order_by(func.count(Book.id).desc())
     )
@@ -161,7 +161,7 @@ async def _calculate_reading_streak(db: AsyncSession, now: datetime) -> int:
     dates_result = await db.execute(
         select(func.distinct(func.date(Book.last_read_date)))
         .where(
-            Book.is_hidden == False,  # noqa: E712
+            Book.is_hidden.is_(False),
             Book.last_read_date.isnot(None),
         )
         .order_by(func.date(Book.last_read_date).desc())

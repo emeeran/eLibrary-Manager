@@ -164,9 +164,7 @@ class ReaderService:
         finally:
             _summary_inflight.pop(key, None)
 
-    async def _generate_chapter_summary(
-        self, book: Book, chapter_index: int
-    ) -> ChapterSummary:
+    async def _generate_chapter_summary(self, book: Book, chapter_index: int) -> ChapterSummary:
         """Extract chapter text, summarize via AI, and persist (single-flight body)."""
         from app.reader_engine import get_reader_engine
 

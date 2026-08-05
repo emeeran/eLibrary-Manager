@@ -197,9 +197,7 @@ async def import_calibre_library(
 
 
 @router.get("/books/{book_id}/calibre-web-url")
-async def calibre_web_url(
-    book_id: int, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def calibre_web_url(book_id: int, db: AsyncSession = Depends(get_db)) -> dict:
     """Build the Calibre-Web URL for a book, if configured.
 
     Calibre-Web exposes each book at ``/book/<calibre_id>``. If the book wasn't
@@ -220,9 +218,7 @@ async def calibre_web_url(
 
 
 @router.get("/books/{book_id}/open-calibre-web", response_class=RedirectResponse)
-async def open_calibre_web(
-    book_id: int, db: AsyncSession = Depends(get_db)
-) -> RedirectResponse:
+async def open_calibre_web(book_id: int, db: AsyncSession = Depends(get_db)) -> RedirectResponse:
     """Convenience 302 redirect to the book's Calibre-Web page.
 
     Lets a frontend use a plain anchor ``href`` (or window.open) and still go
@@ -296,14 +292,13 @@ async def launch_reader(
         if book is None:
             # Looser fallback: title contains the term (no author constraint).
             book = (
-                await db.execute(
-                    base.where(Book.title.ilike(f"%{title.strip()}%")).limit(1)
-                )
+                await db.execute(base.where(Book.title.ilike(f"%{title.strip()}%")).limit(1))
             ).scalar_one_or_none()
 
     if book is None:
         key = (
-            calibre_id if calibre_id is not None
+            calibre_id
+            if calibre_id is not None
             else (calibre_uuid or (title and f"title:{title[:40]}") or "")
         )
         return RedirectResponse(url=f"/library?calibre_pending={key}", status_code=302)

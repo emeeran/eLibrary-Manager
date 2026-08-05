@@ -6,7 +6,9 @@ from app.schemas import BookCreate
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
-def _book(title: str, series: str | None, idx: float | None, cover: str | None = None) -> BookCreate:
+def _book(
+    title: str, series: str | None, idx: float | None, cover: str | None = None
+) -> BookCreate:
     return BookCreate(
         title=title,
         author=f"{title} Author",

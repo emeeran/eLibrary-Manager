@@ -159,17 +159,22 @@ def test_csrf_host_match_logic():
 @pytest.mark.asyncio
 async def test_csrf_blocks_cross_origin_post(client):
     """A cross-origin POST is rejected with 403."""
-    resp = await client.post("/api/auth/login", json={"username": "admin", "password": "x"},
-                             headers={"Origin": "https://evil.example"})
+    resp = await client.post(
+        "/api/auth/login",
+        json={"username": "admin", "password": "x"},
+        headers={"Origin": "https://evil.example"},
+    )
     assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
 async def test_csrf_allows_same_origin_post(client):
     """A same-origin POST is not blocked by the CSRF guard (reaches auth)."""
-    resp = await client.post("/api/auth/login",
-                             json={"username": "admin", "password": "test-password"},
-                             headers={"Origin": "http://test"})
+    resp = await client.post(
+        "/api/auth/login",
+        json={"username": "admin", "password": "test-password"},
+        headers={"Origin": "http://test"},
+    )
     # CSRF must NOT block same-origin traffic. A non-403 code proves the request
     # was forwarded to the auth layer (200 on success or 401 on bad creds are
     # both acceptable; only 403 would indicate a CSRF false-positive).

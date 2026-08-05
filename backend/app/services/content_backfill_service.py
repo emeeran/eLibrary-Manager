@@ -131,7 +131,9 @@ async def run_content_backfill(
 
 
 async def _extract_batch(
-    batch: list[tuple[int, str, str]], loop: asyncio.AbstractEventLoop, pool: ProcessPoolExecutor | None
+    batch: list[tuple[int, str, str]],
+    loop: asyncio.AbstractEventLoop,
+    pool: ProcessPoolExecutor | None,
 ) -> dict[int, str | None]:
     """Extract text for a batch in parallel (pool) or sequentially.
 
@@ -163,4 +165,3 @@ def _safe_mtime(path: str) -> float | None:
 
 
 __all__ = ["run_content_backfill"]
-

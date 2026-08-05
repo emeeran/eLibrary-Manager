@@ -160,7 +160,9 @@ async def test_backfill_indexes_and_enables_search(content_fts, tmp_path: Path) 
 
     repo = BookRepository(content_fts)
     book = await repo.create(
-        BookCreate(title="Jabberwocky", author="Carroll", path=str(epub), file_size=10, format="EPUB")
+        BookCreate(
+            title="Jabberwocky", author="Carroll", path=str(epub), file_size=10, format="EPUB"
+        )
     )
     await content_fts.commit()
 
@@ -234,7 +236,13 @@ async def test_faceted_series_filter(db_session) -> None:
 
     repo = BookRepository(db_session)
     await repo.create(
-        BookCreate(title="Foundation", author="Asimov", path="/tmp/f.epub", file_size=10, series="Foundation")
+        BookCreate(
+            title="Foundation",
+            author="Asimov",
+            path="/tmp/f.epub",
+            file_size=10,
+            series="Foundation",
+        )
     )
     await repo.create(
         BookCreate(title="Dune", author="Herbert", path="/tmp/d.epub", file_size=10, series="Dune")
@@ -254,7 +262,9 @@ async def test_faceted_rating_filter(db_session) -> None:
     repo = BookRepository(db_session)
     low = await repo.create(BookCreate(title="Low", author="X", path="/tmp/low.epub", file_size=10))
     low.rating = 2
-    high = await repo.create(BookCreate(title="High", author="Y", path="/tmp/high.epub", file_size=10))
+    high = await repo.create(
+        BookCreate(title="High", author="Y", path="/tmp/high.epub", file_size=10)
+    )
     high.rating = 5
     await db_session.commit()
 
@@ -305,10 +315,22 @@ async def test_series_endpoint(client, db_session) -> None:
 
     repo = BookRepository(db_session)
     await repo.create(
-        BookCreate(title="Foundation", author="Asimov", path="/tmp/f.epub", file_size=10, series="Foundation")
+        BookCreate(
+            title="Foundation",
+            author="Asimov",
+            path="/tmp/f.epub",
+            file_size=10,
+            series="Foundation",
+        )
     )
     await repo.create(
-        BookCreate(title="Foundation 2", author="Asimov", path="/tmp/f2.epub", file_size=10, series="Foundation")
+        BookCreate(
+            title="Foundation 2",
+            author="Asimov",
+            path="/tmp/f2.epub",
+            file_size=10,
+            series="Foundation",
+        )
     )
     await db_session.commit()
 
@@ -332,7 +354,12 @@ async def test_keyset_pagination_title(db_session) -> None:
     repo = BookRepository(db_session)
     for i in range(25):
         await repo.create(
-            BookCreate(title=f"Book {i:02d}", author=f"Author {i % 5}", path=f"/tmp/k{i}.epub", file_size=10)
+            BookCreate(
+                title=f"Book {i:02d}",
+                author=f"Author {i % 5}",
+                path=f"/tmp/k{i}.epub",
+                file_size=10,
+            )
         )
     await db_session.commit()
 
@@ -393,7 +420,6 @@ async def test_book_delete_clears_content_fts(content_fts) -> None:
     assert leftover == []
 
 
-
 async def test_keyset_pagination_added_date(db_session) -> None:
     """Cursor pagination over the default datetime sort is stable (id tiebreak)."""
     from app.repositories import BookRepository, encode_cursor
@@ -401,14 +427,18 @@ async def test_keyset_pagination_added_date(db_session) -> None:
 
     repo = BookRepository(db_session)
     for i in range(23):
-        await repo.create(BookCreate(title=f"T{i}", author="A", path=f"/tmp/d{i}.epub", file_size=10))
+        await repo.create(
+            BookCreate(title=f"T{i}", author="A", path=f"/tmp/d{i}.epub", file_size=10)
+        )
     await db_session.commit()
 
     seen: set[int] = set()
     cursor = None
     pages = 0
     while True:
-        books, total = await repo.list_with_count(limit=7, sort_by="added_date", sort_order="desc", cursor=cursor)
+        books, total = await repo.list_with_count(
+            limit=7, sort_by="added_date", sort_order="desc", cursor=cursor
+        )
         assert total == 23
         seen.update(b.id for b in books)
         pages += 1

@@ -146,7 +146,7 @@ class AIProviderOrchestrator:
                 last_exc = exc
                 if attempt >= max_retries:
                     break
-                delay = 0.5 * (3 ** attempt)  # 0.5s, 1.5s, 4.5s, ...
+                delay = 0.5 * (3**attempt)  # 0.5s, 1.5s, 4.5s, ...
                 logger.warning(
                     f"{provider.name} transient failure "
                     f"(attempt {attempt + 1}/{max_retries + 1}), "

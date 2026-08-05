@@ -44,9 +44,9 @@ def _make_pdf(path: Path, body: str = "a generated pdf body") -> None:
 async def test_epub_extract_metadata(tmp_path: Path):
     p = tmp_path / "book.epub"
     _make_epub(p, title="The Title", author="The Author")
-    meta = await EPUBParser(covers_path=str(tmp_path), book_images_path=str(tmp_path)).extract_metadata(
-        str(p)
-    )
+    meta = await EPUBParser(
+        covers_path=str(tmp_path), book_images_path=str(tmp_path)
+    ).extract_metadata(str(p))
     assert meta.title == "The Title"
     assert meta.author == "The Author"
     assert meta.format == "EPUB"
@@ -56,9 +56,9 @@ async def test_epub_extract_metadata(tmp_path: Path):
 async def test_pdf_extract_metadata_uses_filename(tmp_path: Path):
     p = tmp_path / "A-Pdf-Title.pdf"
     _make_pdf(p)
-    meta = await PDFParser(covers_path=str(tmp_path), book_images_path=str(tmp_path)).extract_metadata(
-        str(p)
-    )
+    meta = await PDFParser(
+        covers_path=str(tmp_path), book_images_path=str(tmp_path)
+    ).extract_metadata(str(p))
     assert meta.format == "PDF"
     # PDF parser falls back to the filename-derived title.
     assert meta.title and "A" in meta.title
@@ -69,9 +69,9 @@ async def test_epub_corrupt_raises(tmp_path: Path):
     p = tmp_path / "bad.epub"
     p.write_bytes(b"not a zip and definitely not an epub payload")
     with pytest.raises(EbookParsingError):
-        await EPUBParser(covers_path=str(tmp_path), book_images_path=str(tmp_path)).extract_metadata(
-            str(p)
-        )
+        await EPUBParser(
+            covers_path=str(tmp_path), book_images_path=str(tmp_path)
+        ).extract_metadata(str(p))
 
 
 @pytest.mark.asyncio

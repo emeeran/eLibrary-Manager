@@ -1,6 +1,5 @@
 """Tests for library scanner and ebook parsers."""
 
-
 import pytest
 from app.exceptions import EbookParsingError, LibraryScannerError
 from app.scanner import LibraryScanner

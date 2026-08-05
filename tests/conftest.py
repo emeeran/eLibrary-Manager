@@ -19,6 +19,7 @@ os.environ.setdefault("APP_ENV", "testing")
 def event_loop():
     """Create event loop for async tests."""
     import asyncio
+
     loop = asyncio.new_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
@@ -66,13 +67,17 @@ async def client(db_session):
     app.dependency_overrides[get_db] = override_get_db
 
     from httpx import ASGITransport, AsyncClient
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         # Authenticate to get session cookie
-        login_resp = await ac.post("/api/auth/login", json={
-            "username": "admin",
-            "password": "test-password",
-        })
+        login_resp = await ac.post(
+            "/api/auth/login",
+            json={
+                "username": "admin",
+                "password": "test-password",
+            },
+        )
         # If login fails (no auth middleware yet), continue without auth
         if login_resp.status_code != 200:
             # Try without auth — auth may not be fully wired up

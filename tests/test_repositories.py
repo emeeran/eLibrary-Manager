@@ -128,12 +128,14 @@ async def test_list_with_count_pagination(db_session: AsyncSession):
     repo = BookRepository(db_session)
 
     for i in range(5):
-        await repo.create(BookCreate(
-            title=f"Book {i}",
-            path=f"/test/book{i}.epub",
-            format="EPUB",
-            file_size=100,
-        ))
+        await repo.create(
+            BookCreate(
+                title=f"Book {i}",
+                path=f"/test/book{i}.epub",
+                format="EPUB",
+                file_size=100,
+            )
+        )
 
     books, total = await repo.list_with_count(skip=0, limit=2)
     assert total == 5
@@ -149,20 +151,24 @@ async def test_list_with_count_search(db_session: AsyncSession):
     """Test search filtering in list_with_count."""
     repo = BookRepository(db_session)
 
-    await repo.create(BookCreate(
-        title="Python Programming",
-        author="Guido",
-        path="/test/python.epub",
-        format="EPUB",
-        file_size=100,
-    ))
-    await repo.create(BookCreate(
-        title="JavaScript Guide",
-        author="Brendan",
-        path="/test/js.epub",
-        format="EPUB",
-        file_size=100,
-    ))
+    await repo.create(
+        BookCreate(
+            title="Python Programming",
+            author="Guido",
+            path="/test/python.epub",
+            format="EPUB",
+            file_size=100,
+        )
+    )
+    await repo.create(
+        BookCreate(
+            title="JavaScript Guide",
+            author="Brendan",
+            path="/test/js.epub",
+            format="EPUB",
+            file_size=100,
+        )
+    )
 
     books, total = await repo.list_with_count(search="Python")
     assert total == 1
@@ -178,12 +184,10 @@ async def test_list_with_count_format_filter(db_session: AsyncSession):
     """Test format filter."""
     repo = BookRepository(db_session)
 
-    await repo.create(BookCreate(
-        title="EPUB Book", path="/test/a.epub", format="EPUB", file_size=100
-    ))
-    await repo.create(BookCreate(
-        title="PDF Book", path="/test/b.pdf", format="PDF", file_size=100
-    ))
+    await repo.create(
+        BookCreate(title="EPUB Book", path="/test/a.epub", format="EPUB", file_size=100)
+    )
+    await repo.create(BookCreate(title="PDF Book", path="/test/b.pdf", format="PDF", file_size=100))
 
     books, total = await repo.list_with_count(format_filter="EPUB")
     assert total == 1
@@ -197,14 +201,14 @@ async def test_list_with_count_favorite_filter(db_session: AsyncSession):
 
     repo = BookRepository(db_session)
 
-    b1 = await repo.create(BookCreate(
-        title="Fav Book", path="/test/fav.epub", format="EPUB", file_size=100
-    ))
+    b1 = await repo.create(
+        BookCreate(title="Fav Book", path="/test/fav.epub", format="EPUB", file_size=100)
+    )
     await repo.update(b1.id, BookUpdate(is_favorite=True))
 
-    await repo.create(BookCreate(
-        title="Normal Book", path="/test/norm.epub", format="EPUB", file_size=100
-    ))
+    await repo.create(
+        BookCreate(title="Normal Book", path="/test/norm.epub", format="EPUB", file_size=100)
+    )
 
     books, total = await repo.list_with_count(favorite_only=True)
     assert total == 1
@@ -217,12 +221,8 @@ async def test_count_total(db_session: AsyncSession):
     repo = BookRepository(db_session)
     assert await repo.count() == 0
 
-    await repo.create(BookCreate(
-        title="Book 1", path="/test/1.epub", format="EPUB", file_size=100
-    ))
-    await repo.create(BookCreate(
-        title="Book 2", path="/test/2.epub", format="EPUB", file_size=100
-    ))
+    await repo.create(BookCreate(title="Book 1", path="/test/1.epub", format="EPUB", file_size=100))
+    await repo.create(BookCreate(title="Book 2", path="/test/2.epub", format="EPUB", file_size=100))
     assert await repo.count() == 2
 
 
@@ -274,7 +274,7 @@ async def test_chapter_summary_cache(db_session: AsyncSession, sample_book_data:
         chapter_index=0,
         chapter_title="Chapter 1",
         summary_text="This is a summary of chapter 1.",
-        provider="test"
+        provider="test",
     )
     assert summary.id is not None
 

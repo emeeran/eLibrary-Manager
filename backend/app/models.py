@@ -177,9 +177,7 @@ class BookContent(Base):
     extract_status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="pending", server_default="pending"
     )
-    char_count: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0, server_default="0"
-    )
+    char_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     source_mtime: Mapped[float | None] = mapped_column(Float, nullable=True)
     extracted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

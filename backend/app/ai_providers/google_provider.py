@@ -60,9 +60,7 @@ class GoogleProvider(BaseAIProvider):
         try:
             return genai.Client(
                 api_key=self._api_key,
-                http_options=types.HttpOptions(
-                    timeout=int(self.config.ai_request_timeout * 1000)
-                ),
+                http_options=types.HttpOptions(timeout=int(self.config.ai_request_timeout * 1000)),
             )
         finally:
             if saved is not None:
