@@ -16,6 +16,29 @@ of what to fix for robust operation. The real risks cluster in four places:
 (3) a too-shallow health check, (4) test coverage on NAS/parsers.** None of the
 subagent-flagged "BLOCKERs" survived verification (see the last section).
 
+## ⚑ Missed by pipeline, caught by blind review (Phase 5)
+
+A context-blind review (`/.pipeline/blind-review.md`) caught two **P0 bugs in
+untested paths** that Phases 1–4 missed entirely. Both confirmed against the code:
+
+- [ ] **P0 — `backend/app/auth.py:181-185` `_bump_epoch` never commits.** It opens the session via the raw `db_manager.session_factory()` inside `async with`; `AsyncSession.__aexit__` only `close()`s (no commit — only `get_session()` commits). So the epoch bump is rolled back and **logout / password-change revocation does not persist** — an old session cookie resurfaces as valid once the in-memory epoch cache refreshes from the un-updated DB (within the `_EPOCH_CACHE_TTL`), and stays valid until its 24h absolute expiry. The tests miss it because `test_security_session.py` stubs `_bump_epoch`. *Fix:* `await db.commit()` (or use `get_session()`).
+- [ ] **P0 — `backend/app/routes/settings.py:219` missing `await`.** `orchestrator = get_ai_orchestrator()` calls an `async def` without awaiting, so `POST /api/settings/test-ai` raises `AttributeError` every call — the "Test AI connection" button is dead. *Fix:* `await get_ai_orchestrator()`.
+
+Other real items the blind review surfaced that Phases 1–4 under-weighted:
+
+- [ ] **P1 — `backend/app/parsers/pdf_parser.py` `fitz.open()` not in `with`/`try-finally`** (~8 sites). On a mid-render exception (corrupt PDF) the doc handle leaks until GC — a slow FD leak on a long-running reader. (Phase 4's ops scan incorrectly marked handle cleanup PASS.) *Fix:* `with fitz.open(...) as doc:`.
+- [ ] **P1 — `backend/app/scanner.py:165-225` `fast_index_directory` runs sync `os.scandir` on the event loop** (only `asyncio.sleep` between batches, not `to_thread`). On a large/slow mount this freezes every concurrent request. *Fix:* move `scandir` into `asyncio.to_thread` (the NAS backend already shows the pattern).
+- [ ] **P2 — soft-deleted books stay metadata-FTS-searchable.** The `books_fts` triggers handle INSERT/DELETE only; soft-delete (`is_deleted=True`) is an UPDATE, so soft-deleted books still surface in title/author search even though the list query filters them. (The content-FTS hard-delete cleanup from `f4265b7` didn't cover this metadata-FTS/soft-delete path.) *Fix:* filter `is_deleted` in the FTS predicate or add an UPDATE trigger.
+
+Smaller blind-review catches (style/dead-code, low severity):
+`repositories.py:182,195` uses `__import__("sqlalchemy").text(...)` (obfuscation — `text` is already imported); `ai_engine.py:22` docstring still names a "Groq" provider that isn't instantiated; `google_provider.py:24` class-default `model="gemini-1.5-flash"` conflicts with the config default `gemini-2.5-flash` (overwritten in `__init__`, cosmetic); four near-duplicate background-task runners in `library.py`/`calibre.py`/`maintenance.py` (~150 lines that could be one helper — a Phase-2 debloat miss).
+
+**Agreements (higher confidence):** the blind review independently corroborated
+the upload-size-limit and NAS/parser-coverage findings, and validated that
+Phases 2–3 did *not* regress the praised controls (nh3 sanitization, keyset
+pagination, single-flight summary, AI retry/backoff, SQLite pragmas, NAS
+threadpool I/O). See `.pipeline/blind-review.md` for the full verbatim review.
+
 ## High priority
 
 - [ ] **`backend/app/parsers/pdf_parser.py` (~146-158 cover extraction, ~773-814 page render)** — pixmap rendering at 2×/150 DPI with **no size cap**. Under `MemoryMax=1G` a large/complex PDF can OOM-kill the service. Content extraction was already memory-bounded (`content_extractor.py` 2M-char cap); cover/page rendering was not. *Fix:* cap pixmap dimensions / DPI before `get_pixmap`, skip oversize.
