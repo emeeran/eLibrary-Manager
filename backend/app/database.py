@@ -21,6 +21,28 @@ from app.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+def apply_sqlite_pragmas(dbapi_conn: Any) -> None:
+    """Apply SQLite WAL/performance/locking pragmas to a raw DBAPI connection.
+
+    Centralized so the app engine and the Alembic migration engine apply the
+    same settings — notably WAL + ``busy_timeout``, so a connection waits on a
+    write lock instead of erroring with "database is locked".
+    """
+    cursor = dbapi_conn.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA cache_size=-64000")  # 64MB cache
+        cursor.execute("PRAGMA temp_store=MEMORY")
+        mmap_size = int(os.environ.get("DB_MMAP_SIZE", 33554432))  # 32MB default
+        cursor.execute(f"PRAGMA mmap_size={mmap_size}")
+        # Wait (up to 15s) for a write lock instead of erroring.
+        cursor.execute("PRAGMA busy_timeout=15000")
+    finally:
+        cursor.close()
+
+
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
 
@@ -54,21 +76,10 @@ class DatabaseManager:
                 connect_args={"check_same_thread": False},  # SQLite specific
             )
 
-            # SQLite performance pragmas
+            # SQLite performance pragmas (see ``apply_sqlite_pragmas``).
             @event.listens_for(self._engine.sync_engine, "connect")
             def _set_sqlite_pragmas(dbapi_conn: Any, connection_record: Any) -> None:
-                cursor = dbapi_conn.cursor()
-                cursor.execute("PRAGMA foreign_keys=ON")
-                cursor.execute("PRAGMA journal_mode=WAL")
-                cursor.execute("PRAGMA synchronous=NORMAL")
-                cursor.execute("PRAGMA cache_size=-64000")  # 64MB cache
-                cursor.execute("PRAGMA temp_store=MEMORY")
-                mmap_size = int(os.environ.get("DB_MMAP_SIZE", 33554432))  # 32MB default
-                cursor.execute(f"PRAGMA mmap_size={mmap_size}")
-                # Wait (up to 15s) for a write lock instead of erroring
-                # "database is locked" when a background backfill/scan is writing.
-                cursor.execute("PRAGMA busy_timeout=15000")
-                cursor.close()
+                apply_sqlite_pragmas(dbapi_conn)
 
             logger.info(f"Database engine created: {self.config.database_url}")
         return self._engine
