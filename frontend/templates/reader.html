@@ -595,6 +595,10 @@
     </div>
 
     <!-- Reader JavaScript (modularized; loaded in dependency order) -->
+    <!-- Shared lib helpers load first so their globals are visible everywhere. -->
+    <script src="/static/js/lib/dom.js?v=1"></script>
+    <script src="/static/js/lib/api.js?v=1"></script>
+    <script src="/static/js/lib/storage.js?v=1"></script>
     <script src="/static/js/tts.js"></script>
     <script src="/static/js/reader/state.js?v=40"></script>
     <script src="/static/js/reader/ui.js?v=41"></script>

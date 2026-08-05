@@ -25,11 +25,23 @@ aspirational, not reality. The JS rules in `CLAUDE.md` have been corrected.
 - `frontend/build.mjs` — esbuild bundler for new module entries. Run
   `npm run build` / `npm run watch`. Currently a no-op until entries are
   registered, so it cannot break existing serving.
-- `frontend/static/js/lib/` — new ES-module helpers that establish the
-  extraction pattern:
-  - `api.js` — typed `fetch` wrapper (`api`, `apiGet/Post/Put/Delete`, `beacon`).
-  - `storage.js` — safe JSON `localStorage` helpers.
-  - `dom.js` — `qs`, `qsa`, `el`, `debounce`, `setTrustedHTML`.
+- `frontend/static/js/lib/` — shared helpers that establish the extraction
+  pattern. **Classic scripts** (global scope), not ES modules yet — there is no
+  bundler, so they're loaded as plain `<script>` tags before the app modules and
+  expose their functions on the global object. They migrate to ES modules
+  together with the reader at phase 6.
+  - `api.js` — `apiFetch` (raw `fetch` with bounded retry, the canonical version
+    of the reader's `fetchRetry`) plus JSON conveniences
+    `apiGet/Post/Put/Delete` and `apiBeacon`; `ApiError` on non-2xx.
+  - `storage.js` — safe `storageGet/Set/GetRaw/SetRaw/Remove`; JSON with raw-
+    string fallback, never throws (quota / private-browsing).
+  - `dom.js` — `escapeHtml/escapeAttr`, `qs/qsa/el`, `debounce/throttle`,
+    `setTrustedHTML`.
+
+  These are wired into both `reader.html` and `library.html` (loaded first) so
+  their globals are available. Adoption is incremental: existing modules still
+  define some helpers locally (notably `escapeHtml`, which differs subtly between
+  reader and library) and migrate one call site at a time.
 
 ## Migration principles
 

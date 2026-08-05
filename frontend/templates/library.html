@@ -608,6 +608,10 @@
         </div>
     </div>
 
+    <!-- Shared lib helpers load first so their globals are visible everywhere. -->
+    <script src="/static/js/lib/dom.js?v=1" defer></script>
+    <script src="/static/js/lib/api.js?v=1" defer></script>
+    <script src="/static/js/lib/storage.js?v=1" defer></script>
     <script src="/static/js/theme.js?v=2" defer></script>
     <script src="/static/js/library.js?v=25" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>

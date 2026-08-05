@@ -34,16 +34,19 @@ export default [
     },
   },
   {
-    // New ES-module helpers under lib/ opt into module mode.
+    // lib/ helpers are classic scripts (no bundler yet) exposing globals, so
+    // they lint in script mode like the rest of the codebase. They migrate to
+    // ES modules together with the reader at phase 6 (esbuild).
     files: ["static/js/lib/**/*.js"],
     languageOptions: {
-      sourceType: "module",
+      sourceType: "script",
       ecmaVersion: 2022,
       globals: { ...globals.browser },
     },
     rules: {
       "no-console": ["warn", { allow: ["warn", "error"] }],
       eqeqeq: ["error", "smart"],
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
   },
   {
