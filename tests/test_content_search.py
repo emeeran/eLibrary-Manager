@@ -355,6 +355,45 @@ async def test_keyset_pagination_title(db_session) -> None:
     assert len(seen) == 25
 
 
+@pytest.mark.asyncio
+async def test_book_delete_clears_content_fts(content_fts) -> None:
+    """BookRepository.delete removes the app-managed books_content_fts row.
+
+    The FTS5 table has no triggers/FK-cascade, so without the explicit cleanup a
+    hard-deleted book would stay content-searchable.
+    """
+    from app.repositories import BookRepository
+    from app.schemas import BookCreate
+
+    repo = BookRepository(content_fts)
+    book = await repo.create(
+        BookCreate(title="Doomed", author="A", path="/d.epub", format="EPUB", file_size=1)
+    )
+    await content_fts.execute(
+        text("INSERT INTO books_content_fts(book_id, content) VALUES (:bid, :c)"),
+        {"bid": book.id, "c": "searchable body text"},
+    )
+    await content_fts.commit()
+
+    indexed = (
+        await content_fts.execute(
+            text("SELECT book_id FROM books_content_fts WHERE book_id = :b"), {"b": book.id}
+        )
+    ).all()
+    assert len(indexed) == 1
+
+    await repo.delete(book.id)
+    await content_fts.commit()
+
+    leftover = (
+        await content_fts.execute(
+            text("SELECT book_id FROM books_content_fts WHERE book_id = :b"), {"b": book.id}
+        )
+    ).all()
+    assert leftover == []
+
+
+
 async def test_keyset_pagination_added_date(db_session) -> None:
     """Cursor pagination over the default datetime sort is stable (id tiebreak)."""
     from app.repositories import BookRepository, encode_cursor

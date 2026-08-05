@@ -202,6 +202,16 @@ relative to the library root; the file is
 Tests build a real on-disk Calibre library (genuine schema + EPUB + cover.jpg)
 so the importer exercises actual file resolution and cover copying.
 
+`tests/test_series.py` — 5 tests covering the series browse (v1.3):
+
+| Test | AC |
+|------|----|
+| `test_list_series_with_meta_counts_and_representative` | AC-30 |
+| `test_books_in_series_ordered_by_index` | AC-31 |
+| `test_books_in_series_unknown_returns_empty` | AC-32 |
+| `test_series_excludes_hidden_and_deleted` | AC-30, AC-31 |
+| `test_get_series_routes` | AC-30, AC-31, AC-32 |
+
 ## Open Items / Future Work
 
 - **Series import** — done in v1.1.
