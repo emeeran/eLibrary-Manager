@@ -596,6 +596,57 @@ class BookRepository:
             )
         await self.session.delete(book)
 
+    async def list_series_with_meta(self) -> list[dict]:
+        """Distinct non-hidden, non-deleted series with counts + representative cover.
+
+        Returns ``[{name, count, cover_path, author}]`` ordered by count desc
+        then name. The representative volume is the one with the smallest
+        ``series_index`` (tie-broken by ``id``); selected via a window function
+        so this is a single round-trip. Books with a null series are excluded.
+        """
+        rows = (
+            await self.session.execute(
+                text(
+                    "WITH ranked AS ("
+                    "  SELECT id, series, series_index, cover_path, author,"
+                    "    ROW_NUMBER() OVER ("
+                    "      PARTITION BY series ORDER BY series_index ASC, id ASC"
+                    "    ) AS rn"
+                    "  FROM books"
+                    "  WHERE series IS NOT NULL AND is_hidden = 0 AND is_deleted = 0"
+                    ") "
+                    "SELECT series AS name, COUNT(*) AS count, "
+                    "  MAX(CASE WHEN rn = 1 THEN cover_path END) AS cover_path, "
+                    "  MAX(CASE WHEN rn = 1 THEN author END) AS author "
+                    "FROM ranked "
+                    "GROUP BY series "
+                    "ORDER BY count DESC, series"
+                )
+            )
+        ).all()
+        return [
+            {
+                "name": r.name,
+                "count": int(r.count),
+                "cover_path": r.cover_path,
+                "author": r.author,
+            }
+            for r in rows
+        ]
+
+    async def books_in_series(self, name: str) -> list[Book]:
+        """Books in a series (non-hidden, non-deleted), ordered by series_index."""
+        result = await self.session.execute(
+            select(Book)
+            .where(
+                Book.series == name,
+                Book.is_hidden.is_(False),
+                Book.is_deleted.is_(False),
+            )
+            .order_by(Book.series_index.asc().nullslast(), Book.id.asc())
+        )
+        return list(result.scalars().all())
+
     async def count(self) -> int:
         """Count total books.
 

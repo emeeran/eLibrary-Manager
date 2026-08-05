@@ -1,9 +1,9 @@
 # 011 — Calibre Integration
 
 **Status:** Active  
-**Version:** 1.2.0  
-**Last Updated:** 2026-06-30  
-**Key Files:** `app/services/calibre_sync_service.py`, `app/services/calibre_sync_monitor.py`, `app/routes/calibre.py`, `app/models.py`
+**Version:** 1.3.0  
+**Last Updated:** 2026-08-05  
+**Key Files:** `app/services/calibre_sync_service.py`, `app/services/calibre_sync_monitor.py`, `app/routes/calibre.py`, `app/routes/library.py`, `app/models.py`
 
 ## Overview
 
@@ -131,6 +131,24 @@ always lives on the local filesystem.
   interval. It shares `_active_scans` (skips if a scan is running) and swallows
   per-run errors so the loop survives a bad run.
 
+### Series browse (v1.3)
+
+The series data captured at import (v1.1, AC-19/AC-23) is surfaced as a
+first-class browse surface — a grid of series the reader can drill into.
+
+- **AC-30:** `GET /api/series` returns each distinct, non-hidden, non-deleted
+  series with its book `count` and a representative `cover_path`/`author`
+  (the volume with the smallest `series_index`, tie-broken by `id`), ordered by
+  count descending then name. Books with a null series are excluded.
+- **AC-31:** `GET /api/series/{name}` returns the books in that series
+  (non-hidden, non-deleted) ordered by `series_index` ascending (nulls last),
+  serialized as `BookResponse` items.
+- **AC-32:** An unknown or empty series name returns `200` with an empty list —
+  never a 404 — so the UI can render an empty state.
+- **AC-33:** The library offers a "Series" view mode that renders series cards
+  (name, count, representative cover); selecting a series switches the grid to
+  that series (ordered by `series_index`).
+
 ## Data Model
 
 ```python
@@ -191,6 +209,8 @@ so the importer exercises actual file resolution and cover copying.
 - **Pruning deleted volumes** — done in v1.2 (soft-delete + Deleted view + restore).
 - **Auto-scheduling** — done in v1.2 (`CalibreSyncMonitor`).
 - **Re-categorize on tag change** — done in v1.2 (`update_one` re-categorizes).
+- **Series browse view** — done in v1.3 (`GET /api/series`,
+  `GET /api/series/{name}`, library "Series" view mode).
 - **Custom columns** — generic Calibre `custom_columns` import (series shipped
   first as the 80/20).
 - OPDS feed consumption as an alternative to a local `metadata.db`.

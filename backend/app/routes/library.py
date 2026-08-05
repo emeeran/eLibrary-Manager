@@ -625,6 +625,27 @@ async def list_series(db: AsyncSession = Depends(get_db)) -> list[dict]:
     return [{"name": r[0], "count": int(r[1])} for r in rows]
 
 
+@router.get("/series")
+async def list_series_browse(db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """Series browse grid (spec 011 v1.3, AC-30).
+
+    Returns each series with its book count and a representative cover/author
+    (the smallest-``series_index`` volume), ordered by count desc then name.
+    """
+    return await BookRepository(db).list_series_with_meta()
+
+
+@router.get("/series/{name}", response_model=list[BookResponse])
+async def get_series(name: str, db: AsyncSession = Depends(get_db)) -> list[BookResponse]:
+    """Books in a series ordered by ``series_index`` (spec 011 v1.3, AC-31/AC-32).
+
+    An unknown/empty series returns 200 with an empty list (never 404) so the
+    UI can render an empty state.
+    """
+    books = await BookRepository(db).books_in_series(name)
+    return [BookResponse.model_validate(b) for b in books]
+
+
 @router.get("/books", response_model=BookListResponse)
 async def list_books(
     request: Request,

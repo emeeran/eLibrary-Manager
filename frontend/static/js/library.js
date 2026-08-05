@@ -753,9 +753,88 @@ function setView(view) {
     // Update button states
     document.getElementById('view-grid').classList.toggle('active', view === 'grid');
     document.getElementById('view-table').classList.toggle('active', view === 'table');
+    document.getElementById('view-series').classList.toggle('active', view === 'series');
 
-    // Re-render books with new view
+    if (view === 'series') {
+        loadSeriesView();
+    } else {
+        loadBooks();
+    }
+}
+
+/**
+ * Series browse view (spec 011 v1.3, AC-33). Renders a grid of series cards;
+ * clicking a card drills into that series in grid view, ordered by series_index.
+ */
+async function loadSeriesView() {
+    const grid = document.getElementById('book-grid');
+    grid.className = 'book-grid';
+    showLoading();
+    try {
+        const res = await fetch('/api/series');
+        if (!res.ok) throw new Error('Failed to load series');
+        const series = await res.json();
+        renderSeriesView(series);
+    } catch (e) {
+        console.error('Failed to load series view:', e);
+        grid.innerHTML = `<div class="empty-state empty-state-library" style="grid-column: 1 / -1;">Could not load series.</div>`;
+    }
+}
+
+function renderSeriesView(series) {
+    const grid = document.getElementById('book-grid');
+    grid.className = 'book-grid';
+    hideLoading();
+
+    if (!series.length) {
+        grid.innerHTML = `<div class="empty-state empty-state-library" style="grid-column: 1 / -1;">No series in your library.</div>`;
+        return;
+    }
+
+    const html = series.map(s => {
+        const safeName = escapeHtml(s.name);
+        const safeAuthor = escapeHtml(s.author || '');
+        const cover = s.cover_path
+            ? `<img src="/covers/${encodeURIComponent(String(s.cover_path).split('/').pop())}"
+                   alt="${safeName}"
+                   loading="lazy" class="lazy-image"
+                   onload="this.classList.add('loaded')"
+                   onerror="coverError(this)">`
+            : generatedCover(s.name, s.author);
+        return `
+        <div class="book-card-wrapper" role="listitem">
+            <div class="book-card" data-series-name="${safeName}" tabindex="0" role="button"
+                 aria-label="Open series ${safeName}, ${s.count} books" onclick="openSeries('${safeName.replace(/'/g, "\\'")}')">
+                <div class="book-card-cover">${cover}</div>
+                <div class="book-card-info">
+                    <div class="book-card-title" title="${safeName}">${safeName}</div>
+                    <div class="book-card-author">${safeAuthor || '&nbsp;'}</div>
+                    <div class="book-card-meta"><span class="book-card-format">${s.count} ${s.count === 1 ? 'book' : 'books'}</span></div>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+
+    requestAnimationFrame(() => {
+        grid.innerHTML = html;
+        initializeKeyboardNavigation();
+        const container = document.querySelector('.book-grid-container');
+        if (container) container.offsetHeight;
+    });
+}
+
+/**
+ * Drill into a series: switch to grid view filtered to that series.
+ */
+function openSeries(name) {
+    currentView = 'grid';
+    document.getElementById('view-grid').classList.add('active');
+    document.getElementById('view-table').classList.remove('active');
+    document.getElementById('view-series').classList.remove('active');
+    currentFilters.series = name;
+    currentPage = 1;
     loadBooks();
+    document.querySelector('.book-grid-container')?.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /**

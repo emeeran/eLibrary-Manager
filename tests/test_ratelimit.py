@@ -51,6 +51,7 @@ async def test_rate_limit_blocks_after_threshold(monkeypatch):
 @pytest.mark.asyncio
 async def test_rate_limit_skip_in_testing():
     """Under APP_ENV=testing the limiter is a no-op (no cross-test pollution)."""
+    prior = os.environ.get("APP_ENV")
     os.environ["APP_ENV"] = "testing"
     try:
         from httpx import ASGITransport, AsyncClient
@@ -61,4 +62,10 @@ async def test_rate_limit_skip_in_testing():
             codes = [await ac.post("/api/library/scan") for _ in range(5)]
             assert all(c.status_code == 200 for c in codes)
     finally:
-        os.environ.pop("APP_ENV", None)
+        # Restore prior state rather than unconditionally popping — the rest of
+        # the suite relies on APP_ENV=testing (AuthMiddleware skips auth under
+        # it), and popping it here leaked into later tests.
+        if prior is None:
+            os.environ.pop("APP_ENV", None)
+        else:
+            os.environ["APP_ENV"] = prior
