@@ -440,9 +440,6 @@ class LibraryService:
                 # opens stall the scan in D-state. fast_index stays filename-only
                 # by intent; populate covers later via the reader (on open) or a
                 # "refresh covers" pass. The grid shows generated placeholders until then.
-                # cover_path = await scanner.extract_cover(book_data.path)
-                # if cover_path:
-                #     book_data.cover_path = cover_path
 
                 try:
                     await self.book_repo.create(book_data)
