@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Calibre-Web → eLibrary Manager Reader
 // @namespace    elibrary-manager
-// @version      1.1.0
+// @version      1.2.0
 // @description  Open Calibre-Web's "Read in web browser" books in the local eLibrary Manager reader (by title). Rewrites links + intercepts clicks; same tab.
 // @match        *://calibre-web-em.ashiknesin.com/*
 // @match        *://*.ashiknesin.com/*
