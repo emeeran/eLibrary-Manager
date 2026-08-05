@@ -151,7 +151,7 @@ async def _get_current_epoch() -> int:
             from app.database import db_manager
             from app.repositories import SettingsRepository
 
-            async with db_manager.session_factory() as db:
+            async with db_manager.get_session() as db:
                 repo = SettingsRepository(db)
                 raw = await repo.get(_EPOCH_SETTING_KEY)
                 if raw is None:
@@ -178,7 +178,11 @@ async def _bump_epoch() -> int:
         from app.database import db_manager
         from app.repositories import SettingsRepository
 
-        async with db_manager.session_factory() as db:
+        # Use get_session() (not the raw session_factory()): AsyncSession.__aexit__
+        # only closes, it does not commit. get_session() commits on success so the
+        # bumped epoch actually persists — otherwise logout/password-change
+        # revocation is rolled back and old session tokens stay valid.
+        async with db_manager.get_session() as db:
             repo = SettingsRepository(db)
             raw = await repo.get(_EPOCH_SETTING_KEY)
             new_value = (int(raw) + 1) if raw is not None else 1

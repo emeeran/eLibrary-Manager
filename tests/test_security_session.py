@@ -179,3 +179,52 @@ async def test_csrf_allows_same_origin_post(client):
     # was forwarded to the auth layer (200 on success or 401 on bad creds are
     # both acceptable; only 403 would indicate a CSRF false-positive).
     assert resp.status_code != 403
+
+
+@pytest.mark.asyncio
+async def test_bump_epoch_persists_to_db(monkeypatch):
+    """_bump_epoch must COMMIT the new epoch (regression: logout revocation).
+
+    The real DB-backed path is what performs logout/password-change revocation;
+    the other tests stub it. Previously _bump_epoch opened the session via the
+    raw session_factory(), whose async-with only closes (no commit), so the bump
+    was rolled back and old session tokens stayed valid past the cache TTL.
+    """
+    import app.auth as auth
+    import app.models  # noqa: F401 — register models on Base.metadata
+    from app.database import Base, DatabaseManager
+    from app.repositories import SettingsRepository
+    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy.pool import StaticPool
+
+    # StaticPool keeps a single connection so every session sees the same
+    # :memory: database (otherwise each checkout is a fresh empty DB).
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    try:
+        # Point the module-level db_manager (imported by _bump_epoch) at this engine.
+        test_dm = DatabaseManager()
+        test_dm._engine = engine
+        monkeypatch.setattr("app.database.db_manager", test_dm)
+
+        # Fresh epoch cache so the second bump reads back from the DB.
+        monkeypatch.setattr(auth, "_epoch_cache", {"value": 0, "fetched_at": 0.0})
+
+        first = await auth._bump_epoch()
+        second = await auth._bump_epoch()
+
+        # If the first bump hadn't committed, the second would read None -> 1 again.
+        assert (first, second) == (1, 2)
+
+        # And the value is durably persisted, not just cached.
+        async with test_dm.session_factory() as session:
+            persisted = await SettingsRepository(session).get("session_epoch")
+        assert persisted == "2"
+    finally:
+        await engine.dispose()
+
