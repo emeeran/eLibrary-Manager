@@ -1,7 +1,27 @@
 // Settings Page JavaScript for eBook Manager
 
+/* global apiGet, apiPost, apiFetch, ApiError */
+
 // Current active tab
 let currentTab = "general";
+
+/**
+ * Human-readable message from an ApiError — some endpoints send `detail`
+ * as an object ({error, message}) rather than a plain string.
+ * @param {Error} error
+ * @returns {string}
+ */
+function apiErrorMessage(error) {
+  const detail = error instanceof ApiError ? error.body?.detail : null;
+  if (Array.isArray(detail)) {
+    // FastAPI validation errors arrive as [{loc, msg, type}, ...]
+    return detail.map((d) => d.msg || JSON.stringify(d)).join(", ");
+  }
+  if (detail && typeof detail === "object") {
+    return detail.message || detail.error || JSON.stringify(detail);
+  }
+  return error.message;
+}
 
 /**
  * Initialize settings page
@@ -47,18 +67,19 @@ function switchTab(tabId) {
 async function loadSettings() {
   // Server is source of truth — load from API first
   try {
-    const response = await fetch("/api/settings");
-    if (response.ok) {
-      const serverSettings = await response.json();
-      applySettingsToUI(serverSettings);
-      return;
-    }
-    if (response.status === 401) {
+    const serverSettings = await apiGet("/api/settings");
+    applySettingsToUI(serverSettings);
+    return;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
       window.location.href = "/login";
       return;
     }
-  } catch (error) {
     console.error("Failed to load settings from server:", error);
+    showNotification(
+      "Could not load settings from the server. Showing saved values.",
+      "error",
+    );
   }
 
   // Fallback: load from localStorage if server unavailable
@@ -184,36 +205,21 @@ async function saveSettings(event) {
 
   // Save to server
   try {
-    const response = await fetch("/api/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(settings),
-    });
-
-    if (response.ok) {
-      showNotification("Settings saved successfully!", "success");
-    } else if (response.status === 401) {
+    await apiPost("/api/settings", settings);
+    showNotification("Settings saved successfully!", "success");
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
       // Session expired — redirect to login
       showNotification("Session expired. Redirecting to login...", "warning");
       setTimeout(() => {
         window.location.href = "/login";
       }, 1500);
       return;
-    } else {
-      const errBody = await response.json().catch(() => ({}));
-      const msg = errBody.detail
-        ? Array.isArray(errBody.detail)
-          ? errBody.detail.map((e) => e.msg).join(", ")
-          : String(errBody.detail)
-        : [errBody.error, errBody.message].filter(Boolean).join(": ") ||
-          "Failed to save settings";
-      console.error("Settings save failed:", response.status, errBody);
-      throw new Error(msg);
     }
-  } catch (error) {
     console.error("Failed to save settings:", error);
     showNotification(
-      "Settings saved locally. Could not sync with server: " + error.message,
+      "Settings saved locally. Could not sync with server: " +
+        apiErrorMessage(error),
       "warning",
     );
   } finally {
@@ -354,10 +360,7 @@ async function loadEdgeVoices() {
   voiceSelect.innerHTML = '<option value="">Loading voices...</option>';
 
   try {
-    const response = await fetch("/api/tts/voices?engine=edgetts");
-    if (!response.ok) throw new Error("Failed to load voices");
-
-    const data = await response.json();
+    const data = await apiGet("/api/tts/voices?engine=edgetts");
     const voices = data.voices || [];
 
     voiceSelect.innerHTML = '<option value="">Select a voice...</option>';
@@ -390,6 +393,7 @@ async function loadEdgeVoices() {
   } catch (error) {
     console.error("Failed to load EdgeTTS voices:", error);
     voiceSelect.innerHTML = '<option value="">Failed to load voices</option>';
+    showNotification(`Could not load EdgeTTS voices: ${error.message}`, "error");
   }
 }
 
@@ -401,10 +405,7 @@ async function loadGTVoices() {
   voiceSelect.innerHTML = '<option value="">Loading voices...</option>';
 
   try {
-    const response = await fetch("/api/tts/voices?engine=gtts");
-    if (!response.ok) throw new Error("Failed to load voices");
-
-    const data = await response.json();
+    const data = await apiGet("/api/tts/voices?engine=gtts");
     const voices = data.voices || [];
 
     voiceSelect.innerHTML = '<option value="">Select a language...</option>';
@@ -437,6 +438,7 @@ async function loadGTVoices() {
   } catch (error) {
     console.error("Failed to load gTTS voices:", error);
     voiceSelect.innerHTML = '<option value="">Failed to load voices</option>';
+    showNotification(`Could not load gTTS voices: ${error.message}`, "error");
   }
 }
 
@@ -474,7 +476,8 @@ async function testTTS() {
       const voiceId = voice.replace(`${engine}:`, "");
       const engineName = engine === "edgetts" ? "edgetts" : "gtts";
 
-      const response = await fetch("/api/tts/synthesize", {
+      // apiFetch (not apiPost): the response is an audio blob, not JSON.
+      const response = await apiFetch("/api/tts/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -525,7 +528,12 @@ async function testTTS() {
  * Initialize theme selection
  */
 function initializeThemeSelection() {
-  const savedTheme = localStorage.getItem("reader-theme") || "day";
+  // reader-theme wins; fall back to the app-wide theme so night users aren't
+  // flashed back to day on this page before the API responds.
+  const savedTheme =
+    localStorage.getItem("reader-theme") ||
+    localStorage.getItem("dawnstar_theme") ||
+    "day";
   selectTheme(savedTheme);
 }
 
@@ -533,6 +541,9 @@ function initializeThemeSelection() {
  * Select a theme
  */
 function selectTheme(theme) {
+  // Swatch highlight only: the page chrome follows dawnstar_theme (pre-paint
+  // inline script + theme.js). Applying the reader theme here would flip the
+  // shell after paint whenever the two themes differ.
   document.querySelectorAll(".theme-option").forEach((option) => {
     option.classList.remove("selected");
     if (option.dataset.theme === theme) {
@@ -598,30 +609,16 @@ async function testAIConnection(event) {
   setButtonLoading(btn, true);
 
   try {
-    const response = await fetch("/api/settings/test-ai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ provider, api_key: apiKey }),
+    const result = await apiPost("/api/settings/test-ai", {
+      provider,
+      api_key: apiKey,
     });
-
-    if (response.ok) {
-      const result = await response.json();
-      showNotification(
-        `AI connection successful! Provider: ${result.provider}`,
-        "success",
-      );
-    } else {
-      const error = await response.json();
-      showNotification(
-        `Connection failed: ${error.detail || error.message}`,
-        "error",
-      );
-    }
-  } catch (error) {
     showNotification(
-      "Connection failed. Check your settings and try again.",
-      "error",
+      `AI connection successful! Provider: ${result.provider}`,
+      "success",
     );
+  } catch (error) {
+    showNotification(`Connection failed: ${apiErrorMessage(error)}`, "error");
   } finally {
     setButtonLoading(btn, false);
   }
@@ -635,6 +632,10 @@ async function testNASConnection(event) {
   const originalText = btn.textContent;
   setButtonLoading(btn, true);
 
+  const statusDiv = document.getElementById("nas-status");
+  const statusDot = document.getElementById("nas-status-dot");
+  const statusText = document.getElementById("nas-status-text");
+
   try {
     // First save NAS settings so the test endpoint can use them
     const nasSettings = {
@@ -647,47 +648,26 @@ async function testNASConnection(event) {
       nas_password: document.getElementById("nas-password").value,
     };
 
-    // Save settings first
-    const saveResp = await fetch("/api/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(nasSettings),
-    });
-    if (saveResp.status === 401) {
+    // Save settings first, then test the connection with them
+    await apiPost("/api/settings", nasSettings);
+    const result = await apiPost("/api/settings/test-nas");
+
+    statusDiv.style.display = "block";
+    statusDot.style.backgroundColor = "#4CAF50";
+    statusText.textContent = result.message;
+    showNotification("NAS connection successful!", "success");
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
       showNotification("Session expired. Redirecting to login...", "warning");
       setTimeout(() => {
         window.location.href = "/login";
       }, 1500);
       return;
     }
-
-    // Then test connection
-    const response = await fetch("/api/settings/test-nas", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
-
-    const statusDiv = document.getElementById("nas-status");
-    const statusDot = document.getElementById("nas-status-dot");
-    const statusText = document.getElementById("nas-status-text");
     statusDiv.style.display = "block";
-
-    if (response.ok) {
-      const result = await response.json();
-      statusDot.style.backgroundColor = "#4CAF50";
-      statusText.textContent = result.message;
-      showNotification("NAS connection successful!", "success");
-    } else {
-      const error = await response.json();
-      statusDot.style.backgroundColor = "#f44336";
-      statusText.textContent = error.detail?.message || "Connection failed";
-      showNotification(
-        "NAS connection failed: " + (error.detail?.message || "Unknown error"),
-        "error",
-      );
-    }
-  } catch (error) {
-    showNotification("NAS test failed: " + error.message, "error");
+    statusDot.style.backgroundColor = "#f44336";
+    statusText.textContent = apiErrorMessage(error);
+    showNotification(`NAS connection failed: ${apiErrorMessage(error)}`, "error");
   } finally {
     setButtonLoading(btn, false);
   }
@@ -714,10 +694,9 @@ async function calibreCheckStatus(event) {
     const url =
       "/api/library/calibre-status?path=" +
       encodeURIComponent(input.value.trim());
-    const res = await fetch(url);
-    const data = await res.json();
+    const data = await apiGet(url);
     if (data.valid) {
-      statusText.innerHTML = `<span style="color:#4CAF50;font-weight:600;">✓ Valid Calibre library</span> — ${data.volume_count} volumes found at <code>${data.path}</code>`;
+      statusText.innerHTML = `<span style="color:#4CAF50;font-weight:600;">✓ Valid Calibre library</span> — ${data.volume_count} volumes found at <code>${escapeHtml(data.path)}</code>`;
     } else {
       statusText.innerHTML = `<span style="color:#f44336;font-weight:600;">✗ Not a valid library</span> — ${escapeHtml(data.error || "unknown error")}`;
     }
@@ -748,16 +727,9 @@ async function calibreImport(event) {
 
   let scanId = null;
   try {
-    const res = await fetch("/api/library/import-calibre", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: input.value.trim() }),
+    const data = await apiPost("/api/library/import-calibre", {
+      path: input.value.trim(),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `HTTP ${res.status}`);
-    }
-    const data = await res.json();
     scanId = data.scan_id;
   } catch (e) {
     progressText.innerHTML = `<span style="color:#f44336;">✗ ${escapeHtml(String(e))}</span>`;
@@ -798,59 +770,14 @@ async function calibreImport(event) {
 }
 
 /**
- * Show notification to user (Enhanced with icons and close button)
+ * Show notification to user — delegates to the canonical lib/notify.js
+ * implementation so settings toasts are theme-aware and screen-reader
+ * announced like the library's.
  */
 function showNotification(message, type = "info", duration = 5000) {
-  const notification = document.createElement("div");
-  notification.className = `notification notification-${type}`;
-
-  notification.innerHTML = `
-        <span class="notification-icon"></span>
-        <span class="notification-content">
-            <span class="notification-message">${escapeHtml(message)}</span>
-        </span>
-        <button class="notification-close" aria-label="Close notification">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-        </button>
-    `;
-
-  document.body.appendChild(notification);
-
-  // Close button handler
-  const closeBtn = notification.querySelector(".notification-close");
-  closeBtn.addEventListener("click", () => {
-    dismissNotification(notification);
-  });
-
-  // Trigger animation
-  requestAnimationFrame(() => {
-    notification.classList.add("show");
-  });
-
-  // Auto-dismiss
-  if (duration > 0) {
-    setTimeout(() => {
-      dismissNotification(notification);
-    }, duration);
-  }
-
-  return notification;
-}
-
-/**
- * Dismiss notification with animation
- */
-function dismissNotification(notification) {
-  notification.classList.add("hiding");
-  notification.classList.remove("show");
-
-  setTimeout(() => {
-    if (notification.parentElement) {
-      notification.remove();
-    }
-  }, 400);
+  // window.notify, not window.showNotification: the declaration above rebinds
+  // that global in a classic script, which would recurse into itself.
+  return window.notify(message, { type: type || "info", timeoutMs: duration });
 }
 
 /**
@@ -895,9 +822,7 @@ async function loadPdfViewerStatus() {
   const statusEl = document.getElementById("pdf-viewer-status");
   if (!toggle) return;
   try {
-    const res = await fetch("/api/settings/pdf-viewer");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const state = await res.json();
+    const state = await apiGet("/api/settings/pdf-viewer");
     toggle.checked = state.enabled;
     if (state.available) {
       statusEl.textContent = state.enabled
@@ -908,6 +833,10 @@ async function loadPdfViewerStatus() {
   } catch (err) {
     toggle.disabled = true;
     console.warn("pdf-viewer status unavailable:", err);
+    showNotification(
+      `Desktop PDF viewer status unavailable: ${apiErrorMessage(err)}`,
+      "warning",
+    );
   }
 }
 
@@ -916,18 +845,14 @@ async function handlePdfViewerToggle(event) {
   const enabled = toggle.checked;
   toggle.disabled = true;
   try {
-    const res = await fetch("/api/settings/pdf-viewer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.detail || `HTTP ${res.status}`);
-    }
+    await apiPost("/api/settings/pdf-viewer", { enabled });
   } catch (err) {
     toggle.checked = !enabled; // revert on failure
     console.error("pdf-viewer toggle failed:", err);
+    showNotification(
+      `Could not update the system PDF viewer: ${apiErrorMessage(err)}`,
+      "error",
+    );
   } finally {
     toggle.disabled = false;
     await loadPdfViewerStatus();

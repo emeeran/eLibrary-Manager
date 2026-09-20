@@ -134,29 +134,25 @@ function showError(message) {
 }
 
 /**
- * Show toast message
+ * Show toast message.
+ *
+ * Thin delegate to the canonical lib/notify.js toast (role/aria-live,
+ * theme-aware, dismissible, capped at 3). We call `window.notify` rather than
+ * `window.showToast` because this very declaration overwrites that global —
+ * delegating to it would recurse.
  */
 function showToast(message, options = {}) {
-  let container = document.getElementById("ic-toast-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.id = "ic-toast-container";
-    container.className = "ic-toast-container";
-    document.body.appendChild(container);
-  }
+  return window.notify(message, {
+    type: options.type || "info",
+    timeoutMs: options.timeoutMs != null ? options.timeoutMs : 2500,
+  });
+}
 
-  // Cap at 3 visible toasts
-  while (container.children.length >= 3) {
-    container.firstChild.remove();
-  }
-
-  const toast = document.createElement("div");
-  toast.className = "ic-toast";
-  toast.textContent = message;
-  container.appendChild(toast);
-
-  setTimeout(() => {
-    toast.classList.add("ic-toast-out");
-    setTimeout(() => toast.remove(), 300);
-  }, 2500);
+/**
+ * localStorage key holding the last in-chapter scroll offset for a chapter.
+ * Written by the reader scroll listener (init.js), read back on chapter render
+ * (chapters.js) so reopening a chapter lands where the reader left off.
+ */
+function scrollKey(chapterIndex) {
+  return `reader-scroll:${IcecreamReader.bookId}:${chapterIndex}`;
 }

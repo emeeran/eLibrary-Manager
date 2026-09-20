@@ -135,37 +135,46 @@ function updateTOCHighlight(activeIndex) {
       item.classList.remove("active");
     });
 
-  // Highlight by data-index attribute (matches actual chapter index)
-  const activeItem = document.querySelector(
-    `.ic-chapter-item[data-index="${activeIndex}"]`,
-  );
+  // Prefer matching the rendered chapter title: the spine index the reader
+  // navigates by can be offset from the TOC order when the EPUB has leading
+  // non-chapter items (cover, nav), which made "Chapter 2" highlight
+  // "Chapter 3". Only a unique match counts — repeated titles ("Foreword",
+  // identical PDF page headers) would otherwise highlight the wrong row — and
+  // anything ambiguous falls back to the numeric data-index match.
+  const titleEl = document.getElementById("ic-chapter-title");
+  const title = ((titleEl && titleEl.textContent) || "").trim().toLowerCase();
+  const findByTitle = (selector) => {
+    if (!title) return null;
+    const matches = Array.from(document.querySelectorAll(selector)).filter(
+      (el) => {
+        const label = el.querySelector(".ic-chapter-name, .ic-toc-section-title");
+        return (label || el).textContent.trim().toLowerCase() === title;
+      },
+    );
+    return matches.length === 1 ? matches[0] : null;
+  };
+
+  // Highlight by title, else by data-index attribute (actual chapter index)
+  const activeItem =
+    findByTitle(".ic-chapter-item") ||
+    document.querySelector(`.ic-chapter-item[data-index="${activeIndex}"]`);
   if (activeItem) {
     activeItem.classList.add("active");
     activeItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
     return;
   }
 
-  // Try section headers
-  const activeHeader = document.querySelector(
-    `.ic-toc-section-header[data-index="${activeIndex}"]`,
-  );
+  // Try section headers, expanding the section they lead
+  const activeHeader =
+    findByTitle(".ic-toc-section-header") ||
+    document.querySelector(`.ic-toc-section-header[data-index="${activeIndex}"]`);
   if (activeHeader) {
     activeHeader.classList.add("active");
-    activeHeader.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
-
-  // Highlight section header (for items that are section headers with data-index)
-  const sectionHeader = document.querySelector(
-    `.ic-toc-section-header[data-index="${activeIndex}"]`,
-  );
-  if (sectionHeader) {
-    sectionHeader.classList.add("active");
-    // Expand the parent section
-    const section = sectionHeader.closest(".ic-toc-section");
+    const section = activeHeader.closest(".ic-toc-section");
     if (section) {
       section.classList.remove("collapsed");
     }
-    sectionHeader.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    activeHeader.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 }
 
@@ -288,6 +297,8 @@ function renderChapterData(
       chapterTitleEl.textContent = displayTitle;
       chapterTitleEl.style.display = "block";
     } else {
+      // Hidden, but cleared so a stale title can't drive TOC title matching.
+      chapterTitleEl.textContent = "";
       chapterTitleEl.style.display = "none";
     }
   }
@@ -323,7 +334,15 @@ function renderChapterData(
 
   const readingArea = document.getElementById("ic-reading-area");
   if (readingArea) {
-    readingArea.scrollTop = 0;
+    if (IcecreamReader.pageLayout === "continuous") {
+      readingArea.scrollTop = 0;
+    } else {
+      // Reopen where the reader left off in this chapter. Clamped: the saved
+      // offset may exceed the current height (font/layout changed since).
+      const saved = parseInt(localStorage.getItem(scrollKey(chapterIndex)), 10) || 0;
+      const maxScroll = readingArea.scrollHeight - readingArea.clientHeight;
+      readingArea.scrollTop = Math.max(0, Math.min(saved, maxScroll));
+    }
   }
 
   updateScrollProgress();
@@ -580,8 +599,10 @@ function updateProgress() {
     const chapterPages =
       IcecreamReader.chapterPageCounts[IcecreamReader.currentChapter] || 1;
     const endPage = currentPage + chapterPages - 1;
-    pageNumberEl.textContent =
+    const range =
       chapterPages > 1 ? `${currentPage}-${endPage}` : `${currentPage}`;
+    // "p. " disambiguates the left readout from the "Ch x / y" chapter counter.
+    pageNumberEl.textContent = `p. ${range}`;
   }
 
   if (totalPagesEl) {
@@ -605,7 +626,9 @@ function updateNavButtons() {
       IcecreamReader.currentChapter >= IcecreamReader.totalChapters - 1;
   }
   if (navInfo) {
-    navInfo.textContent = `${IcecreamReader.currentChapter + 1} / ${IcecreamReader.totalChapters}`;
+    // "Ch " prefix: without it the right readout looks like it contradicts the
+    // in-chapter page numbers on the left.
+    navInfo.textContent = `Ch ${IcecreamReader.currentChapter + 1} / ${IcecreamReader.totalChapters}`;
   }
 
   // Rich tooltips on the nav buttons: show the title of the chapter they
@@ -673,6 +696,9 @@ window.addEventListener("beforeunload", () => {
     clearTimeout(IcecreamReader.progressSaveTimeout);
     saveProgressNow(IcecreamReader.currentChapter);
   }
+  // Flush the scroll offset so a last-moment scroll isn't lost (init.js
+  // persists it throttled at ~500ms).
+  if (typeof saveScrollOffset === "function") saveScrollOffset();
 });
 
 /**

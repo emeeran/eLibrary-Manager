@@ -4,9 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eLibrary Manager - Settings</title>
+    <script>
+        // Apply the saved theme before first paint so this page follows the
+        // library/reader instead of staying stuck on the light theme.
+        document.documentElement.dataset.theme =
+            localStorage.getItem("dawnstar_theme") || "day";
+    </script>
     <link rel="stylesheet" href="/static/css/main.css?v=5">
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
     <div class="settings-container">
         <!-- Settings Sidebar -->
         <aside class="settings-sidebar">
@@ -120,7 +128,7 @@
         </aside>
 
         <!-- Settings Content -->
-        <main class="settings-main">
+        <main class="settings-main" id="main-content" tabindex="-1">
             <!-- Header -->
             <header class="settings-header">
                 <h1 class="settings-title">Settings</h1>
@@ -873,6 +881,9 @@
         </main>
     </div>
 
-    <script src="/static/js/settings.js?v=3"></script>
+    <script src="/static/js/theme.js"></script>
+    <script src="/static/js/lib/api.js"></script>
+    <script src="/static/js/lib/notify.js"></script>
+    <script src="/static/js/settings.js?v=4"></script>
 </body>
 </html>

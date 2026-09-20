@@ -11,11 +11,11 @@
 (function () {
   "use strict";
 
-  var CONTAINER_ID = "notify-container";
-  var VISIBLE_CAP = 3;
+  const CONTAINER_ID = "notify-container";
+  const VISIBLE_CAP = 3;
 
   function ensureContainer() {
-    var c = document.getElementById(CONTAINER_ID);
+    let c = document.getElementById(CONTAINER_ID);
     if (!c) {
       c = document.createElement("div");
       c.id = CONTAINER_ID;
@@ -32,49 +32,49 @@
 
   function colors(type) {
     // Theme-aware via CSS vars where the page defines them; readable fallbacks elsewhere.
-    var v = function (name, fb) {
-      var val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const v = (name, fb) => {
+      const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
       return val || fb;
     };
-    var map = {
+    const map = {
       success: ["#1b5e20", "#e8f5e9"],
       error: ["#b71c1c", "#fdecea"],
       warning: ["#8d6e00", "#fff8e1"],
       info: [v("--text-primary", "#1e293b"), v("--content-bg-white", "#ffffff")],
     };
-    var pair = map[type] || map.info;
+    const pair = map[type] || map.info;
     return { fg: pair[0], bg: pair[1] };
   }
 
   function notify(message, opts) {
     opts = opts || {};
-    var type = opts.type || "info";
-    var container = ensureContainer();
+    const type = opts.type || "info";
+    const container = ensureContainer();
 
     while (container.children.length >= VISIBLE_CAP) {
       container.removeChild(container.firstChild);
     }
 
-    var c = colors(type);
-    var el = document.createElement("div");
+    const c = colors(type);
+    const el = document.createElement("div");
     el.setAttribute("role", type === "error" ? "alert" : "status");
     el.setAttribute("aria-live", type === "error" ? "assertive" : "polite");
     el.style.cssText =
-      "pointer-events:auto;display:flex;align-items:center;gap:10px;" +
-      "padding:10px 14px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.18);" +
-      "border:1px solid rgba(0,0,0,.08);font-size:14px;line-height:1.4;" +
-      "color:" + c.fg + ";background:" + c.bg + ";";
+      `pointer-events:auto;display:flex;align-items:center;gap:10px;` +
+      `padding:10px 14px;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.18);` +
+      `border:1px solid rgba(0,0,0,.08);font-size:14px;line-height:1.4;` +
+      `color:${  c.fg  };background:${  c.bg  };`;
 
-    var text = document.createElement("span");
+    const text = document.createElement("span");
     text.textContent = String(message); // textContent — never innerHTML with caller data
     el.appendChild(text);
 
-    var dismiss = function () {
+    const dismiss = () => {
       if (el.parentNode) el.parentNode.removeChild(el);
       if (opts.onClose) opts.onClose();
     };
 
-    var btn = document.createElement("button");
+    const btn = document.createElement("button");
     btn.type = "button";
     btn.setAttribute("aria-label", "Dismiss notification");
     btn.textContent = "×";
@@ -86,7 +86,7 @@
 
     container.appendChild(el);
 
-    var timeoutMs = opts.timeoutMs != null ? opts.timeoutMs : type === "error" ? 6000 : 3000;
+    const timeoutMs = opts.timeoutMs != null ? opts.timeoutMs : type === "error" ? 6000 : 3000;
     if (timeoutMs > 0) setTimeout(dismiss, timeoutMs);
     return dismiss;
   }

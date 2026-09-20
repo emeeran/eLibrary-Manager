@@ -10,6 +10,23 @@
  * declaration + the IcecreamReader state object are available.
  */
 
+/* In-chapter scroll persistence --------------------------------------- */
+
+/**
+ * Persist the current in-chapter scroll offset under scrollKey().
+ *
+ * Continuous layout is skipped: one long scroll spans several chapters, so a
+ * single offset is meaningless there.
+ */
+function saveScrollOffset() {
+  const area = document.getElementById("ic-reading-area");
+  if (!area || IcecreamReader.pageLayout === "continuous") return;
+  localStorage.setItem(
+    scrollKey(IcecreamReader.currentChapter),
+    String(Math.round(area.scrollTop)),
+  );
+}
+
 /**
  * Initialize event listeners
  */
@@ -93,6 +110,7 @@ function initEventListeners() {
   const readingArea = document.getElementById("ic-reading-area");
   if (readingArea) {
     let _scrollTicking = false;
+    let _saveTicking = false;
     readingArea.addEventListener("scroll", () => {
       if (!_scrollTicking) {
         requestAnimationFrame(() => {
@@ -100,6 +118,14 @@ function initEventListeners() {
           _scrollTicking = false;
         });
         _scrollTicking = true;
+      }
+      // Persist the in-chapter scroll offset, throttled to ~500ms.
+      if (!_saveTicking && IcecreamReader.pageLayout !== "continuous") {
+        _saveTicking = true;
+        setTimeout(() => {
+          _saveTicking = false;
+          saveScrollOffset();
+        }, 500);
       }
     });
 

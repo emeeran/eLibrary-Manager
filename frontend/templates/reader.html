@@ -579,8 +579,8 @@
         <!-- Bottom Footer - Icecream Style -->
         <footer class="ic-footer">
             <!-- Page Info -->
-            <div class="ic-footer-left">
-                <span class="ic-page-number" id="ic-page-number">1-2</span>
+            <div class="ic-footer-left" role="group" aria-label="In-chapter page position">
+                <span class="ic-page-number" id="ic-page-number">p. 1-2</span>
                 <span class="ic-page-separator">/</span>
                 <span class="ic-total-pages" id="ic-total-pages">636</span>
                 <span class="ic-footer-chapter-title" id="ic-footer-chapter-title"></span>
@@ -594,11 +594,11 @@
             </div>
 
             <!-- Chapter Navigation -->
-            <div class="ic-footer-right">
+            <div class="ic-footer-right" role="group" aria-label="Chapter position">
                 <button class="ic-nav-btn" id="ic-prev-btn" onclick="goToChapter(IcecreamReader.currentChapter - 1)" title="Previous chapter" disabled>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
                 </button>
-                <span class="ic-nav-info" id="ic-nav-info">1 / 1</span>
+                <span class="ic-nav-info" id="ic-nav-info">Ch 1 / 1</span>
                 <button class="ic-nav-btn" id="ic-next-btn" onclick="goToChapter(IcecreamReader.currentChapter + 1)" title="Next chapter">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
                 </button>
@@ -612,17 +612,18 @@
     <script src="/static/js/lib/dom.js?v=1"></script>
     <script src="/static/js/lib/api.js?v=1"></script>
     <script src="/static/js/lib/storage.js?v=1"></script>
+    <script src="/static/js/lib/notify.js?v=1"></script>
     <script src="/static/js/tts.js"></script>
-    <script src="/static/js/reader/state.js?v=40"></script>
+    <script src="/static/js/reader/state.js?v=41"></script>
     <script src="/static/js/reader/ui.js?v=41"></script>
     <script src="/static/js/reader/settings.js?v=38"></script>
-    <script src="/static/js/reader/chapters.js?v=40"></script>
+    <script src="/static/js/reader/chapters.js?v=41"></script>
     <script src="/static/js/reader/search.js?v=38"></script>
-    <script src="/static/js/reader/annotations.js?v=39"></script>
+    <script src="/static/js/reader/annotations.js?v=40"></script>
     <script src="/static/js/reader/panels.js?v=40"></script>
     <script src="/static/js/reader/summary.js?v=38"></script>
     <script src="/static/js/reader/tts-bridge.js?v=38"></script>
-    <script src="/static/js/reader/init.js?v=40"></script>
+    <script src="/static/js/reader/init.js?v=41"></script>
     <script src="/static/js/reader/globals.js?v=39"></script>
     <script src="/static/js/resize-sidebar.js"></script>
     <script>

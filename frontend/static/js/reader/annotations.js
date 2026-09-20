@@ -97,7 +97,7 @@ async function applyHighlight(color) {
 
   // Save annotation to API
   try {
-    await fetch(`/api/books/${IcecreamReader.bookId}/annotations`, {
+    const response = await fetch(`/api/books/${IcecreamReader.bookId}/annotations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -108,8 +108,10 @@ async function applyHighlight(color) {
         color: color,
       }),
     });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
   } catch (e) {
     console.error("Failed to save annotation:", e);
+    showToast("Failed to save highlight", { type: "error" });
   }
 
   renderNotes();
@@ -141,21 +143,25 @@ async function addSelectionNote() {
 
   // Save annotation with note to API
   try {
-    await fetch(`/api/books/${IcecreamReader.bookId}/annotations`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chapter_index: IcecreamReader.currentChapter,
-        start_position: offsets.start,
-        end_position: offsets.end,
-        text: selectedText,
-        color: "yellow",
-        note: noteText,
-      }),
-    });
+    const annoResponse = await fetch(
+      `/api/books/${IcecreamReader.bookId}/annotations`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chapter_index: IcecreamReader.currentChapter,
+          start_position: offsets.start,
+          end_position: offsets.end,
+          text: selectedText,
+          color: "yellow",
+          note: noteText,
+        }),
+      },
+    );
+    if (!annoResponse.ok) throw new Error(`HTTP ${annoResponse.status}`);
 
     // Also save as a note
-    await fetch(`/api/books/${IcecreamReader.bookId}/notes`, {
+    const noteResponse = await fetch(`/api/books/${IcecreamReader.bookId}/notes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -166,8 +172,10 @@ async function addSelectionNote() {
         quoted_text: selectedText,
       }),
     });
+    if (!noteResponse.ok) throw new Error(`HTTP ${noteResponse.status}`);
   } catch (e) {
     console.error("Failed to save note:", e);
+    showToast("Failed to save note", { type: "error" });
   }
 
   renderNotes();
@@ -353,11 +361,15 @@ async function renderNotes() {
  */
 async function deleteAnnotation(annotationId) {
   try {
-    await fetch(`/api/annotations/${annotationId}`, { method: "DELETE" });
+    const response = await fetch(`/api/annotations/${annotationId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     showToast("Highlight removed");
     loadAnnotations();
   } catch (e) {
     console.error("Failed to delete annotation:", e);
+    showToast("Failed to remove highlight", { type: "error" });
   }
 }
 
@@ -366,11 +378,13 @@ async function deleteAnnotation(annotationId) {
  */
 async function deleteNote(noteId) {
   try {
-    await fetch(`/api/notes/${noteId}`, { method: "DELETE" });
+    const response = await fetch(`/api/notes/${noteId}`, { method: "DELETE" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     showToast("Note deleted");
     renderNotes();
   } catch (e) {
     console.error("Failed to delete note:", e);
+    showToast("Failed to delete note", { type: "error" });
   }
 }
 
@@ -604,10 +618,14 @@ async function renderBookmarks() {
  */
 async function deleteBookmark(bookmarkId) {
   try {
-    await fetch(`/api/bookmarks/${bookmarkId}`, { method: "DELETE" });
+    const response = await fetch(`/api/bookmarks/${bookmarkId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     showToast("Bookmark removed");
     renderBookmarks();
   } catch (e) {
     console.error("Failed to delete bookmark:", e);
+    showToast("Failed to remove bookmark", { type: "error" });
   }
 }

@@ -44,8 +44,12 @@
             box-sizing: border-box;
         }
         .login-card input:focus {
-            outline: none;
             border-color: #533483;
+        }
+        .login-card input:focus-visible,
+        .login-card button:focus-visible {
+            outline: 2px solid #8b5cf6;
+            outline-offset: 2px;
         }
         .login-card button {
             width: 100%;
@@ -68,6 +72,39 @@
             margin-top: 12px;
             display: none;
         }
+        .password-wrap {
+            position: relative;
+        }
+        .password-wrap input {
+            padding-right: 44px;
+        }
+        .login-card .password-toggle {
+            position: absolute;
+            right: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: auto;
+            padding: 6px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            line-height: 0;
+            border-radius: 6px;
+        }
+        .login-card .password-toggle:hover {
+            background: transparent;
+            color: #e0e0e0;
+        }
+        .caps-hint {
+            display: none;
+            color: #f59e0b;
+            font-size: 12px;
+            margin: -10px 0 12px;
+        }
+        .caps-hint.visible {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -76,10 +113,23 @@
             <h1>eLibrary Manager</h1>
             <p>Enter your password to continue</p>
             <form id="loginForm" onsubmit="return handleLogin(event)">
-                <input type="password" id="password" placeholder="Password" autofocus required>
+                <div class="password-wrap">
+                    <input type="password" id="password" placeholder="Password" autocomplete="current-password" autofocus required
+                           onkeydown="updateCapsHint(event)" onkeyup="updateCapsHint(event)">
+                    <button type="button" class="password-toggle" id="passwordToggle" aria-label="Show password" aria-pressed="false" onclick="togglePasswordVisibility()">
+                        <svg id="eyeOpen" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                        <svg id="eyeOff" width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style="display:none;">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                            <path d="M3.5 2.5l18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                </div>
+                <span class="caps-hint" id="capsHint" aria-live="polite"></span>
                 <button type="submit">Sign In</button>
             </form>
-            <div class="login-error" id="loginError">Invalid password</div>
+            <div class="login-error" id="loginError" role="alert">Invalid password</div>
         </div>
     </div>
     <script>
@@ -110,6 +160,26 @@
                 errorEl.style.display = 'block';
             }
             return false;
+        }
+
+        function togglePasswordVisibility() {
+            const input = document.getElementById('password');
+            const btn = document.getElementById('passwordToggle');
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            document.getElementById('eyeOpen').style.display = show ? 'none' : '';
+            document.getElementById('eyeOff').style.display = show ? '' : 'none';
+            btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+            btn.setAttribute('aria-pressed', String(show));
+            input.focus();
+        }
+
+        function updateCapsHint(e) {
+            const on = !!(e.getModifierState && e.getModifierState('CapsLock'));
+            const hint = document.getElementById('capsHint');
+            // Text goes in while visible so the polite live region announces it.
+            hint.textContent = on ? 'Caps Lock is on' : '';
+            hint.classList.toggle('visible', on);
         }
     </script>
 </body>

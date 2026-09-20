@@ -4,10 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eLibrary Manager - Maintenance</title>
+    <script>
+        // Apply the saved theme before first paint so this page follows the
+        // library/reader instead of staying stuck on the light theme.
+        document.documentElement.dataset.theme =
+            localStorage.getItem("dawnstar_theme") || "day";
+    </script>
     <link rel="stylesheet" href="/static/css/main.css?v=5">
     <style>
         .maint-card {
-            background: var(--bg-primary, #fff);
+            background: var(--content-bg-white, #fff);
             border: 1px solid var(--content-border, #e0e0e0);
             border-radius: 12px;
             padding: 20px;
@@ -48,7 +54,7 @@
         .maint-progress {
             width: 100%;
             height: 6px;
-            background: var(--bg-secondary, #f0f0f0);
+            background: var(--content-bg, #f0f0f0);
             border-radius: 3px;
             overflow: hidden;
             margin: 12px 0;
@@ -122,9 +128,9 @@
             display: none;
         }
         .maint-result-box.active { display: block; }
-        .maint-result-success { background: #e8f5e9; border: 1px solid #a5d6a7; }
-        .maint-result-dryrun  { background: #fff8e1; border: 1px solid #ffe082; }
-        .maint-result-error   { background: #ffebee; border: 1px solid #ef9a9a; }
+        .maint-result-success { background: #e8f5e9; border: 1px solid #a5d6a7; color: #1b5e20; }
+        .maint-result-dryrun  { background: #fff8e1; border: 1px solid #ffe082; color: #7a5c00; }
+        .maint-result-error   { background: #ffebee; border: 1px solid #ef9a9a; color: #b71c1c; }
 
         .maint-btn-group {
             display: flex;
@@ -148,7 +154,7 @@
             margin-bottom: 24px;
         }
         .maint-overview-card {
-            background: var(--bg-primary, #fff);
+            background: var(--content-bg-white, #fff);
             border: 1px solid var(--content-border, #e0e0e0);
             border-radius: 10px;
             padding: 16px;
@@ -173,6 +179,8 @@
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
     <div class="settings-container">
         <!-- Sidebar -->
         <aside class="settings-sidebar">
@@ -243,7 +251,7 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="settings-main">
+        <main class="settings-main" id="main-content" tabindex="-1">
             <header class="settings-header">
                 <h1 class="settings-title">Maintenance</h1>
             </header>
@@ -368,7 +376,7 @@
                     </div>
 
                     <div class="maint-btn-group">
-                        <button class="settings-btn settings-btn-primary" onclick="vacuumDb()">Vacuum Database</button>
+                        <button class="settings-btn settings-btn-primary" onclick="confirmAction('vacuumDb')">Vacuum Database</button>
                     </div>
                     <div class="maint-result-box" id="vacuum-result"></div>
                 </div>
@@ -390,6 +398,7 @@
         </main>
     </div>
 
+    <script src="/static/js/theme.js"></script>
     <script>
     // ---- Tab Switching ----
     function switchTab(tab) {
@@ -418,7 +427,14 @@
         el.innerHTML = html;
     }
     function confirmAction(fn, ...args) {
-        if (confirm('This will permanently modify your database. Are you sure?')) {
+        // Destructive actions say what is lost forever; the vacuum only rewrites the file.
+        const messages = {
+            purgeStale: 'Permanently DELETE every missing-file book entry and its bookmarks, notes and annotations? This data will be PERMANENTLY DELETED and cannot be undone.',
+            dedup: 'Permanently DELETE the duplicate book entries marked REMOVE? Those copies will be PERMANENTLY DELETED and cannot be undone.',
+            purgeOrphans: 'Permanently DELETE all orphaned bookmarks, notes and annotations? This data will be PERMANENTLY DELETED and cannot be undone.',
+            vacuumDb: 'Rebuild the database file with VACUUM? This rewrites the DB file and can take a moment on large libraries.'
+        };
+        if (confirm(messages[fn] || 'This will permanently modify your database. Are you sure?')) {
             window[fn](...args);
         }
     }

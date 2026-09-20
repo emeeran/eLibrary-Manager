@@ -1,11 +1,17 @@
 // Library Page JavaScript for eBook Manager
 // Pixel-Perfect Icecream UI Clone
 
+/* global apiGet, apiPost, apiDelete, apiFetch, apiRequest */
+// Globals from the lib/ classic scripts (loaded before this file):
+// api.js (fetch wrappers), notify.js (window.showNotification via the
+// delegating wrapper near the bottom of this file).
+
 let currentPage = 1;
 const pageSize = 24;
 let currentFilters = {};
 let currentView = "grid";
 let totalBooks = 0;
+let loadedCount = 0;
 let isLoadingMore = false;
 
 // Precomputed SVG icons (avoid rebuilding strings per book)
@@ -126,9 +132,7 @@ async function loadContinueReading() {
       sort_by: "last_read",
       sort_order: "desc",
     });
-    const res = await fetch(`/api/books?${params}`);
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await apiGet(`/api/books?${params}`);
     if (!data.books.length) {
       section.hidden = true;
       return;
@@ -161,6 +165,7 @@ async function loadContinueReading() {
     section.hidden = false;
   } catch (e) {
     section.hidden = true;
+    showNotification("Could not load Continue Reading shelf", "error");
   }
 }
 
@@ -201,13 +206,19 @@ async function loadBooks(append = false) {
   }
 
   try {
-    const response = await fetch(`/api/books?${params}`);
-    const data = await response.json();
+    // Reflect the active search/format filters in the URL so a refresh or a
+    // shared link reproduces the view (single choke point: every filter path
+    // funnels through loadBooks).
+    if (!append) syncFiltersToURL();
+
+    const data = await apiGet(`/api/books?${params}`);
 
     totalBooks = data.total;
     contentSnippets = data.content_snippets || null;
     nextCursor = data.next_cursor || null;
+    loadedCount = append ? loadedCount + data.books.length : data.books.length;
     renderBooks(data.books, append);
+    updateResultCount();
     // Fetch sidebar counts independently for better performance
     loadSidebarCounts();
     // The Continue Reading shelf only appears on the default view —
@@ -238,6 +249,46 @@ async function loadMoreBooks() {
   }
   await loadBooks(true);
   isLoadingMore = false;
+}
+
+/**
+ * Show "N books" / "X of N books" next to the toolbar while a search or filter
+ * narrows the grid. Hidden for the unfiltered view (the sidebar counts already
+ * cover it) and for the series view.
+ */
+function updateResultCount() {
+  const el = document.getElementById("result-count");
+  if (!el) return;
+
+  const narrowed = Object.keys(currentFilters).some(
+    (k) => k !== "sort_by" && k !== "sort_order",
+  );
+  if (!narrowed || currentView === "series" || !totalBooks) {
+    el.hidden = true;
+    return;
+  }
+  el.textContent =
+    loadedCount < totalBooks
+      ? `${loadedCount} of ${totalBooks} books`
+      : `${totalBooks} ${totalBooks === 1 ? "book" : "books"}`;
+  el.hidden = false;
+}
+
+/** Write the current search/format filters back to the URL (no history entry). */
+function syncFiltersToURL() {
+  const params = new URLSearchParams(window.location.search);
+  params.delete("search");
+  params.delete("format");
+  if (currentFilters.search) params.set("search", currentFilters.search);
+  if (currentFilters.format_filter) {
+    params.set("format", currentFilters.format_filter);
+  }
+  const qs = params.toString();
+  window.history.replaceState(
+    {},
+    document.title,
+    qs ? `${window.location.pathname}?${qs}` : window.location.pathname,
+  );
 }
 
 /**
@@ -409,29 +460,34 @@ function renderGridView(books, append = false) {
 /**
  * Set book rating (1-5 stars, 0 to clear)
  */
-async function setRating(bookId, rating) {
-  const container = document.querySelector(
-    `.book-card-rating .star[data-book-id="${bookId}"]`,
-  )?.parentElement;
+async function setRating(bookId, rating, starEl) {
+  const container =
+    starEl?.closest(".book-card-rating") ||
+    document.querySelector(
+      `.book-card-rating .star[data-book-id="${bookId}"]`,
+    )?.parentElement;
   if (!container) return;
 
-  // Optimistic update
-  container.querySelectorAll(".star").forEach((s) => {
-    const val = parseInt(s.dataset.value);
-    s.classList.toggle("filled", val <= rating);
-  });
-
-  try {
-    await fetch(`/api/books/${bookId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating }),
+  await withBusy(container, async () => {
+    // Optimistic update
+    container.querySelectorAll(".star").forEach((s) => {
+      const val = parseInt(s.dataset.value);
+      s.classList.toggle("filled", val <= rating);
     });
-  } catch (e) {
-    console.error("Failed to save rating:", e);
-    // Revert on failure
-    loadBooks();
-  }
+
+    try {
+      await apiRequest(`/api/books/${bookId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating }),
+      });
+    } catch (e) {
+      console.error("Failed to save rating:", e);
+      showNotification("Failed to save rating", "error");
+      // Revert on failure
+      loadBooks();
+    }
+  });
 }
 
 /**
@@ -447,14 +503,11 @@ function uploadCover(bookId) {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await fetch(`/api/books/${bookId}/cover`, {
+      // apiRequest (not apiPost): multipart bodies must not get a JSON content-type.
+      await apiRequest(`/api/books/${bookId}/cover`, {
         method: "POST",
         body: formData,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Upload failed");
-      }
       showNotification("Cover updated!", "success");
     } catch (e) {
       showNotification("Failed to upload cover: " + e.message, "error");
@@ -504,7 +557,7 @@ function tableRowHtml(book) {
                             <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
                         </svg>
                     </button>
-                    <button class="table-action-btn" onclick="event.stopPropagation(); toggleFavorite(${book.id})" title="Toggle favorite">
+                    <button class="table-action-btn" onclick="event.stopPropagation(); toggleFavorite(${book.id}, event)" title="Toggle favorite">
                         ${book.is_favorite ? "★" : "☆"}
                     </button>
                     <button class="table-action-btn table-action-delete" onclick="event.stopPropagation(); deleteBook(${book.id}, event)" title="Delete">
@@ -562,10 +615,7 @@ async function loadSidebarCounts() {
   if (now - _sidebarCountsTs < 5000) return;
   _sidebarCountsTs = now;
   try {
-    const resp = await fetch("/api/stats/sidebar");
-    if (resp.ok) {
-      updateCounts(await resp.json());
-    }
+    updateCounts(await apiGet("/api/stats/sidebar"));
   } catch {
     /* non-critical */
   }
@@ -601,9 +651,7 @@ function openBook(bookId) {
  */
 async function openInCalibreWeb(bookId) {
   try {
-    const res = await fetch(`/api/books/${bookId}/calibre-web-url`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    const data = await apiGet(`/api/books/${bookId}/calibre-web-url`);
     if (!data.url) {
       const reason =
         data.reason === "calibre_web_url not configured"
@@ -709,9 +757,7 @@ function toggleRefineSection() {
 
 async function loadSeries() {
   try {
-    const res = await fetch("/api/books/series");
-    if (!res.ok) return;
-    const series = await res.json();
+    const series = await apiGet("/api/books/series");
     const select = document.getElementById("series-filter");
     if (!select) return;
     const current = currentFilters.series || "";
@@ -726,6 +772,7 @@ async function loadSeries() {
     select.value = current;
   } catch (e) {
     console.error("Failed to load series:", e);
+    showNotification("Could not load series list", "error");
   }
 }
 
@@ -754,12 +801,11 @@ function applyRatingFilter(value) {
  */
 async function loadFormats() {
   try {
-    const res = await fetch("/api/library/formats");
-    if (!res.ok) return;
-    _formats = await res.json();
+    _formats = await apiGet("/api/library/formats");
     renderFormatSidebar();
   } catch (e) {
     console.error("Failed to load formats:", e);
+    showNotification("Could not load format list", "error");
   }
 }
 
@@ -841,11 +887,9 @@ async function loadSeriesView() {
   const grid = document.getElementById("book-grid");
   grid.className = "book-grid";
   showLoading();
+  updateResultCount(); // series cards aren't books — hides the count
   try {
-    const res = await fetch("/api/series");
-    if (!res.ok) throw new Error("Failed to load series");
-    const series = await res.json();
-    renderSeriesView(series);
+    renderSeriesView(await apiGet("/api/series"));
   } catch (e) {
     console.error("Failed to load series view:", e);
     grid.innerHTML = `<div class="empty-state empty-state-library" style="grid-column: 1 / -1;">Could not load series.</div>`;
@@ -915,18 +959,17 @@ function openSeries(name) {
 /**
  * Toggle favorite status
  */
-async function toggleFavorite(bookId) {
-  try {
-    const response = await fetch(`/api/books/${bookId}/favorite`, {
-      method: "POST",
-    });
-    if (!response.ok) throw new Error("Failed to toggle favorite");
-
-    // Reload books to update UI
-    loadBooks();
-  } catch (error) {
-    console.error("Failed to toggle favorite:", error);
-  }
+async function toggleFavorite(bookId, event) {
+  await withBusy(event?.target?.closest("button"), async () => {
+    try {
+      await apiPost(`/api/books/${bookId}/favorite`);
+      // Reload books to update UI
+      loadBooks();
+    } catch (error) {
+      console.error("Failed to toggle favorite:", error);
+      showNotification("Failed to update favorite", "error");
+    }
+  });
 }
 
 /**
@@ -934,9 +977,7 @@ async function toggleFavorite(bookId) {
  */
 async function openEditModal(bookId) {
   try {
-    const response = await fetch(`/api/books/${bookId}`);
-    if (!response.ok) throw new Error("Failed to fetch book details");
-    const book = await response.json();
+    const book = await apiGet(`/api/books/${bookId}`);
 
     // Populate edit form
     document.getElementById("edit-book-id").value = book.id;
@@ -976,7 +1017,7 @@ async function saveBookEdits(event) {
   setButtonLoading(event.submitter, true);
 
   try {
-    const response = await fetch(`/api/books/${bookId}`, {
+    await apiRequest(`/api/books/${bookId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -985,11 +1026,6 @@ async function saveBookEdits(event) {
         is_favorite: isFavorite,
       }),
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Failed to update book");
-    }
 
     closeModal("edit-modal");
     showNotification("Book updated successfully", "success");
@@ -1061,6 +1097,25 @@ function validateMinLength(input, minLength, errorMessage) {
 }
 
 /**
+ * Run an async action with its trigger disabled so a double click (or a
+ * second Enter on a form) can't fire it twice. Works for any element: real
+ * buttons get ``disabled``, everything else (e.g. the rating stars) is gated
+ * by ``aria-busy``.
+ */
+async function withBusy(el, fn) {
+  if (!el) return fn();
+  if (el.getAttribute("aria-busy") === "true") return undefined;
+  el.setAttribute("aria-busy", "true");
+  if ("disabled" in el) el.disabled = true;
+  try {
+    return await fn();
+  } finally {
+    el.removeAttribute("aria-busy");
+    if ("disabled" in el) el.disabled = false;
+  }
+}
+
+/**
  * Set button loading state with inline spinner
  */
 function setButtonLoading(button, isLoading) {
@@ -1128,14 +1183,7 @@ async function deleteBookConfirmed(
   originalContent = "",
 ) {
   try {
-    const response = await fetch(`/api/books/${bookId}`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Failed to delete book");
-    }
+    await apiDelete(`/api/books/${bookId}`);
 
     showNotification("Book deleted successfully", "success");
     loadBooks();
@@ -1160,8 +1208,7 @@ async function scanLibrary() {
   document.getElementById("loading-overlay")?.classList.add("scanning");
 
   try {
-    const response = await fetch("/api/library/scan", { method: "POST" });
-    const data = await response.json();
+    const data = await apiPost("/api/library/scan");
 
     if (data.scan_id) {
       trackScanProgress(data.scan_id);
@@ -1251,19 +1298,12 @@ function trackScanProgress(scanId) {
       cancelBtn.classList.add("disabled");
       cancelBtn.textContent = "Cancelling...";
       try {
-        const res = await fetch(`/api/library/scan-cancel/${scanId}`, {
-          method: "POST",
-        });
-        if (!res.ok) {
-          cancelling = false;
-          cancelBtn.classList.remove("disabled");
-          cancelBtn.textContent = "Cancel scan";
-          showNotification("Could not cancel scan", "error");
-        }
+        await apiPost(`/api/library/scan-cancel/${scanId}`);
       } catch (e) {
         cancelling = false;
         cancelBtn.classList.remove("disabled");
         cancelBtn.textContent = "Cancel scan";
+        showNotification("Could not cancel scan", "error");
       }
     };
   }
@@ -1442,43 +1482,36 @@ async function handleUpload(event) {
   showLoading();
   closeModal("upload-modal");
 
-  try {
-    let response;
+  await withBusy(event.submitter, async () => {
+    try {
+      let book;
 
-    if (method === "upload") {
-      // Upload file
-      const formData = new FormData(form);
-      response = await fetch("/api/library/upload", {
-        method: "POST",
-        body: formData,
-      });
-    } else {
-      // Import from path
-      const filePath = form.file_path.value;
-      response = await fetch("/api/library/import-file", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ file_path: filePath }),
-      });
+      if (method === "upload") {
+        // Upload file — apiRequest (not apiPost): multipart must keep its
+        // own content-type boundary.
+        const formData = new FormData(form);
+        book = await apiRequest("/api/library/upload", {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        // Import from path
+        const filePath = form.file_path.value;
+        book = await apiPost("/api/library/import-file", {
+          file_path: filePath,
+        });
+      }
+
+      showNotification(`Successfully added: ${book.title}`, "success");
+      loadBooks();
+    } catch (error) {
+      console.error("Add book error:", error);
+      showError(`Failed to add book: ${error.message}`);
+    } finally {
+      hideLoading();
+      form.reset();
     }
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Operation failed");
-    }
-
-    const book = await response.json();
-    showNotification(`Successfully added: ${book.title}`, "success");
-    loadBooks();
-  } catch (error) {
-    console.error("Add book error:", error);
-    showError(`Failed to add book: ${error.message}`);
-  } finally {
-    hideLoading();
-    form.reset();
-  }
+  });
 }
 
 /**
@@ -1492,39 +1525,28 @@ async function handleImport(event) {
   showLoading("Starting import...");
   closeModal("import-modal");
 
-  try {
-    const response = await fetch("/api/library/import-dir", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ path: path }),
-    });
+  await withBusy(event.submitter, async () => {
+    try {
+      const data = await apiPost("/api/library/import-dir", { path });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Import failed");
-    }
-
-    const data = await response.json();
-
-    if (data.scan_id) {
-      trackScanProgress(data.scan_id);
-    } else {
-      showNotification(
-        `Import complete: ${data.imported || 0} added, ${data.skipped || 0} skipped`,
-        "success",
-      );
+      if (data.scan_id) {
+        trackScanProgress(data.scan_id);
+      } else {
+        showNotification(
+          `Import complete: ${data.imported || 0} added, ${data.skipped || 0} skipped`,
+          "success",
+        );
+        hideLoading();
+        loadBooks();
+      }
+    } catch (error) {
+      console.error("Import error:", error);
+      showError(`Import failed: ${error.message}`);
       hideLoading();
-      loadBooks();
+    } finally {
+      form.reset();
     }
-  } catch (error) {
-    console.error("Import error:", error);
-    showError(`Import failed: ${error.message}`);
-    hideLoading();
-  } finally {
-    form.reset();
-  }
+  });
 }
 
 // ============================================
@@ -1569,15 +1591,9 @@ async function fsBrowse(path) {
     '<div style="padding:12px;color:var(--text-secondary,#999);font-size:13px;">Loading...</div>';
 
   try {
-    const res = await fetch(
+    const dirs = await apiGet(
       `/api/library/browse-fs?path=${encodeURIComponent(path)}`,
     );
-    if (!res.ok) {
-      const err = await res.json();
-      browserEl.innerHTML = `<div style="padding:12px;color:#f87171;font-size:13px;">${escapeHtml(err.detail || "Failed to browse")}</div>`;
-      return;
-    }
-    const dirs = await res.json();
 
     let html = "";
     // Parent directory link (if not at root)
@@ -1610,8 +1626,7 @@ async function fsBrowse(path) {
     browserEl.innerHTML = html;
   } catch (e) {
     console.error("FS browse error:", e);
-    browserEl.innerHTML =
-      '<div style="padding:12px;color:#f87171;font-size:13px;">Failed to browse filesystem</div>';
+    browserEl.innerHTML = `<div style="padding:12px;color:#f87171;font-size:13px;">${escapeHtml(e.message || "Failed to browse filesystem")}</div>`;
   }
 }
 
@@ -1648,32 +1663,25 @@ async function fsIndexSelected() {
   showLoading("Indexing directory...");
   closeModal("import-modal");
 
-  try {
-    const response = await fetch("/api/library/index-local-dir", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ path: _fsSelectedPath }),
-    });
+  await withBusy(document.getElementById("fs-index-btn"), async () => {
+    try {
+      const data = await apiPost("/api/library/index-local-dir", {
+        path: _fsSelectedPath,
+      });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Index failed");
-    }
-
-    const data = await response.json();
-
-    if (data.scan_id) {
-      trackScanProgress(data.scan_id);
-    } else {
-      showNotification(`Index complete`, "success");
+      if (data.scan_id) {
+        trackScanProgress(data.scan_id);
+      } else {
+        showNotification(`Index complete`, "success");
+        hideLoading();
+        loadBooks();
+      }
+    } catch (error) {
+      console.error("Index error:", error);
+      showError(`Index failed: ${error.message}`);
       hideLoading();
-      loadBooks();
     }
-  } catch (error) {
-    console.error("Index error:", error);
-    showError(`Index failed: ${error.message}`);
-    hideLoading();
-  }
+  });
 }
 
 /**
@@ -1790,13 +1798,19 @@ function showError(message) {
 }
 
 /**
- * Show notification (Enhanced with icon, close button, auto-dismiss, progress bar, and actions)
+ * Show notification. Thin wrapper over the canonical lib/notify.js toast
+ * (loaded before this file), which owns the a11y roles, theming, capping and
+ * auto-dismiss. Signature preserved for the existing call sites.
+ *
+ * Delegates to window.notify (not window.showNotification): this file's own
+ * top-level declaration of the same name replaces notify.js's global binding,
+ * so calling that would recurse into this wrapper.
+ *
  * @param {string} message - The notification message
  * @param {string} type - Notification type: 'success', 'error', 'warning', 'info'
- * @param {number} duration - Auto-dismiss duration in ms (0 to disable)
- * @param {Object} options - Additional options
- * @param {boolean} options.showProgress - Show progress bar
- * @param {Array} options.actions - Array of action buttons: [{label, onClick, primary}]
+ * @param {number} duration - Auto-dismiss duration in ms (0 = stay until dismissed)
+ * @param {Object} options - Extra options (onClose); showProgress/actions are
+ *   no longer supported — lib/notify.js renders one message per toast.
  */
 function showNotification(
   message,
@@ -1804,130 +1818,11 @@ function showNotification(
   duration = 5000,
   options = {},
 ) {
-  const { showProgress = false, actions = [] } = options;
-
-  // Ensure notification container exists
-  let container = document.querySelector(".notification-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.className = "notification-container";
-    container.setAttribute("role", "status");
-    container.setAttribute("aria-live", "polite");
-    container.setAttribute("aria-atomic", "true");
-    document.body.appendChild(container);
-  }
-
-  const notification = document.createElement("div");
-  notification.className = `notification notification-${type}`;
-  notification.setAttribute("role", type === "error" ? "alert" : "status");
-  notification.setAttribute(
-    "aria-live",
-    type === "error" ? "assertive" : "polite",
-  );
-
-  // Build notification HTML
-  let html = `
-        <span class="notification-icon"></span>
-        <span class="notification-content">
-            <span class="notification-message">${escapeHtml(message)}</span>
-            ${
-              actions.length > 0
-                ? `
-                <div class="notification-actions">
-                    ${actions
-                      .map(
-                        (action) => `
-                        <button class="notification-action-btn ${action.primary ? "notification-action-btn-primary" : "notification-action-btn-secondary"}"
-                                data-action-index="${actions.indexOf(action)}">
-                            ${escapeHtml(action.label)}
-                        </button>
-                    `,
-                      )
-                      .join("")}
-                </div>
-            `
-                : ""
-            }
-        </span>
-        <button class="notification-close" aria-label="Close notification">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-            </svg>
-        </button>
-        ${
-          showProgress
-            ? `
-            <div class="notification-progress">
-                <div class="notification-progress-fill"></div>
-            </div>
-        `
-            : ""
-        }
-    `;
-
-  notification.innerHTML = html;
-  container.appendChild(notification);
-
-  // Close button handler
-  const closeBtn = notification.querySelector(".notification-close");
-  closeBtn.addEventListener("click", () => {
-    dismissNotification(notification);
+  return window.notify(message, {
+    type: type || "info",
+    timeoutMs: duration,
+    onClose: options.onClose,
   });
-
-  // Action button handlers
-  if (actions.length > 0) {
-    const actionButtons = notification.querySelectorAll(
-      ".notification-action-btn",
-    );
-    actionButtons.forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        const index = parseInt(e.target.dataset.actionIndex);
-        if (actions[index]?.onClick) {
-          actions[index].onClick();
-        }
-        dismissNotification(notification);
-      });
-    });
-  }
-
-  // Progress bar animation
-  let progressFill;
-  let progressAnimation;
-  if (showProgress && duration > 0) {
-    progressFill = notification.querySelector(".notification-progress-fill");
-    progressFill.style.transition = `transform ${duration}ms linear`;
-    requestAnimationFrame(() => {
-      progressFill.style.transform = "scaleX(0)";
-    });
-  }
-
-  // Trigger animation
-  requestAnimationFrame(() => {
-    notification.classList.add("show");
-  });
-
-  // Auto-dismiss
-  if (duration > 0) {
-    setTimeout(() => {
-      dismissNotification(notification);
-    }, duration);
-  }
-
-  return notification;
-}
-
-/**
- * Dismiss notification with animation
- */
-function dismissNotification(notification) {
-  notification.classList.add("hiding");
-  notification.classList.remove("show");
-
-  setTimeout(() => {
-    if (notification.parentElement) {
-      notification.remove();
-    }
-  }, 400);
 }
 
 /**
@@ -2087,7 +1982,10 @@ function initializeFiltersFromURL() {
 
   if (urlParams.has("format")) {
     currentFilters.format_filter = urlParams.get("format");
-    document.getElementById("format-filter").value = urlParams.get("format");
+    // The format facet lives in the sidebar list (no #format-filter select on
+    // this page) — guard so a ?format= deep link can't abort initialization.
+    const formatSelect = document.getElementById("format-filter");
+    if (formatSelect) formatSelect.value = urlParams.get("format");
   }
 }
 
@@ -2110,23 +2008,20 @@ function initializeCalibreDeepLinkNotice() {
   const clean = urlParams.toString();
   window.history.replaceState({}, document.title, clean ? `/?${clean}` : "/");
 
-  const toast = document.createElement("div");
-  toast.style.cssText =
-    "position:fixed;bottom:24px;right:24px;background:#1e293b;color:#f1f5f9;" +
-    "padding:16px 20px;border-radius:12px;z-index:10000;min-width:320px;max-width:420px;" +
-    "box-shadow:0 8px 32px rgba(0,0,0,0.3);font-size:13px;line-height:1.4;";
+  // Routed through the shared toast so it follows the active theme.
   if (hidden) {
-    toast.innerHTML =
-      '<div style="font-weight:600;margin-bottom:4px;">Book is hidden</div>' +
-      "<div>The book you tried to open is hidden in eLibrary Manager.</div>";
+    showNotification(
+      "Book is hidden — the book you tried to open is hidden in eLibrary Manager.",
+      "warning",
+      8000,
+    );
   } else {
-    toast.innerHTML =
-      '<div style="font-weight:600;margin-bottom:4px;">Calibre book not imported</div>' +
-      "<div>This Calibre book isn’t in your eLM library yet. Run a Calibre import to read it here.</div>" +
-      '<a href="/settings" style="display:inline-block;margin-top:10px;color:#60a5fa;text-decoration:none;font-weight:600;">Open Settings →</a>';
+    showNotification(
+      "Calibre book not imported — this Calibre book isn’t in your eLM library yet. Run a Calibre import, or open Settings → Calibre.",
+      "warning",
+      8000,
+    );
   }
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 8000);
 }
 
 // ============================================
@@ -2313,7 +2208,11 @@ function initializeGridDelegation() {
     const star = e.target.closest(".star[data-book-id]");
     if (star) {
       e.stopPropagation();
-      setRating(parseInt(star.dataset.bookId), parseInt(star.dataset.value));
+      setRating(
+        parseInt(star.dataset.bookId),
+        parseInt(star.dataset.value),
+        star,
+      );
       return;
     }
 
@@ -2485,12 +2384,11 @@ function toggleCategorySection() {
  */
 async function loadCategories() {
   try {
-    const res = await fetch("/api/categories");
-    if (!res.ok) return;
-    _categories = await res.json();
+    _categories = await apiGet("/api/categories");
     renderCategorySidebar();
   } catch (e) {
     console.error("Failed to load categories:", e);
+    showNotification("Could not load categories", "error");
   }
 }
 
@@ -2508,7 +2406,7 @@ function renderCategorySidebar() {
             <span class="category-dot" style="background:${cat.color}"></span>
             <span class="category-name">${escapeHtml(cat.name)}</span>
             <span class="nav-item-count">${cat.book_count}</span>
-            <button class="category-delete-btn" onclick="event.stopPropagation(); deleteCategory(${cat.id})" title="Delete category">
+            <button class="category-delete-btn" onclick="event.stopPropagation(); deleteCategory(${cat.id}, event)" title="Delete category">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
             </button>
         </div>
@@ -2556,15 +2454,7 @@ async function createCategoryPrompt() {
   const color = colors[Math.floor(Math.random() * colors.length)];
 
   try {
-    const res = await fetch("/api/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), color }),
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || "Failed to create category");
-    }
+    await apiPost("/api/categories", { name: name.trim(), color });
     showNotification("Category created!", "success");
     loadCategories();
   } catch (e) {
@@ -2575,21 +2465,26 @@ async function createCategoryPrompt() {
 /**
  * Delete a category
  */
-async function deleteCategory(categoryId) {
+async function deleteCategory(categoryId, event) {
+  // Read the trigger while the event is still dispatching (confirm() below is
+  // synchronous, but currentTarget is cleared once dispatch ends).
+  const button = event?.target?.closest("button") || null;
   const cat = _categories.find((c) => c.id === categoryId);
   if (!confirm(`Delete category "${cat?.name || "this category"}"?`)) return;
 
-  try {
-    await fetch(`/api/categories/${categoryId}`, { method: "DELETE" });
-    showNotification("Category deleted", "success");
-    if (currentFilters.category_id === categoryId) {
-      delete currentFilters.category_id;
-      loadBooks();
+  await withBusy(button, async () => {
+    try {
+      await apiDelete(`/api/categories/${categoryId}`);
+      showNotification("Category deleted", "success");
+      if (currentFilters.category_id === categoryId) {
+        delete currentFilters.category_id;
+        loadBooks();
+      }
+      loadCategories();
+    } catch (e) {
+      showNotification(e.message || "Failed to delete category", "error");
     }
-    loadCategories();
-  } catch (e) {
-    showNotification("Failed to delete category", "error");
-  }
+  });
 }
 
 /**
@@ -2636,22 +2531,19 @@ async function showCategoryMenu(bookId, event) {
 
   // Load current assignments
   try {
-    const res = await fetch(`/api/books/${bookId}`);
-    if (res.ok) {
-      const book = await res.json();
-      const assigned = new Set(
-        (book.categories || [])
-          .map((name) => {
-            const cat = _categories.find((c) => c.name === name);
-            return cat?.id;
-          })
-          .filter(Boolean),
-      );
+    const book = await apiGet(`/api/books/${bookId}`);
+    const assigned = new Set(
+      (book.categories || [])
+        .map((name) => {
+          const cat = _categories.find((c) => c.name === name);
+          return cat?.id;
+        })
+        .filter(Boolean),
+    );
 
-      menu.querySelectorAll("input[data-category-id]").forEach((input) => {
-        input.checked = assigned.has(parseInt(input.dataset.categoryId));
-      });
-    }
+    menu.querySelectorAll("input[data-category-id]").forEach((input) => {
+      input.checked = assigned.has(parseInt(input.dataset.categoryId));
+    });
   } catch (e) {
     /* ignore */
   }
@@ -2663,14 +2555,13 @@ async function showCategoryMenu(bookId, event) {
         (i) => parseInt(i.dataset.categoryId),
       );
       try {
-        await fetch(`/api/books/${bookId}/categories`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ category_ids: checked }),
+        await apiPost(`/api/books/${bookId}/categories`, {
+          category_ids: checked,
         });
         loadCategories();
       } catch (e) {
         console.error("Failed to update categories:", e);
+        showNotification("Failed to update categories", "error");
       }
     });
   });
@@ -2705,8 +2596,8 @@ function toggleDirectorySection() {
 }
 
 // Directory tree state
-let _dirChildren = new Map(); // path -> children array
-let _dirExpanded = new Set(); // set of expanded paths
+const _dirChildren = new Map(); // path -> children array
+const _dirExpanded = new Set(); // set of expanded paths
 let _dirIdCounter = 0;
 
 /**
@@ -2714,12 +2605,11 @@ let _dirIdCounter = 0;
  */
 async function loadDirectories() {
   try {
-    const res = await fetch("/api/library/directories");
-    if (!res.ok) return;
-    _directories = await res.json();
+    _directories = await apiGet("/api/library/directories");
     renderDirectorySidebar();
   } catch (e) {
     console.error("Failed to load directories:", e);
+    showNotification("Could not load directories", "error");
   }
 }
 
@@ -2808,26 +2698,21 @@ async function toggleDirExpand(path, arrowEl) {
   // Lazy load children if not yet fetched
   if (!_dirChildren.has(path)) {
     try {
-      const res = await fetch(
+      const children = await apiGet(
         `/api/library/directories?parent=${encodeURIComponent(path)}`,
       );
-      if (res.ok) {
-        const children = await res.json();
-        _dirChildren.set(path, children);
+      _dirChildren.set(path, children);
 
-        if (!childrenDiv && children.length > 0) {
-          // Create children container
-          childrenDiv = document.createElement("div");
-          childrenDiv.className = "dir-children";
-          const header = node.querySelector(":scope > .directory-header");
-          header.after(childrenDiv);
-        }
-        if (childrenDiv) {
-          childrenDiv.innerHTML = children
-            .map((c) => _renderDirNode(c))
-            .join("");
-          childrenDiv.classList.remove("hidden");
-        }
+      if (!childrenDiv && children.length > 0) {
+        // Create children container
+        childrenDiv = document.createElement("div");
+        childrenDiv.className = "dir-children";
+        const header = node.querySelector(":scope > .directory-header");
+        header.after(childrenDiv);
+      }
+      if (childrenDiv) {
+        childrenDiv.innerHTML = children.map((c) => _renderDirNode(c)).join("");
+        childrenDiv.classList.remove("hidden");
       }
     } catch (e) {
       console.error("Failed to load directory children:", e);
@@ -2871,8 +2756,7 @@ let _hiddenAction = null; // {mode: 'hide'|'unhide', bookId:int, input:HTMLInput
 async function initHiddenBooks() {
   // Show the sidebar "Hidden" nav item whenever any books are hidden.
   try {
-    const res = await fetch("/api/hidden/status");
-    const data = await res.json();
+    const data = await apiGet("/api/hidden/status");
     const navItem = document.getElementById("nav-hidden");
     if (navItem)
       navItem.style.display = data.hidden_count > 0 ? "flex" : "none";
@@ -2929,23 +2813,14 @@ async function submitHiddenPassword() {
       ? `/api/books/${bookId}/hide`
       : `/api/books/${bookId}/unhide`;
   try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showNotification(data.detail || "Failed", "error");
-      return;
-    }
+    const data = await apiPost(endpoint, { password });
     closeModal("hidden-password-modal");
     _hiddenAction = null;
     showNotification(data.message, "success");
     loadBooks();
     initHiddenBooks();
   } catch (e) {
-    showNotification("Failed to update hidden status", "error");
+    showNotification(e.message || "Failed to update hidden status", "error");
   }
 }
 
@@ -2955,15 +2830,10 @@ async function submitHiddenPassword() {
  */
 async function toggleBookHidden(bookId) {
   try {
-    const res = await fetch(`/api/books/${bookId}`);
-    if (!res.ok) {
-      showNotification("Book not found", "error");
-      return;
-    }
-    const book = await res.json();
+    const book = await apiGet(`/api/books/${bookId}`);
     _openHiddenModal(book.is_hidden ? "unhide" : "hide", bookId);
   } catch (e) {
-    showNotification("Failed to check book status", "error");
+    showNotification(e.message || "Failed to check book status", "error");
   }
 }
 
@@ -2971,7 +2841,8 @@ async function toggleBookHidden(bookId) {
  * Bulk admin reset: remove every hidden-book password and unhide all books.
  * Triggered by the "Forgot a password?" link in the unhide modal.
  */
-async function unhideAllBooks() {
+async function unhideAllBooks(event) {
+  const button = event?.target?.closest("button") || null;
   if (
     !confirm(
       "This will remove the password from EVERY hidden book and unhide them all.\n\n" +
@@ -2979,21 +2850,18 @@ async function unhideAllBooks() {
     )
   )
     return;
-  try {
-    const res = await fetch("/api/hidden/unhide-all", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok) {
-      showNotification(data.detail || "Failed to reset", "error");
-      return;
+  await withBusy(button, async () => {
+    try {
+      const data = await apiPost("/api/hidden/unhide-all");
+      closeModal("hidden-password-modal");
+      _hiddenAction = null;
+      showNotification(data.message, "success");
+      loadBooks();
+      initHiddenBooks();
+    } catch (e) {
+      showNotification(e.message || "Failed to unhide all books", "error");
     }
-    closeModal("hidden-password-modal");
-    _hiddenAction = null;
-    showNotification(data.message, "success");
-    loadBooks();
-    initHiddenBooks();
-  } catch (e) {
-    showNotification("Failed to unhide all books", "error");
-  }
+  });
 }
 
 async function autoCategorizeAll() {
@@ -3024,7 +2892,8 @@ async function autoCategorizeAll() {
   toast.style.display = "block";
 
   try {
-    const res = await fetch("/api/library/auto-categorize-stream");
+    // Streaming response — apiFetch (not apiRequest) so the body stays a stream.
+    const res = await apiFetch("/api/library/auto-categorize-stream");
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -3114,14 +2983,7 @@ async function loadReadingStats() {
   if (!container) return;
 
   try {
-    const resp = await fetch("/api/stats/reading");
-    if (!resp.ok) {
-      container.innerHTML =
-        '<div class="stats-loading">Failed to load stats</div>';
-      return;
-    }
-    const stats = await resp.json();
-    renderStats(container, stats);
+    renderStats(container, await apiGet("/api/stats/reading"));
   } catch (e) {
     console.error("Failed to load reading stats:", e);
     container.innerHTML =
