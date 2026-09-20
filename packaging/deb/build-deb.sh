@@ -59,8 +59,21 @@ mkdir -p "$PKG_DIR/usr/lib/systemd/system"
 # --- Step 3: Create clean venv ---
 echo "[3/12] Creating clean virtual environment..."
 cd "$PROJECT_ROOT"
-# Build a fresh venv with only production dependencies
-uv venv "$INSTALL_ROOT/.venv" --python 3.12 --clear
+# Build a fresh venv with only production dependencies.
+# Pin the SYSTEM python3.12 — the interpreter the launcher symlinks to.
+# Bare `--python 3.12` can resolve to uv's managed standalone CPython, whose
+# pyvenv.cfg `home` redirects stdlib/lib-dynload lookup away from /usr; the
+# Debian binary then can't find shared stdlib modules at service start
+# (observed: ModuleNotFoundError: _contextvars → crash loop). An explicit
+# path forces the system interpreter and keeps home = /usr/bin.
+SYSTEM_PY="/usr/bin/python3.12"
+if [ -x "$SYSTEM_PY" ]; then
+    uv venv "$INSTALL_ROOT/.venv" --python "$SYSTEM_PY" --clear
+else
+    echo "  WARNING: $SYSTEM_PY not found — falling back to uv-managed 3.12"
+    echo "  (only safe if the target system uses the same interpreter layout)"
+    uv venv "$INSTALL_ROOT/.venv" --python 3.12 --clear
+fi
 
 # Export production-only requirements (no dev deps, no hashes)
 REQUIREMENTS_FILE=$(mktemp)
