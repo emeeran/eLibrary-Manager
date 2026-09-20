@@ -1,8 +1,8 @@
 # SPEC-008: File Parsers
 
 - **Status:** Active
-- **Version:** 1.0.0
-- **Last Updated:** 2026-04-15
+- **Version:** 1.1.0
+- **Last Updated:** 2026-09-20
 - **Depends On:** None (foundational spec)
 
 ## Purpose
@@ -225,7 +225,7 @@ File Parsers provide the foundational content extraction layer for eLibrary Mana
 **Given** a valid PDF file with at least one page
 **When** `PDFParser.extract_cover(pdf_path)` is called
 **Then** it opens the file with PyMuPDF (`fitz.open`)
-**And** it renders page 0 with a 2x zoom matrix (`fitz.Matrix(2, 2)`)
+**And** it renders page 0 with a 2x zoom matrix, clamped per AC-008.46
 **And** it converts the pixmap to a PIL `Image` in RGB mode
 **And** it resizes to fit within 600x900 using `Image.thumbnail()` with `LANCZOS` resampling
 **And** it generates a filename using the first 32 hex chars of `SHA256(pdf_path.encode())`
@@ -413,6 +413,28 @@ File Parsers provide the foundational content extraction layer for eLibrary Mana
 **When** `SUPPORTED_FORMAT` is accessed
 **Then** `EPUBParser` returns `"EPUB"`, `PDFParser` returns `"PDF"`, `MOBIParser` returns `"MOBI"`
 
+#### AC-008.46: PDF Render Dimension Cap
+
+**Given** a PDF page whose dimensions exceed `MAX_RENDER_PX` (2048) on its longest edge at the requested zoom
+**When** a pixmap render is requested (`extract_cover` 2x render, or `render_page_as_image` at caller-supplied DPI)
+**Then** the render matrix is scaled down proportionally so the longest output edge equals `MAX_RENDER_PX`
+**And** pages already within the cap render at the requested zoom unchanged
+**And** a degenerate zero-size page does not divide by zero
+
+#### AC-008.47: PDF Document Handles Closed on Failure
+
+**Given** any exception occurs while a PDF document is open in `PDFParser` (corrupt file, render failure, invalid page index)
+**When** the method exits (normally or via exception)
+**Then** the document handle is closed via the `with fitz.open(...)` context manager — no FD/memory leak on long-running deployments
+
+#### AC-008.48: Directory Enumeration Is Non-Blocking
+
+**Given** a library on a slow network mount (CIFS/autofs) where `os.scandir` can stall for seconds per directory
+**When** `fast_index_directory` enumerates a directory
+**Then** the `os.scandir` walk runs in `asyncio.to_thread`, never on the event loop
+**And** concurrent requests are not frozen while a directory is being enumerated
+**And** the optional `progress_callback` still fires on the event loop as 50-file boundaries are crossed
+
 ---
 
 ## API Contract
@@ -524,6 +546,8 @@ DawnstarError:
 | AC-008.21: PDF metadata from document info | — | — | GAP |
 | AC-008.22: PDF metadata filename fallback | — | — | GAP |
 | AC-008.24: PDF cover from first page render | — | — | GAP |
+| AC-008.46: Render matrix clamp | `tests/test_parsers.py` | `test_render_matrix_clamped_for_huge_pages`, `test_render_matrix_ignores_zero_rect` | Covered |
+| AC-008.48: Non-blocking directory enumeration | `tests/test_scanner.py` | existing fast-index tests (behavioral, exercised) | Covered |
 | AC-008.27: PDF chapter formatting (headings, bold, italic, indent) | — | — | GAP |
 | AC-008.30: PDF TOC from bookmarks | — | — | GAP |
 | AC-008.33: MOBI DRM detection | — | — | GAP |

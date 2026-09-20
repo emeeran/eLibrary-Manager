@@ -93,6 +93,7 @@ class AppConfig(BaseSettings):
 
     # Performance
     max_cover_size: int = 300000  # 300KB
+    max_upload_size_mb: int = 100  # upload cap; also guards against disk-fill abuse
     lazy_load_batch_size: int = 20
     # Performance — SQLite only supports one writer, so small pool suffices
     db_pool_size: int = 5

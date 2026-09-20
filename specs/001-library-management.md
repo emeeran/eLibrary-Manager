@@ -1,8 +1,8 @@
 # SPEC-001: Library Management
 
 - **Status:** Active
-- **Version:** 1.0.0
-- **Last Updated:** 2026-04-15
+- **Version:** 1.1.0
+- **Last Updated:** 2026-09-20
 - **Depends On:** SPEC-008 (File Parsers)
 
 ## Purpose
@@ -123,6 +123,29 @@ Library Management is the core feature of eLibrary Manager. It provides all capa
 **When** the import raises an exception
 **Then** the system deletes the partially saved file from the uploads directory
 **And** returns HTTP `500` with detail `"Upload failed: {error_message}"`
+
+### AC-001.16: Upload Exceeds Size Limit
+
+**Given** `max_upload_size_mb` is configured (default `100`)
+**When** a multipart upload's streamed size exceeds that limit mid-write
+**Then** the write is aborted, the partial file is deleted
+**And** the route returns HTTP `413` with detail `"Upload exceeds {max_upload_size_mb} MB limit"`
+
+### AC-001.17: Upload Content Does Not Match Extension
+
+**Given** an uploaded file whose extension is `.epub`/`.pdf`/`.mobi` but whose leading bytes do not match the format's magic signature (`PK\x03\x04`, `%PDF` within the first 1KB, `BOOKMOBI` at offset 60 respectively)
+**When** `POST /api/library/upload` completes the bounded write
+**Then** the file is deleted and the route returns HTTP `415` with detail `"File content does not match its extension"`
+**And** the payload never reaches the format parsers
+
+### AC-001.18: Health Probe Reports Dependency Failures
+
+**Given** the process is running but a required dependency is unavailable
+**When** `GET /api/health` is called
+**Then** the probe checks the database (`SELECT 1`) always, and the NAS mount when a backend is configured
+**And** a healthy response is HTTP `200` with `{ "status": "ok", "db": true, "nas": <bool|null> }`
+**And** a failed check yields HTTP `503` with `{ "status": "degraded", ... }` so orchestrators can detect a running-but-degraded process
+**And** AI providers are not probed (external network calls must not flap service health)
 
 ### AC-001.16: Refresh Covers (Missing Only)
 
@@ -513,7 +536,9 @@ Key constraints:
 | AC-001.02 Scan nonexistent directory | `tests/test_scanner.py` | `test_scanner_nonexistent_directory` | Covered |
 | AC-001.01 Scan library (happy path) | `tests/test_api.py` | `test_library_scan` | Covered |
 | AC-001.44 Library statistics | `tests/test_api.py` | `test_library_stats` | Covered |
-| Health check (infra) | `tests/test_api.py` | `test_health_check` | Covered |
+| Health check (infra) | `tests/test_uploads.py` | `test_health_ok_with_db`, `test_health_degraded_when_db_down`, `test_health_degraded_when_nas_down` | Covered |
+| AC-001.16 Upload size limit | `tests/test_uploads.py` | `test_upload_rejects_oversized_file` | Covered |
+| AC-001.17 Upload magic-byte sniff | `tests/test_uploads.py` | `test_upload_rejects_misnamed_payload` + `test_*_magic_*` unit tests | Covered |
 | Scanner format detection | `tests/test_scanner.py` | `test_scanner_format_detection` | Covered |
 | EPUB parser initialization | `tests/test_scanner.py` | `test_epub_parser_metadata_extraction` | Covered |
 | PDF parser initialization | `tests/test_scanner.py` | `test_pdf_parser_initialization` | Covered |

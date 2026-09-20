@@ -128,18 +128,21 @@ class LibraryScanner:
         metadata extraction.  It derives title/author from the filename and
         path structure, and stores the full path for on-demand parsing later.
 
-        Uses streaming os.scandir to avoid blocking on large directory trees.
+        Each directory's ``os.scandir`` walk runs in ``asyncio.to_thread`` —
+        it is a blocking syscall that can stall for seconds per directory on
+        CIFS/autofs mounts, so it must never run on the event loop.
 
         Args:
             directory: Directory to scan. Defaults to config library_path.
             progress_callback: Optional async callable ``(scanned, current_file)``
-                invoked every 50 files for progress reporting.
+                invoked as directory batches cross 50-file boundaries.
 
         Returns:
             List of BookCreate objects with lightweight metadata.
         """
         import asyncio
         import re
+        from collections import deque
 
         target_dir = directory or self.config.library_path
         logger.info(f"Starting fast index: {target_dir}")
@@ -151,82 +154,94 @@ class LibraryScanner:
             )
 
         supported = self.SUPPORTED_FORMATS
+
+        def _scan_dir(current_dir: str) -> tuple[list[BookCreate], list[str], str]:
+            """Index one directory off the event loop.
+
+            Returns:
+                (books found, subdirectory paths, last indexed filename).
+            """
+            found: list[BookCreate] = []
+            subdirs: list[str] = []
+            last_name = ""
+            try:
+                with os.scandir(current_dir) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_dir(follow_symlinks=False):
+                                subdirs.append(entry.path)
+                            elif entry.is_file(follow_symlinks=False):
+                                ext = Path(entry.name).suffix.lower()
+                                if ext not in supported:
+                                    continue
+
+                                str_path = entry.path
+                                stem = Path(entry.name).stem
+
+                                # Clean filename for title
+                                clean = re.sub(
+                                    r"\s*[\(\[].*?(?:z-lib|zlibrary|1lib|lib\.gen|retail).*?[\)\]]",
+                                    "",
+                                    stem,
+                                    flags=re.IGNORECASE,
+                                ).strip()
+                                clean = re.sub(r"[\s._-]+$", "", clean).strip() or stem
+
+                                title = clean
+                                author = "Unknown"
+                                if " - " in clean:
+                                    parts = clean.split(" - ", 1)
+                                    title = parts[0].strip()
+                                    author = parts[1].strip()
+
+                                # file_size is deferred: entry.stat() is a per-file
+                                # network round-trip on CIFS/autofs mounts (10k+ files
+                                # → hours of D-state I/O). The reader parses on demand,
+                                # so 0 here is fine; fast_index is filename-only by intent.
+                                file_size = 0
+
+                                found.append(
+                                    BookCreate(
+                                        title=title[:500],
+                                        author=author[:200],
+                                        path=str_path,
+                                        format=ext.lstrip(".").upper(),
+                                        file_size=file_size,
+                                        total_pages=max(1, file_size // 2048),
+                                        storage_type=self.storage_type,
+                                    )
+                                )
+                                last_name = entry.name
+                        except OSError:
+                            continue
+            except PermissionError:
+                pass
+            except OSError:
+                pass
+            return found, subdirs, last_name
+
         books: list[BookCreate] = []
-        dirs_to_process = [target_dir]
+        dirs_to_process: deque[str] = deque([target_dir])
         scanned = 0
 
         while dirs_to_process:
-            # Process in small batches to yield control
-            batch = dirs_to_process[:50]
-            dirs_to_process = dirs_to_process[50:]
+            current_dir = dirs_to_process.popleft()
+            found, subdirs, last_name = await asyncio.to_thread(_scan_dir, current_dir)
+            dirs_to_process.extend(subdirs)
+            previously_scanned = scanned
+            books.extend(found)
+            scanned += len(found)
 
-            for current_dir in batch:
-                try:
-                    with os.scandir(current_dir) as it:
-                        for entry in it:
-                            try:
-                                if entry.is_dir(follow_symlinks=False):
-                                    dirs_to_process.append(entry.path)
-                                elif entry.is_file(follow_symlinks=False):
-                                    ext = Path(entry.name).suffix.lower()
-                                    if ext not in supported:
-                                        continue
-
-                                    str_path = entry.path
-                                    stem = Path(entry.name).stem
-
-                                    # Clean filename for title
-                                    clean = re.sub(
-                                        r"\s*[\(\[].*?(?:z-lib|zlibrary|1lib|lib\.gen|retail).*?[\)\]]",
-                                        "",
-                                        stem,
-                                        flags=re.IGNORECASE,
-                                    ).strip()
-                                    clean = re.sub(r"[\s._-]+$", "", clean).strip() or stem
-
-                                    title = clean
-                                    author = "Unknown"
-                                    if " - " in clean:
-                                        parts = clean.split(" - ", 1)
-                                        title = parts[0].strip()
-                                        author = parts[1].strip()
-
-                                    # file_size is deferred: entry.stat() is a per-file
-                                    # network round-trip on CIFS/autofs mounts (10k+ files
-                                    # → hours of D-state I/O). The reader parses on demand,
-                                    # so 0 here is fine; fast_index is filename-only by intent.
-                                    file_size = 0
-
-                                    books.append(
-                                        BookCreate(
-                                            title=title[:500],
-                                            author=author[:200],
-                                            path=str_path,
-                                            format=ext.lstrip(".").upper(),
-                                            file_size=file_size,
-                                            total_pages=max(1, file_size // 2048),
-                                            storage_type=self.storage_type,
-                                        )
-                                    )
-                                    scanned += 1
-
-                                    # Report progress every 50 files
-                                    if progress_callback and scanned % 50 == 0:
-                                        if asyncio.iscoroutinefunction(progress_callback):
-                                            await progress_callback(scanned, entry.name)
-                                        else:
-                                            progress_callback(scanned, entry.name)
-
-                            except OSError:
-                                continue
-                except PermissionError:
-                    continue
-                except OSError:
-                    continue
-
-            # Yield control every batch to keep server responsive
-            if dirs_to_process:
-                await asyncio.sleep(0.01)
+            # Report progress as directory batches cross 50-file boundaries
+            if (
+                progress_callback
+                and scanned
+                and scanned // 50 != previously_scanned // 50
+            ):
+                if asyncio.iscoroutinefunction(progress_callback):
+                    await progress_callback(scanned, last_name)
+                else:
+                    progress_callback(scanned, last_name)
 
         logger.info(f"Fast index complete: {scanned} files found")
         return books

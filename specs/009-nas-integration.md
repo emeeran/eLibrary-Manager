@@ -1,8 +1,8 @@
 # Spec 009: NAS Integration
 
 **Status:** Active
-**Version:** 1.0.0
-**Last Updated:** 2026-04-16
+**Version:** 1.0.1
+**Last Updated:** 2026-09-20
 
 ## Overview
 
@@ -48,7 +48,8 @@ Enable eLibrary Manager to index and read ebooks stored on a Synology NAS (or an
 
 ## Test Coverage
 
-- Unit: `NASStorageBackend.health_check()`, `NASFileCache.put/get/remove/cleanup`
+- Unit: `NASStorageBackend.health_check()`, `NASFileCache.put/get/remove/cleanup` — `tests/test_nas.py` (Covered 2026-09-20: put/get/remove/LRU eviction/singleton-off)
+- Unit: `NASHealthMonitor` transition-only logging — `tests/test_nas_health.py` (Covered 2026-09-20)
 - Unit: `encrypt_value/decrypt_value` round-trip
 - Integration: Scan with both local and NAS sources
 - Integration: Reader fallback to cache when NAS offline

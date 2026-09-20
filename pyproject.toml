@@ -55,7 +55,8 @@ ignore = ["E501"]
 # route modules use deferred imports for circular-import avoidance.
 "backend/app/routes/*" = ["B008", "E402"]
 # Conditional/deferred imports inside lifespan & service init
-"backend/app/main.py" = ["E402"]
+# B008: `/api/health` uses `Depends(get_db)` — idiomatic FastAPI, same as routes/*
+"backend/app/main.py" = ["B008", "E402"]
 "backend/app/services/*" = ["E402"]
 # PyMuPDF warning suppression must run before sibling imports
 "backend/app/parsers/pdf_parser.py" = ["E402"]

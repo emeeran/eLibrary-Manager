@@ -20,6 +20,30 @@ from app.schemas import BookCreate
 
 logger = get_logger(__name__)
 
+# Max rendered pixel dimension for pixmaps. PyMuPDF allocates the full
+# bitmap before encoding — an uncapped 2x render of a poster-size page can
+# allocate hundreds of MB and OOM-kill the service (MemoryMax=1G in prod).
+# 2048px is above every consumer target: covers are re-encoded to 600x900
+# and page renders are downsized to 1200px wide downstream.
+MAX_RENDER_PX = 2048
+
+
+def _clamped_matrix(page: "fitz.Page", scale: float) -> "fitz.Matrix":
+    """Return a render matrix whose longest output edge is at most MAX_RENDER_PX.
+
+    Args:
+        page: PyMuPDF page about to be rendered.
+        scale: Requested zoom factor (e.g. 2.0, or dpi/72).
+
+    Returns:
+        A fitz.Matrix, shrunk proportionally when the render would exceed
+        the pixel ceiling.
+    """
+    longest = max(page.rect.width, page.rect.height, 1.0) * scale
+    if longest > MAX_RENDER_PX:
+        scale *= MAX_RENDER_PX / longest
+    return fitz.Matrix(scale, scale)
+
 
 class PDFParser:
     """Parser for PDF format ebooks.
@@ -62,7 +86,9 @@ class PDFParser:
     def _extract_metadata_sync(self, pdf_path: str) -> BookCreate:
         """Synchronous metadata extraction (runs in thread)."""
         try:
-            doc = fitz.open(pdf_path)
+            with fitz.open(pdf_path) as doc:
+                meta = doc.metadata or {}
+                total_pages = len(doc)
 
             # PDF metadata is often limited, use filename as title
             filename = Path(pdf_path).stem
@@ -76,7 +102,6 @@ class PDFParser:
 
             # Try to get metadata from PDF info (fitz uses lowercase keys)
             subjects = []
-            meta = doc.metadata or {}
             if meta.get("title"):
                 title = meta["title"]
             if meta.get("author"):
@@ -99,9 +124,6 @@ class PDFParser:
 
             # Get file size and page count
             file_size = os.path.getsize(pdf_path)
-            total_pages = len(doc)
-
-            doc.close()
 
             logger.info(f"Extracted PDF metadata: {title} by {author} ({total_pages} pages)")
 
@@ -137,30 +159,24 @@ class PDFParser:
         """
         try:
             # Open PDF with PyMuPDF
-            doc = fitz.open(pdf_path)
-            if len(doc) == 0:
-                logger.warning(f"PDF has no pages: {pdf_path}")
-                doc.close()
-                return None
+            with fitz.open(pdf_path) as doc:
+                if len(doc) == 0:
+                    logger.warning(f"PDF has no pages: {pdf_path}")
+                    return None
 
-            # Get the first page
-            page = doc[0]
+                # Get the first page
+                page = doc[0]
 
-            # Render page to image (2x resolution for quality)
-            mat = fitz.Matrix(2, 2)  # 2x zoom for better quality
-            pix = page.get_pixmap(matrix=mat)
+                # Render page to image (2x resolution, clamped to MAX_RENDER_PX)
+                pix = page.get_pixmap(matrix=_clamped_matrix(page, 2.0))
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
             # Generate unique filename using path hash (SHA256 for security)
-            path_hash = hash_path(pdf_path)
-            cover_filename = f"{path_hash}.jpg"
-            cover_path = self.covers_path / cover_filename
-
-            doc.close()
+            cover_path = self.covers_path / f"{hash_path(pdf_path)}.jpg"
 
             # Re-encode via the shared cover optimizer (resize to 600x900, q85).
             from io import BytesIO
 
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             buf = BytesIO()
             img.save(buf, "PNG")
             from app.parsers.image_service import optimize_cover_bytes
@@ -196,25 +212,33 @@ class PDFParser:
     def _get_chapters_sync(self, pdf_path: str) -> list[tuple[int, str, str]]:
         """Synchronous chapter extraction (runs in thread)."""
         try:
-            doc = fitz.open(pdf_path)
-            pages: list[tuple[int, str, str]] = []
+            with fitz.open(pdf_path) as doc:
+                pages: list[tuple[int, str, str]] = []
 
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                try:
-                    html_content = self._render_page_to_html(
-                        page, page_num, doc=doc, pdf_path=pdf_path
-                    )
-                    title = f"Page {page_num + 1}"
-                    pages.append((page_num, title, html_content))
-                except Exception as e:
-                    logger.warning(f"Failed to parse page {page_num}: {e}")
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
                     try:
-                        plain_text = page.get_text("text")
-                        if plain_text.strip():
-                            html_content = f'<div class="pdf-page-text"><p class="pdf-text">{self._escape_html(plain_text)}</p></div>'
-                            pages.append((page_num, f"Page {page_num + 1}", html_content))
-                        else:
+                        html_content = self._render_page_to_html(
+                            page, page_num, doc=doc, pdf_path=pdf_path
+                        )
+                        title = f"Page {page_num + 1}"
+                        pages.append((page_num, title, html_content))
+                    except Exception as e:
+                        logger.warning(f"Failed to parse page {page_num}: {e}")
+                        try:
+                            plain_text = page.get_text("text")
+                            if plain_text.strip():
+                                html_content = f'<div class="pdf-page-text"><p class="pdf-text">{self._escape_html(plain_text)}</p></div>'
+                                pages.append((page_num, f"Page {page_num + 1}", html_content))
+                            else:
+                                pages.append(
+                                    (
+                                        page_num,
+                                        f"Page {page_num + 1}",
+                                        '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>',
+                                    )
+                                )
+                        except Exception:
                             pages.append(
                                 (
                                     page_num,
@@ -222,18 +246,9 @@ class PDFParser:
                                     '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>',
                                 )
                             )
-                    except Exception:
-                        pages.append(
-                            (
-                                page_num,
-                                f"Page {page_num + 1}",
-                                '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>',
-                            )
-                        )
 
-            doc.close()
-            logger.info(f"Parsed {len(pages)} pages from PDF with formatting")
-            return pages
+                logger.info(f"Parsed {len(pages)} pages from PDF with formatting")
+                return pages
 
         except Exception as e:
             raise EbookParsingError(f"Failed to parse PDF: {str(e)}", {"path": pdf_path}) from e
@@ -257,34 +272,32 @@ class PDFParser:
     def _get_single_chapter_sync(self, pdf_path: str, chapter_index: int) -> tuple[str, str, int]:
         """Synchronous single chapter extraction (runs in thread)."""
         try:
-            doc = fitz.open(pdf_path)
-            total = len(doc)
+            with fitz.open(pdf_path) as doc:
+                total = len(doc)
 
-            if chapter_index < 0 or chapter_index >= total:
-                doc.close()
-                from app.exceptions import ResourceNotFoundError
+                if chapter_index < 0 or chapter_index >= total:
+                    from app.exceptions import ResourceNotFoundError
 
-                raise ResourceNotFoundError(
-                    f"Page {chapter_index} not found (total: {total})",
-                    {"path": pdf_path, "index": chapter_index},
-                )
+                    raise ResourceNotFoundError(
+                        f"Page {chapter_index} not found (total: {total})",
+                        {"path": pdf_path, "index": chapter_index},
+                    )
 
-            page = doc[chapter_index]
-            try:
-                html_content = self._render_page_to_html(
-                    page, chapter_index, doc=doc, pdf_path=pdf_path
-                )
-            except Exception as e:
-                logger.warning(f"Failed to parse page {chapter_index}: {e}")
-                plain_text = page.get_text("text")
-                if plain_text.strip():
-                    html_content = f'<div class="pdf-page-text"><p class="pdf-text">{self._escape_html(plain_text)}</p></div>'
-                else:
-                    html_content = '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>'
+                page = doc[chapter_index]
+                try:
+                    html_content = self._render_page_to_html(
+                        page, chapter_index, doc=doc, pdf_path=pdf_path
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to parse page {chapter_index}: {e}")
+                    plain_text = page.get_text("text")
+                    if plain_text.strip():
+                        html_content = f'<div class="pdf-page-text"><p class="pdf-text">{self._escape_html(plain_text)}</p></div>'
+                    else:
+                        html_content = '<div class="pdf-page-text"><p class="pdf-empty-page"></p></div>'
 
-            title = f"Page {chapter_index + 1}"
-            doc.close()
-            return html_content, title, total
+                title = f"Page {chapter_index + 1}"
+                return html_content, title, total
 
         except EbookParsingError:
             raise
@@ -607,10 +620,8 @@ class PDFParser:
     def _count_chapters_sync(self, pdf_path: str) -> int:
         """Synchronous page count (runs in thread)."""
         try:
-            doc = fitz.open(pdf_path)
-            count = len(doc)
-            doc.close()
-            return count
+            with fitz.open(pdf_path) as doc:
+                return len(doc)
         except Exception as e:
             raise EbookParsingError(f"Failed to count pages: {str(e)}", {"path": pdf_path}) from e
 
@@ -626,21 +637,19 @@ class PDFParser:
             List of tuples: (chapter_index, chapter_title, concatenated_html).
         """
         try:
-            doc = fitz.open(pdf_path)
-            toc = doc.get_toc()  # [(level, title, page_number), ...]
-            total_pages = len(doc)
+            with fitz.open(pdf_path) as doc:
+                toc = doc.get_toc()  # [(level, title, page_number), ...]
+                total_pages = len(doc)
 
-            if len(toc) >= 2:
-                chapters = self._group_by_outline(doc, toc, pdf_path)
-            else:
-                chapters = self._group_by_font_heuristic(doc, pdf_path)
+                if len(toc) >= 2:
+                    chapters = self._group_by_outline(doc, toc, pdf_path)
+                else:
+                    chapters = self._group_by_font_heuristic(doc, pdf_path)
 
             # Fallback: if no structure found, use per-page chapters
             if not chapters:
-                doc.close()
                 return await self.get_chapters(pdf_path)
 
-            doc.close()
             logger.info(
                 f"Smart-grouped PDF into {len(chapters)} chapters (from {total_pages} pages)"
             )
@@ -788,21 +797,20 @@ class PDFParser:
             URL to the rendered image, or None on failure.
         """
         try:
-            doc = fitz.open(pdf_path)
-            if page_index < 0 or page_index >= len(doc):
-                doc.close()
-                return None
+            with fitz.open(pdf_path) as doc:
+                if page_index < 0 or page_index >= len(doc):
+                    return None
 
-            page = doc[page_index]
-            scale = dpi / 72  # 72 is the PDF default DPI
-            mat = fitz.Matrix(scale, scale)
-            pix = page.get_pixmap(matrix=mat)
+                page = doc[page_index]
+                # Clamp the render so a huge page can't blow past MAX_RENDER_PX
+                mat = _clamped_matrix(page, dpi / 72)  # 72 is the PDF default DPI
+                pix = page.get_pixmap(matrix=mat)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
             img_dir = self._image_service.get_image_dir(pdf_path)
             filename = f"page_{page_index}.png"
             filepath = img_dir / filename
 
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             # Resize large images for web delivery
             max_width = 1200
             if img.width > max_width:
@@ -811,7 +819,6 @@ class PDFParser:
                 img = img.resize(new_size, Image.Resampling.LANCZOS)
 
             img.save(filepath, "PNG", optimize=True)
-            doc.close()
 
             return self._image_service.get_image_url(pdf_path, filename)
 
@@ -835,9 +842,8 @@ class PDFParser:
             EbookParsingError: If parsing fails
         """
         try:
-            doc = fitz.open(pdf_path)
-            raw_toc = doc.get_toc()  # Returns [[level, title, page_number], ...]
-            doc.close()
+            with fitz.open(pdf_path) as doc:
+                raw_toc = doc.get_toc()  # Returns [[level, title, page_number], ...]
 
             if raw_toc:
                 # Convert fitz TOC to our format (page numbers are 1-indexed from fitz)

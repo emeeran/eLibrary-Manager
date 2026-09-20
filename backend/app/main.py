@@ -4,17 +4,19 @@ import os
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response, status
+from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request as StarletteRequest
 
 from app.auth import SESSION_COOKIE_NAME, validate_session
 from app.config import get_config
-from app.database import db_manager
+from app.database import db_manager, get_db
 from app.exceptions import (
     DawnstarError,
     EbookParsingError,
@@ -38,6 +40,7 @@ from app.routes import (
     stats,
 )
 from app.security_middleware import CSRFMiddleware, SecurityHeadersMiddleware
+from app.storage.nas import NASStorageBackend
 
 # Setup logging
 setup_logging()
@@ -270,9 +273,40 @@ app.include_router(hidden.router)
 
 
 @app.get("/api/health")
-async def health_check() -> dict:
-    """Health check endpoint for Docker and monitoring."""
-    return {"status": "ok"}
+async def health_check(db: AsyncSession = Depends(get_db)) -> JSONResponse:
+    """Readiness probe: DB always, NAS mount when configured.
+
+    Returns 503 when a checked dependency is down so orchestrators
+    (Docker healthcheck, monitoring) can detect a running-but-degraded
+    process instead of a falsely healthy one. AI providers are
+    deliberately not probed — an external network call here would flap
+    the service health over transient API issues.
+
+    Returns:
+        200 with ``{"status": "ok", "db": ..., "nas": ...}`` when healthy,
+        503 with ``"degraded"`` otherwise. ``nas`` is ``null`` when no NAS
+        backend is configured.
+    """
+    checks: dict[str, bool | None] = {}
+    try:
+        await db.execute(text("SELECT 1"))
+        checks["db"] = True
+    except Exception:
+        logger.exception("Health check: database unreachable")
+        checks["db"] = False
+
+    nas_backend: NASStorageBackend | None = getattr(app.state, "nas_backend", None)
+    if nas_backend is None:
+        checks["nas"] = None  # not configured — nothing to probe
+    else:
+        result = await nas_backend.health_check()
+        checks["nas"] = bool(result.get("healthy"))
+
+    healthy = checks["db"] is True and checks["nas"] is not False
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"status": "ok" if healthy else "degraded", **checks},
+    )
 
 
 # Exception handlers (specific before generic)

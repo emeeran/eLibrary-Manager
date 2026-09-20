@@ -89,3 +89,29 @@ async def test_mobi_corrupt_raises(tmp_path: Path):
     p.write_bytes(b"not a mobi file at all")
     with pytest.raises(EbookParsingError):
         await MOBIParser(covers_path=str(tmp_path)).extract_metadata(str(p))
+
+
+def test_render_matrix_clamped_for_huge_pages():
+    """A poster-size page can't exceed MAX_RENDER_PX on the longest edge."""
+    from types import SimpleNamespace
+
+    from app.parsers.pdf_parser import MAX_RENDER_PX, _clamped_matrix
+
+    huge = SimpleNamespace(rect=SimpleNamespace(width=60000.0, height=100.0))
+    mat = _clamped_matrix(huge, 2.0)  # would-be 120000px wide
+    assert max(huge.rect.width * mat.a, huge.rect.height * mat.d) == MAX_RENDER_PX
+
+    normal = SimpleNamespace(rect=SimpleNamespace(width=612.0, height=792.0))
+    mat2 = _clamped_matrix(normal, 2.0)  # 1584px — untouched
+    assert (mat2.a, mat2.d) == (2.0, 2.0)
+
+
+def test_render_matrix_ignores_zero_rect():
+    """A degenerate (zero-size) page doesn't divide by zero."""
+    from types import SimpleNamespace
+
+    from app.parsers.pdf_parser import _clamped_matrix
+
+    empty = SimpleNamespace(rect=SimpleNamespace(width=0.0, height=0.0))
+    mat = _clamped_matrix(empty, 2.0)
+    assert mat.a == 2.0

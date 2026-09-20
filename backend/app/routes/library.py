@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import json
 import os
-import shutil
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from pathlib import Path
@@ -71,6 +70,40 @@ def _validate_path_within_library(file_path: str) -> str:
             detail="Path must be within the configured library directory",
         ) from None
     return str(resolved)
+
+
+# Leading-byte signatures proving an upload really is the format its
+# extension claims. MOBI is the PalmDB format: the "BOOKMOBI" magic sits
+# at offset 60.
+_UPLOAD_MAGIC: dict[str, bytes] = {".epub": b"PK\x03\x04", ".pdf": b"%PDF"}
+_MOBI_MAGIC_OFFSET = 60
+
+
+def _upload_signature_matches(file_path: str, ext: str) -> bool:
+    """Check that a file's leading bytes match its claimed ebook extension.
+
+    Guards the upload endpoint against misnamed/non-book payloads reaching
+    the parsers.
+
+    Args:
+        file_path: Path to the saved upload.
+        ext: Lowercase extension claimed by the filename (".epub"/".pdf"/".mobi").
+
+    Returns:
+        True if the magic bytes match. PDFs with a junk prefix are accepted
+        (the spec allows bytes before ``%PDF`` in the first 1KB).
+    """
+    try:
+        with open(file_path, "rb") as f:
+            if ext == ".mobi":
+                f.seek(_MOBI_MAGIC_OFFSET)
+                return f.read(8) == b"BOOKMOBI"
+            expected = _UPLOAD_MAGIC.get(ext)
+            if expected is None:
+                return False
+            return expected in f.read(1024)
+    except OSError:
+        return False
 
 
 # Blocked system directories for filesystem browsing
@@ -563,26 +596,50 @@ async def upload_book(
     # Save uploaded file to uploads directory
     file_path = os.path.join(uploads_dir, filename)
 
+    def _cleanup() -> None:
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+
     try:
         from fastapi.concurrency import run_in_threadpool
 
         def _save_upload() -> None:
+            # Bounded copy — an unbounded stream can fill the disk.
+            limit_bytes = config.max_upload_size_mb * 1024 * 1024
+            written = 0
             with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+                while chunk := file.file.read(1024 * 1024):
+                    written += len(chunk)
+                    if written > limit_bytes:
+                        raise ValueError(
+                            f"Upload exceeds {config.max_upload_size_mb} MB limit"
+                        )
+                    buffer.write(chunk)
 
         await run_in_threadpool(_save_upload)
+
+        # Extension says "book" — verify the leading bytes agree (a crafted
+        # or misnamed payload shouldn't reach the parsers).
+        if not _upload_signature_matches(file_path, ext):
+            raise HTTPException(
+                status_code=415, detail="File content does not match its extension"
+            )
 
         service = LibraryService(db)
         book = await service.import_book(file_path)
         return book_to_response(book)
 
+    except HTTPException:
+        _cleanup()
+        raise
+    except ValueError as e:
+        _cleanup()
+        raise HTTPException(status_code=413, detail=str(e)) from e
     except Exception as e:
-        # Cleanup if failed
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except Exception:
-                pass
+        _cleanup()
 
         from app.logging_config import get_logger
 

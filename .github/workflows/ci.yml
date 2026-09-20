@@ -27,6 +27,12 @@ jobs:
       - name: Lint with ruff
         run: uv run ruff check backend/ tests/
 
+      - name: Type check with mypy (informational)
+        # Non-gating until the pre-existing ~156-error baseline is paid down;
+        # surfaces new regressions in the log. Flip continue-on-error off to gate.
+        continue-on-error: true
+        run: uv run mypy backend/app
+
   test:
     runs-on: ubuntu-latest
     needs: lint
