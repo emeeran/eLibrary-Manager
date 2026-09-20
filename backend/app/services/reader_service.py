@@ -413,7 +413,11 @@ class ReaderService:
             List of Bookmark instances
         """
         result = await self.session.execute(
-            select(Bookmark).where(Bookmark.book_id == book_id).order_by(Bookmark.created_at.desc())
+            # id desc breaks created_at ties (same-second inserts, e.g. TOC generation)
+            # so reversed-inserted rows read in book order (spec 004 AC-004.09)
+            select(Bookmark).where(Bookmark.book_id == book_id).order_by(
+                Bookmark.created_at.desc(), Bookmark.id.desc()
+            )
         )
         return list(result.scalars().all())
 

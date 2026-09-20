@@ -1,7 +1,7 @@
 # SPEC-004: Bookmarks
 
 - **Status:** Active
-- **Version:** 1.1.0
+- **Version:** 1.1.1
 - **Last Updated:** 2026-09-20
 - **Last Updated:** 2026-04-15
 
@@ -72,6 +72,8 @@ Bookmarks allow readers to save and return to specific locations within a book. 
 **And** each item contains `id`, `book_id`, `chapter_index`, `position_in_chapter`, `title`, `notes`, and `created_at`
 
 ### AC-004.09: List Bookmarks — Ordering
+
+**Clarification (v1.1.1):** ordering is `created_at DESC, id DESC` — the id tiebreak makes same-second inserts (TOC-generated rows are inserted in reverse book order) read in book order despite identical timestamps.
 
 **Given** a book has bookmarks created at times T1, T2, T3 (where T1 < T2 < T3)
 **When** the client sends `GET /api/books/{book_id}/bookmarks`

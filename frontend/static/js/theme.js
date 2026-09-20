@@ -66,11 +66,6 @@ function cycleTheme() {
 document.addEventListener("DOMContentLoaded", () => {
   loadTheme();
 
-  // Add keyboard shortcut for theme cycling (Ctrl/Cmd + T)
-  document.addEventListener("keydown", (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === "t") {
-      e.preventDefault();
-      cycleTheme();
-    }
-  });
+  // NOTE: no Ctrl/Cmd+T theme shortcut — it shadows the browser's new-tab
+  // binding. Theme cycling stays on the UI controls (theme.js is UI-only).
 });
