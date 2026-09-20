@@ -17,6 +17,7 @@
 | 011 | [Calibre Integration](011-calibre-integration.md) | Active | 1.3.0 | 2026-08-05 | `app/services/calibre_sync_service.py`, `app/services/calibre_sync_monitor.py`, `app/routes/calibre.py`, `app/routes/library.py` |
 | 012 | [Full-Text Content Search](012-full-text-search.md) | Active | 1.1.0 | 2026-06-30 | `app/services/content_extractor.py`, `app/services/content_backfill_service.py`, `app/repositories.py` |
 | 013 | [Calibre-Web → eLM Reader Deep Link](013-calibre-reader-deeplink.md) | Active | 1.0.0 | 2026-06-30 | `app/routes/calibre.py` (`GET /calibre/launch`) |
+| 014 | [Default File Viewer Integration](014-default-file-viewer.md) | Active | 1.0.0 | 2026-09-20 | `app/main.py` (`GET /open`), `app/routes/settings.py`, `packaging/deb/elibrary-open` |
 
 ## Dependency Graph
 

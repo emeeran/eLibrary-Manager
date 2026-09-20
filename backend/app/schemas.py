@@ -395,6 +395,21 @@ class NASHealthResponse(BaseModel):
     details: str | None = None
 
 
+class PDFViewerToggle(BaseModel):
+    """Request body for enabling/disabling eLM as the system PDF viewer."""
+
+    enabled: bool
+
+
+class PDFViewerStatus(BaseModel):
+    """Status of the system PDF-viewer registration (spec 014)."""
+
+    available: bool
+    enabled: bool
+    current: str
+    desktop: str
+
+
 # ============================================
 # CATEGORY SCHEMAS
 # ============================================

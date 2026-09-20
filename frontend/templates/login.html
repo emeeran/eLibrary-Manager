@@ -96,7 +96,10 @@
                     body: JSON.stringify({password})
                 });
                 if (res.ok) {
-                    window.location.href = '/';
+                    // Honor ?next= deep links (spec 014 default-viewer), but only
+                    // same-origin relative paths — never an absolute/protocol URL.
+                    const next = new URLSearchParams(window.location.search).get('next');
+                    window.location.href = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
                 } else {
                     errorEl.style.display = 'block';
                     document.getElementById('password').value = '';

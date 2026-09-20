@@ -3,8 +3,9 @@
 import os
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -100,8 +101,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 content={"error": "Authentication required"},
             )
 
-        # Page routes redirect to login
-        return RedirectResponse(url="/login", status_code=302)
+        # Page routes redirect to login, preserving the target so deep links
+        # (e.g. the spec-014 default-viewer `/open?path=...`) survive a cold
+        # session and land back where the click intended after sign-in.
+        target = path
+        if request.url.query:
+            target = f"{path}?{request.url.query}"
+        return RedirectResponse(url=f"/login?next={quote(target, safe='')}", status_code=302)
 
 
 @asynccontextmanager
@@ -405,6 +411,55 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 async def library_home(request: Request) -> HTMLResponse:
     """Render library home page."""
     return templates.TemplateResponse("library.html", {"request": request})
+
+
+@app.get("/open", response_class=RedirectResponse)
+async def open_by_path(
+    path: str = Query(..., min_length=1, max_length=1000),
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """Desktop default-viewer bridge (spec 014): resolve a file path to the reader.
+
+    The ``elibrary-open`` wrapper turns a double-clicked file into
+    ``/open?path=<abs>``. Mirrors ``/calibre/launch``: every branch is a
+    302, never a dead-end 404. Requires an authenticated session — the auth
+    middleware sends cold sessions to ``/login?next=...`` and they land
+    back here.
+
+    Args:
+        path: Absolute filesystem path of the ebook file.
+        db: Database session
+
+    Returns:
+        302 to ``/reader/{id}``, or to a library banner on miss/failure.
+    """
+    # abspath (not resolve): the index stores scanner-style absolute paths,
+    # which must not be symlink-resolved away from a match.
+    clean = os.path.abspath(path)
+    ext = os.path.splitext(clean)[1].lower()
+    if ext not in {".epub", ".pdf", ".mobi"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported file format: {ext}")
+
+    from app.repositories import BookRepository
+
+    book = await BookRepository(db).get_by_path(clean)
+
+    if book is None:
+        from app.services import LibraryService
+
+        try:
+            # Metadata-only import: indexes the path, never copies the file.
+            book = await LibraryService(db).import_book(clean)
+        except Exception:
+            logger.warning("Default-viewer open: import failed for %s", clean, exc_info=True)
+            return RedirectResponse(
+                url=f"/library?calibre_pending={quote(clean)}", status_code=302
+            )
+
+    if book.is_hidden:
+        # Same no-bypass rule as /calibre/launch
+        return RedirectResponse(url="/library?calibre_hidden=1", status_code=302)
+    return RedirectResponse(url=f"/reader/{book.id}", status_code=302)
 
 
 @app.get("/reader/{book_id}", response_class=HTMLResponse)

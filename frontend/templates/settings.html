@@ -173,6 +173,25 @@
                                 </label>
                             </div>
                         </div>
+
+                        <h3 class="group-title">Desktop Integration</h3>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <div class="setting-label">Default PDF viewer</div>
+                                <div class="setting-description">Open PDFs in eLibrary when double-clicked in the file manager. The previous handler is remembered and restored when turned off. EPUB/MOBI are registered automatically at install.</div>
+                            </div>
+                            <div class="setting-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="pdf-viewer-enabled">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="setting-row" id="pdf-viewer-status-row" style="display:none">
+                            <div class="setting-info">
+                                <div class="setting-description" id="pdf-viewer-status"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

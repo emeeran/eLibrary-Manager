@@ -1,6 +1,8 @@
 """Settings and configuration routes."""
 
+import asyncio
 import os
+import subprocess
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +12,14 @@ from app.config import get_config
 from app.database import get_db
 from app.logging_config import get_logger
 from app.repositories import SettingsRepository
-from app.schemas import AIConnectionTest, NASHealthResponse, SettingsCreate, SettingsResponse
+from app.schemas import (
+    AIConnectionTest,
+    NASHealthResponse,
+    PDFViewerStatus,
+    PDFViewerToggle,
+    SettingsCreate,
+    SettingsResponse,
+)
 
 
 def _reinit_nas_backend(app: object, nas_enabled: bool, mount_path: str, host: str) -> None:
@@ -280,3 +289,91 @@ async def test_nas_connection(request: Request) -> dict:
             status_code=503,
             detail={"error": "NAS Unreachable", "message": result["details"]},
         )
+
+
+# ---------------------------------------------------------------------- #
+# Default PDF viewer (spec 014) — opt-in system registration
+# ---------------------------------------------------------------------- #
+
+_PDF_MIME = "application/pdf"
+_DESKTOP_ID = "elibrary-manager.desktop"
+_PDF_PREVIOUS_KEY = "pdf_viewer_previous_default"
+
+
+async def _run_xdg_mime(*args: str) -> tuple[bool, str]:
+    """Run ``xdg-mime`` off the event loop, as the service user.
+
+    The service process already runs as the desktop user on personal
+    installs (``ELIBRARY_RUN_USER``), so no privilege juggling here.
+
+    Returns:
+        (success, combined stdout/stderr output)
+    """
+
+    def _run() -> tuple[bool, str]:
+        try:
+            proc = subprocess.run(
+                ["xdg-mime", *args], capture_output=True, text=True, timeout=10
+            )
+            return proc.returncode == 0, (proc.stdout + proc.stderr).strip()
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return False, str(exc)
+
+    return await asyncio.to_thread(_run)
+
+
+@router.get("/settings/pdf-viewer", response_model=PDFViewerStatus)
+async def get_pdf_viewer_status() -> PDFViewerStatus:
+    """Report whether eLM is currently the registered PDF handler."""
+    ok, current = await _run_xdg_mime("query", "default", _PDF_MIME)
+    return PDFViewerStatus(
+        available=ok,
+        enabled=ok and current == _DESKTOP_ID,
+        current=current,
+        desktop=_DESKTOP_ID,
+    )
+
+
+@router.post("/settings/pdf-viewer")
+async def set_pdf_viewer(
+    payload: PDFViewerToggle, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Register (or restore) eLM as the system default PDF viewer.
+
+    PDF registration is opt-in because it changes the handler for every PDF
+    on the desktop. The previous handler is recorded on enable and restored
+    on disable.
+
+    Args:
+        payload: ``{"enabled": bool}``
+        db: Database session
+
+    Returns:
+        The resulting state, including which handler was displaced/restored.
+    """
+    if payload.enabled:
+        ok, current = await _run_xdg_mime("query", "default", _PDF_MIME)
+        if not ok:
+            raise HTTPException(status_code=500, detail=f"xdg-mime query failed: {current}")
+        if current == _DESKTOP_ID:
+            # Already registered — don't clobber any saved previous handler
+            return {"enabled": True, "previous": "", "restored": False, "already": True}
+        await SettingsRepository(db).set_many({_PDF_PREVIOUS_KEY: current})
+        ok, out = await _run_xdg_mime("default", _DESKTOP_ID, _PDF_MIME)
+        if not ok:
+            raise HTTPException(status_code=500, detail=f"xdg-mime default failed: {out}")
+        return {"enabled": True, "previous": current, "restored": False}
+
+    stored = await SettingsRepository(db).get_all()
+    previous = stored.get(_PDF_PREVIOUS_KEY, "")
+    if not previous:
+        return {
+            "enabled": False,
+            "previous": "",
+            "restored": False,
+            "detail": "No previous PDF handler recorded — association left unchanged",
+        }
+    ok, out = await _run_xdg_mime("default", previous, _PDF_MIME)
+    if not ok:
+        raise HTTPException(status_code=500, detail=f"xdg-mime default failed: {out}")
+    return {"enabled": False, "previous": previous, "restored": True}

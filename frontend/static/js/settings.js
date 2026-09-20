@@ -884,3 +884,60 @@ document.addEventListener("keydown", (e) => {
     saveSettings();
   }
 });
+
+// --- Desktop integration: default PDF viewer (spec 014) --------------------
+// Applied immediately on toggle (OS-level change), independent of the
+// Save button which persists app settings only.
+
+async function loadPdfViewerStatus() {
+  const toggle = document.getElementById("pdf-viewer-enabled");
+  const statusRow = document.getElementById("pdf-viewer-status-row");
+  const statusEl = document.getElementById("pdf-viewer-status");
+  if (!toggle) return;
+  try {
+    const res = await fetch("/api/settings/pdf-viewer");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const state = await res.json();
+    toggle.checked = state.enabled;
+    if (state.available) {
+      statusEl.textContent = state.enabled
+        ? `Registered as the system PDF viewer (previous: ${state.current || "none"})`
+        : `Current PDF viewer: ${state.current || "none"}`;
+      statusRow.style.display = "";
+    }
+  } catch (err) {
+    toggle.disabled = true;
+    console.warn("pdf-viewer status unavailable:", err);
+  }
+}
+
+async function handlePdfViewerToggle(event) {
+  const toggle = event.target;
+  const enabled = toggle.checked;
+  toggle.disabled = true;
+  try {
+    const res = await fetch("/api/settings/pdf-viewer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail || `HTTP ${res.status}`);
+    }
+  } catch (err) {
+    toggle.checked = !enabled; // revert on failure
+    console.error("pdf-viewer toggle failed:", err);
+  } finally {
+    toggle.disabled = false;
+    await loadPdfViewerStatus();
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const toggle = document.getElementById("pdf-viewer-enabled");
+  if (toggle) {
+    toggle.addEventListener("change", handlePdfViewerToggle);
+    loadPdfViewerStatus();
+  }
+});

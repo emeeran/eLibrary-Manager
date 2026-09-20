@@ -169,6 +169,10 @@ cp "$SCRIPT_DIR/elibrary-manager.service" "$PKG_DIR/usr/lib/systemd/system/"
 # Port-aware launcher (reads ELIBRARY_PORT from config.env)
 cp "$SCRIPT_DIR/run-server.sh" "$INSTALL_ROOT/run-server.sh"
 
+# Default-viewer bridge (spec 014): desktop double-click -> /open deep link
+cp "$SCRIPT_DIR/elibrary-open" "$PKG_DIR/usr/bin/elibrary-open"
+chmod 755 "$PKG_DIR/usr/bin/elibrary-open"
+
 # Desktop entry
 cp "$SCRIPT_DIR/elibrary-manager.desktop" "$PKG_DIR/usr/share/applications/"
 

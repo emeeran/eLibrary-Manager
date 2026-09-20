@@ -84,10 +84,26 @@ else
     CHOSEN_PORT=$(grep -E '^[[:space:]]*ELIBRARY_PORT[[:space:]]*=' "$CONFIG_FILE" \
         | tail -1 | sed -E 's/^[^=]+=//; s/[^0-9].*$//' | tr -dc '0-9')
 fi
-# Point the desktop launcher at the chosen port so the menu entry opens the right URL.
-if [ -n "${CHOSEN_PORT:-}" ] && [ -f /usr/share/applications/elibrary-manager.desktop ]; then
-    sed -i -E "s#http://localhost:[0-9]+#http://localhost:${CHOSEN_PORT}#g" \
-        /usr/share/applications/elibrary-manager.desktop
+# Point the desktop launcher at the chosen port — the launcher URL moved into
+# /usr/bin/elibrary-open (reads ELIBRARY_PORT from config.env), so nothing to
+# rewrite in the .desktop file anymore. CHOSEN_PORT kept for reference.
+# Register eLM as the default viewer for EPUB + MOBI (spec 014). PDF is
+# deliberately opt-in via Settings — never hijack the system PDF handler
+# silently. xdg-mime defaults are per-user, so run as the service user.
+DESKTOP_USER=$(grep -E '^[[:space:]]*User=' /usr/lib/systemd/system/elibrary-manager.service 2>/dev/null \
+    | head -1 | cut -d= -f2 | tr -d '[:space:]')
+if [ -n "$DESKTOP_USER" ] && [ "$DESKTOP_USER" != "elibrary" ] \
+        && command -v xdg-mime >/dev/null 2>&1; then
+    DESKTOP_HOME=$(getent passwd "$DESKTOP_USER" 2>/dev/null | cut -d: -f6)
+    if [ -n "$DESKTOP_HOME" ] && [ -d "$DESKTOP_HOME" ]; then
+        for mime in application/epub+zip application/x-mobipocket-ebook; do
+            su -s /bin/sh "$DESKTOP_USER" -c \
+                "XDG_CONFIG_HOME='$DESKTOP_HOME/.config' xdg-mime default elibrary-manager.desktop $mime" \
+                >/dev/null 2>&1 || true
+        done
+        echo "Registered elibrary-manager as default viewer for EPUB and MOBI (${DESKTOP_USER})."
+        echo "PDF is opt-in: enable it in eLibrary Settings -> General -> Desktop Integration."
+    fi
 fi
 
 # Ensure an admin login exists. If neither ADMIN_PASSWORD nor
