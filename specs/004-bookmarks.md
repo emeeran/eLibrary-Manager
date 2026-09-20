@@ -1,7 +1,8 @@
 # SPEC-004: Bookmarks
 
 - **Status:** Active
-- **Version:** 1.0.0
+- **Version:** 1.1.0
+- **Last Updated:** 2026-09-20
 - **Last Updated:** 2026-04-15
 
 ## Purpose
@@ -234,11 +235,34 @@ class BookmarksResponse(BaseModel):
 }
 ```
 
+### AC-004.18: Generate Bookmarks from Table of Contents
+
+**Given** a book with at least one table-of-contents entry (any format's `get_table_of_contents`, which already falls back to chapter/page metadata when no outline exists)
+**When** `POST /api/books/{book_id}/bookmarks/generate` is called
+**Then** one bookmark per TOC entry is created with `chapter_index = index`, `title = entry title`, `position_in_chapter = 0`
+**And** entries are inserted in reverse TOC order so the newest-first bookmarks list reads in book order
+**And** generation is capped at `MAX_GENERATED_BOOKMARKS` (200) entries; the response reports both `created` and `total_available`
+**And** the response is HTTP `200` with `{ "created": N, "total_available": M }`
+
+### AC-004.19: Generate Refuses When Bookmarks Exist
+
+**Given** the book already has at least one bookmark (manual or previously generated)
+**When** `POST /api/books/{book_id}/bookmarks/generate` is called
+**Then** the route returns HTTP `409` with detail `"Book already has bookmarks"`
+**And** no bookmarks are created or modified
+
+### AC-004.20: Generate with No Structure
+
+**Given** the book's table of contents resolves to zero entries
+**When** `POST /api/books/{book_id}/bookmarks/generate` is called
+**Then** the route returns HTTP `422` with detail `"No table of contents available for this book"`
+**And** no bookmarks are created
+
 ## Implementation Map
 
 | Component | File | Key Functions |
 |-----------|------|---------------|
-| Routes | `app/routes/reader.py` | `list_bookmarks`, `create_bookmark`, `delete_bookmark`, `jump_to_bookmark` |
+| Routes | `app/routes/reader.py` | `list_bookmarks`, `create_bookmark`, `delete_bookmark`, `jump_to_bookmark`, `generate_bookmarks` |
 | Service | `app/services/reader_service.py` | `ReaderService.create_bookmark`, `ReaderService.list_bookmarks`, `ReaderService.get_bookmark`, `ReaderService.delete_bookmark` |
 | Model | `app/models.py` | `Bookmark` |
 | Schemas | `app/schemas.py` | `BookmarkBase`, `BookmarkCreate`, `BookmarkUpdate`, `BookmarkResponse`, `BookmarksResponse` |
@@ -249,6 +273,9 @@ class BookmarksResponse(BaseModel):
 
 | Spec Requirement | Test File | Test Function | Status |
 |-----------------|-----------|---------------|--------|
+| AC-004.18 Generate from TOC | `tests/test_bookmark_generate.py` | `test_generate_creates_bookmark_per_toc_entry`, `test_generate_caps_at_max` | Covered |
+| AC-004.19 Generate refuses when bookmarks exist | `tests/test_bookmark_generate.py` | `test_generate_refuses_when_bookmarks_exist` | Covered |
+| AC-004.20 Generate with no TOC | `tests/test_bookmark_generate.py` | `test_generate_without_toc_returns_422` | Covered |
 | AC-004.01 Create Bookmark | — | — | GAP |
 | AC-004.02 Create Bookmark with Title/Notes | — | — | GAP |
 | AC-004.03 chapter_index Validation | — | — | GAP |

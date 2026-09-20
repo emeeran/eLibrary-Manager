@@ -515,6 +515,41 @@ async function addBookmark() {
 }
 
 /**
+ * Seed bookmarks from the book's table of contents (spec 004 v1.1).
+ * The server creates one bookmark per TOC entry — but only when the book
+ * has no bookmarks yet (409 otherwise), so manual bookmarks always win.
+ */
+async function generateBookmarksFromToc() {
+  try {
+    const response = await fetch(
+      `/api/books/${IcecreamReader.bookId}/bookmarks/generate`,
+      { method: "POST" },
+    );
+
+    if (response.status === 409) {
+      showToast("Bookmarks already exist — nothing generated");
+      return;
+    }
+    if (response.status === 422) {
+      showToast("This book has no table of contents");
+      return;
+    }
+    if (!response.ok) throw new Error("Failed to generate bookmarks");
+
+    const result = await response.json();
+    showToast(
+      result.created < result.total_available
+        ? `Created ${result.created} bookmarks (capped from ${result.total_available})`
+        : `Created ${result.created} bookmarks`,
+    );
+    renderBookmarks();
+  } catch (e) {
+    console.error("Failed to generate bookmarks:", e);
+    showToast("Failed to generate bookmarks");
+  }
+}
+
+/**
  * Render bookmarks from API
  */
 async function renderBookmarks() {

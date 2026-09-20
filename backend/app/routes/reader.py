@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.exceptions import ResourceNotFoundError
+from app.logging_config import get_logger
 from app.models import Book
 from app.schemas import (
     AnnotationCreate,
@@ -24,6 +25,13 @@ from app.schemas import (
     TOCResponse,
 )
 from app.services import LibraryService, ReaderService
+
+logger = get_logger(__name__)
+
+# ponytail: ceiling for TOC-generated bookmarks — beyond this the panel
+# becomes noise (page-per-chapter PDF fallbacks). Raise or paginate if a
+# real use case wants full 500-page bookmark sets.
+MAX_GENERATED_BOOKMARKS = 200
 
 # Allowed HTML tags for chapter content rendering
 _SANITIZATION_TAGS = {
@@ -398,6 +406,57 @@ async def create_bookmark(
         notes=bookmark_data.notes,
     )
     return BookmarkResponse.model_validate(bookmark)
+
+
+@router.post("/books/{book_id}/bookmarks/generate")
+async def generate_bookmarks(
+    book_id: int, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Seed bookmarks from the book's table of contents (spec 004 v1.1).
+
+    Only fires when the book has NO bookmarks yet — the operator's own
+    reading-position bookmarks are never overwritten. Every format's
+    `get_table_of_contents` already falls back to chapter/page metadata,
+    so "TOC or metadata" is one call.
+
+    Args:
+        book_id: Book primary key
+        db: Database session
+
+    Returns:
+        ``{"created": N, "total_available": M}`` — N rows inserted (capped),
+        M TOC entries found.
+    """
+    service = ReaderService(db)
+
+    existing = await service.list_bookmarks(book_id)
+    if existing:
+        raise HTTPException(status_code=409, detail="Book already has bookmarks")
+
+    toc_items = await service.get_table_of_contents(book_id)
+    if not toc_items:
+        raise HTTPException(
+            status_code=422, detail="No table of contents available for this book"
+        )
+
+    # Reverse insert: the bookmarks list reads newest-first, so writing the
+    # last TOC entry first makes chapter 1 appear at the top of the panel.
+    capped = toc_items[:MAX_GENERATED_BOOKMARKS]
+    for item in reversed(capped):
+        await service.create_bookmark(
+            book_id=book_id,
+            chapter_index=item["index"],
+            position_in_chapter=0,
+            title=item["title"],
+        )
+
+    logger.info(
+        "Generated %d bookmarks from TOC for book %s (%d TOC entries)",
+        len(capped),
+        book_id,
+        len(toc_items),
+    )
+    return {"created": len(capped), "total_available": len(toc_items)}
 
 
 @router.delete("/bookmarks/{bookmark_id}")

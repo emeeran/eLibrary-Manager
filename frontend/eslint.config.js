@@ -19,6 +19,12 @@ export default [
         IcecreamReader: "readonly",
         LibraryApp: "readonly",
         TTSEngine: "readonly",
+        // Cross-module reader helpers (classic scripts across reader modules
+        // and lib/dom.js — declared so no-undef reflects real load order)
+        showToast: "readonly",
+        EmptyStateIcons: "readonly",
+        escapeHtml: "readonly",
+        showNotesPanel: "readonly",
       },
     },
     rules: {
