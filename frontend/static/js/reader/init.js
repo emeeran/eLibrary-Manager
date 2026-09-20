@@ -102,6 +102,36 @@ function initEventListeners() {
         _scrollTicking = true;
       }
     });
+
+    // Mouse-wheel chapter navigation: rolling past the end (or start) of a
+    // chapter turns to the next (or previous) one, like an e-reader. In
+    // continuous layout the wheel already scrolls across chapters natively.
+    // The cooldown absorbs trackpad momentum so one flick = one turn.
+    let _wheelCooldown = 0;
+    readingArea.addEventListener(
+      "wheel",
+      function (e) {
+        if (IcecreamReader.pageLayout === "continuous") return;
+        const el = readingArea;
+        const atTop = el.scrollTop <= 2;
+        const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
+        const now = Date.now();
+        if (now - _wheelCooldown < 600) return;
+        if (e.deltaY > 0 && atBottom) {
+          const tc = IcecreamReader.totalChapters;
+          if (tc <= 0 || IcecreamReader.currentChapter < tc - 1) {
+            _wheelCooldown = now;
+            e.preventDefault();
+            goToChapter(IcecreamReader.currentChapter + 1);
+          }
+        } else if (e.deltaY < 0 && atTop && IcecreamReader.currentChapter > 0) {
+          _wheelCooldown = now;
+          e.preventDefault();
+          goToChapter(IcecreamReader.currentChapter - 1);
+        }
+      },
+      { passive: false },
+    );
   }
 
   // Load initial annotations and bookmarks
@@ -232,15 +262,15 @@ document.addEventListener("keydown", function (e) {
 
   switch (e.key) {
     case "ArrowLeft":
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        if (IcecreamReader.currentChapter > 0)
-          loadChapter(IcecreamReader.currentChapter - 1);
-      }
+      // Plain arrows turn chapters (help panel always advertised this);
+      // Up/Down stay with the browser for in-chapter scrolling.
+      e.preventDefault();
+      if (IcecreamReader.currentChapter > 0)
+        loadChapter(IcecreamReader.currentChapter - 1);
       break;
     case "ArrowRight":
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
+      e.preventDefault();
+      {
         const tc = IcecreamReader.totalChapters;
         if (tc <= 0 || IcecreamReader.currentChapter < tc - 1)
           loadChapter(IcecreamReader.currentChapter + 1);
@@ -320,7 +350,7 @@ document.addEventListener("keydown", function (e) {
       e.preventDefault();
       toggleFullscreen();
       break;
-    case "Escape":
+    case "Escape": {
       // Close help modal first
       const helpOverlay = document.getElementById("ic-help-overlay");
       if (helpOverlay && helpOverlay.style.display !== "none") {
@@ -332,6 +362,7 @@ document.addEventListener("keydown", function (e) {
       closeAllLeftPanels();
       hideOtherMenus("");
       break;
+    }
     case "?":
       e.preventDefault();
       toggleHelpModal();

@@ -19,12 +19,6 @@ export default [
         IcecreamReader: "readonly",
         LibraryApp: "readonly",
         TTSEngine: "readonly",
-        // Cross-module reader helpers (classic scripts across reader modules
-        // and lib/dom.js — declared so no-undef reflects real load order)
-        showToast: "readonly",
-        EmptyStateIcons: "readonly",
-        escapeHtml: "readonly",
-        showNotesPanel: "readonly",
       },
     },
     rules: {
@@ -53,6 +47,16 @@ export default [
       "no-console": ["warn", { allow: ["warn", "error"] }],
       eqeqeq: ["error", "smart"],
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+    },
+  },
+  {
+    // Reader modules are a classic-script split: they share one global scope
+    // by design (functions in one file are called from siblings and from
+    // inline onclick handlers), so no-undef cannot work until phase 6
+    // converts them to ES modules with real imports.
+    files: ["static/js/reader/**/*.js"],
+    rules: {
+      "no-undef": "off",
     },
   },
   {

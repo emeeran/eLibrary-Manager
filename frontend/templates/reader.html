@@ -80,6 +80,14 @@
 
             <!-- RIGHT GROUP: Actions & Tools -->
             <div class="ic-tabs-right">
+                <!-- Font Size (quick A- / A+; full slider lives in Settings) -->
+                <button class="ic-tab" onclick="adjustFontSize(-1)" title="Smaller text">
+                    <span style="font-size:12px;font-weight:700;">A&minus;</span>
+                </button>
+                <button class="ic-tab" onclick="adjustFontSize(1)" title="Larger text">
+                    <span style="font-size:16px;font-weight:700;">A+</span>
+                </button>
+
                 <!-- Book Info -->
                 <button class="ic-tab" onclick="toggleBookInfoPanel()" title="Book Info">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -551,10 +559,9 @@
                     </button>
                 </div>
                 <div class="ic-help-content">
-                    <div class="ic-help-row"><kbd>&larr;</kbd> <span>Previous page</span></div>
-                    <div class="ic-help-row"><kbd>&rarr;</kbd> <span>Next page</span></div>
-                    <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>&larr;</kbd> <span>Previous chapter</span></div>
-                    <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>&rarr;</kbd> <span>Next chapter</span></div>
+                    <div class="ic-help-row"><kbd>&larr;</kbd> <span>Previous chapter</span></div>
+                    <div class="ic-help-row"><kbd>&rarr;</kbd> <span>Next chapter</span></div>
+                    <div class="ic-help-row"><kbd>Wheel</kbd> <span>Turn chapter at page edge</span></div>
                     <div class="ic-help-row"><kbd>PgUp</kbd> / <kbd>PgDn</kbd> <span>Previous / next chapter</span></div>
                     <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>Home</kbd> / <kbd>End</kbd> <span>Jump to first / last chapter</span></div>
                     <div class="ic-help-row"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> <span>Bookmark selected text</span></div>

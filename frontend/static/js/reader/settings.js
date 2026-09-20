@@ -242,6 +242,21 @@ function updateZoomDisplay() {
 }
 
 /**
+ * Nudge font size by delta px — the right-toolbar A− / A+ buttons.
+ * Clamped to the same 12–28 range as the Settings slider, which is kept
+ * in sync when open.
+ * @param {number} delta - +1 or -1
+ */
+function adjustFontSize(delta) {
+  const next = Math.max(12, Math.min(28, (IcecreamReader.fontSize || 15) + delta));
+  setFontSize(next);
+  const slider = document.getElementById("ic-font-size-slider-sidebar");
+  if (slider) slider.value = next;
+  const valueLabel = document.getElementById("ic-font-size-value");
+  if (valueLabel) valueLabel.textContent = `${next}px`;
+}
+
+/**
  * Set font size
  */
 function setFontSize(size) {
