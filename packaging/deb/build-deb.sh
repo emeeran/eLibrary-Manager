@@ -52,6 +52,7 @@ mkdir -p "$PKG_DIR/var/log/elibrary-manager"
 mkdir -p "$PKG_DIR/etc/elibrary-manager"
 mkdir -p "$PKG_DIR/DEBIAN"
 mkdir -p "$PKG_DIR/usr/share/applications"
+mkdir -p "$PKG_DIR/usr/bin"
 mkdir -p "$PKG_DIR/usr/share/icons/hicolor/scalable/apps"
 mkdir -p "$PKG_DIR/usr/lib/systemd/system"
 
