@@ -46,7 +46,10 @@ _MAX_PERIOD = max(period for _, period in RATE_LIMITS.values()) if RATE_LIMITS e
 # speed benefit while still allowing Ctrl+Shift+R / conditional revalidation
 # to recover from a stale entry.
 CACHE_RULES: dict[str, str] = {
-    "/static/": "public, max-age=31536000",
+    # JS/CSS must always revalidate: long max-age here served stale scripts
+    # for days after deploys even when ?v=N was bumped late (voices not
+    # persisting, features missing). no-cache keeps 304 efficiency via ETag.
+    "/static/": "no-cache",
     "/covers/": "public, max-age=31536000",
     "/book-images/": "public, max-age=31536000",
 }
