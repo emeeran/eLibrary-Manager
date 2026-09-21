@@ -2095,6 +2095,82 @@ function initializeFileInput() {
 }
 
 /**
+ * Drag-and-drop upload onto the library grid.
+ * One POST /api/library/upload per file; the endpoint indexes the uploaded
+ * path without copying. Unsupported extensions are rejected per file.
+ */
+const DND_SUPPORTED_EXTS = [".epub", ".pdf", ".mobi"];
+let _dndDepth = 0;
+
+function initializeDragDrop() {
+  const overlay = document.getElementById("drop-overlay");
+  if (!overlay) return;
+
+  // Dropping a file anywhere else would navigate the tab away — swallow it.
+  ["dragover", "drop"].forEach((type) =>
+    document.addEventListener(type, (e) => e.preventDefault()),
+  );
+
+  const gridHost = document.querySelector(".book-grid-container");
+  if (!gridHost) return;
+
+  gridHost.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    _dndDepth++;
+    overlay.classList.remove("hidden");
+  });
+  gridHost.addEventListener("dragover", (e) => e.preventDefault());
+  gridHost.addEventListener("dragleave", (e) => {
+    e.preventDefault();
+    if (--_dndDepth <= 0) {
+      _dndDepth = 0;
+      overlay.classList.add("hidden");
+    }
+  });
+  gridHost.addEventListener("drop", (e) => {
+    e.preventDefault();
+    _dndDepth = 0;
+    overlay.classList.add("hidden");
+    handleDroppedFiles(e.dataTransfer?.files);
+  });
+}
+
+async function handleDroppedFiles(files) {
+  if (!files || !files.length) return;
+  const supported = [...files].filter((f) =>
+    DND_SUPPORTED_EXTS.some((ext) => f.name.toLowerCase().endsWith(ext)),
+  );
+  const rejected = files.length - supported.length;
+  if (rejected > 0) {
+    showNotification(
+      `${rejected} file${rejected > 1 ? "s" : ""} skipped — only EPUB, PDF and MOBI are supported`,
+      "error",
+    );
+  }
+
+  let added = 0;
+  for (const file of supported) {
+    showTopProgress();
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      // apiRequest (not apiPost): multipart must keep its own boundary.
+      const book = await apiRequest("/api/library/upload", {
+        method: "POST",
+        body: formData,
+      });
+      added++;
+      showNotification(`Successfully added: ${book.title}`, "success");
+    } catch (error) {
+      console.error(`Drop upload failed for ${file.name}:`, error);
+      showNotification(`${file.name}: ${error.message}`, "error");
+    }
+  }
+  hideTopProgress();
+  if (added > 0) loadBooks();
+}
+
+/**
  * Escape HTML to prevent XSS
  */
 /**
@@ -2386,6 +2462,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initializeSearch();
   initializeFormatFilter();
   initializeFileInput();
+  initializeDragDrop();
   initializeModalClose();
   initializeSidebarState();
   initializeRippleEffects();
