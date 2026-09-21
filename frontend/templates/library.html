@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eLibrary Manager</title>
-    <link rel="stylesheet" href="/static/css/main.css?v=23">
+    <link rel="stylesheet" href="/static/css/main.css?v=24">
     <!-- Using SVG icons inline, no external font dependency -->
     <link rel="icon" href="/static/images/dawnstar-mark.png" type="image/svg+xml"/>
 </head>
@@ -499,6 +499,11 @@
                             <span class="text-sm">Mark as favorite</span>
                         </label>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Your review</label>
+                        <textarea id="edit-review" name="review" class="form-input" rows="4"
+                            placeholder="What did you think of this book?" style="resize:vertical;"></textarea>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('edit-modal')">Cancel</button>
@@ -534,6 +539,7 @@
                     </div>
                 </div>
                 <div class="book-details-description" id="details-description"></div>
+                <div class="book-details-description book-details-review" id="details-review"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" onclick="closeModal('details-modal')">Close</button>
@@ -651,7 +657,7 @@
     <script src="/static/js/lib/storage.js?v=1" defer></script>
     <script src="/static/js/lib/notify.js?v=2" defer></script>
     <script src="/static/js/theme.js?v=2" defer></script>
-    <script src="/static/js/library.js?v=28" defer></script>
+    <script src="/static/js/library.js?v=29" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
