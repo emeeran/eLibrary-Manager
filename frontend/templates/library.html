@@ -562,6 +562,13 @@
                         <span class="text-sm" style="color:var(--accent-blue,#4285F4);">✓ Hand-edited —
                             protected from Calibre re-sync</span>
                     </div>
+                    <div class="form-group">
+                        <button type="button" class="btn btn-secondary" id="btn-enrich" onclick="suggestMetadata()"
+                            title="Ask AI to propose metadata for empty fields">
+                            ✨ Suggest metadata (AI)
+                        </button>
+                        <span id="enrich-status" class="text-sm" style="margin-left:8px;color:var(--text-secondary,#5A5A5A);"></span>
+                    </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                         <div class="form-group">
                             <label class="form-label">Publisher</label>
@@ -758,7 +765,7 @@
     <script src="/static/js/lib/storage.js?v=1" defer></script>
     <script src="/static/js/lib/notify.js?v=2" defer></script>
     <script src="/static/js/theme.js?v=2" defer></script>
-    <script src="/static/js/library.js?v=34" defer></script>
+    <script src="/static/js/library.js?v=35" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {

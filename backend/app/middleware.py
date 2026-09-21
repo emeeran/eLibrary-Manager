@@ -26,6 +26,7 @@ RATE_LIMITS: dict[str, tuple[int, int]] = {
     "/api/maintenance/backup": (3, 60),
     "/api/maintenance/restore": (3, 300),
     "/ask": (20, 60),
+    "/enrich": (10, 60),
     "/api/ai/transform": (30, 60),
     "/api/auth/login": (10, 60),
     # Per-book hide/unhide run bcrypt verification — cap hard to throttle brute

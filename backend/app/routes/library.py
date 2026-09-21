@@ -1010,6 +1010,49 @@ async def record_reading_session(
     return {"recorded": True, "minutes": minutes}
 
 
+@router.post("/books/{book_id}/enrich")
+async def enrich_book_metadata(
+    book_id: int, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Propose metadata for a book via AI (item 2.4). No writes here.
+
+    Sample source is the already-extracted content index (first ~1200 chars);
+    unindexed books are rejected. The client shows the proposals and writes
+    chosen fields through the normal PATCH endpoint, which raises the
+    metadata_edited shield.
+    """
+    from sqlalchemy import text as sql_text
+
+    from app.ai_engine import get_ai_orchestrator
+    from app.exceptions import AIServiceError
+    from app.services.metadata_enrichment import build_prompt, parse_proposals
+
+    repo = BookRepository(db)
+    book = await repo.get_by_id_or_404(book_id)
+    filename = os.path.basename(book.path)
+
+    result = await db.execute(
+        sql_text("SELECT content FROM books_content_fts WHERE book_id = :b"),
+        {"b": book_id},
+    )
+    row = result.first()
+    if row is None or not row.content:
+        raise HTTPException(
+            status_code=422,
+            detail="This book isn't content-indexed yet — run content indexing first.",
+        )
+
+    try:
+        orchestrator = await get_ai_orchestrator()
+        raw = await orchestrator.complete_text(
+            build_prompt(filename, row.content), max_tokens=500
+        )
+    except AIServiceError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+    return {"proposals": parse_proposals(raw), "provider": orchestrator.current_provider}
+
+
 @router.get("/stats")
 async def get_library_stats(db: AsyncSession = Depends(get_db)) -> dict:
     """Get library statistics.
