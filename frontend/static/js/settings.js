@@ -3,7 +3,6 @@
 /* global apiGet, apiPost, apiFetch, ApiError */
 
 // Current active tab
-let currentTab = "general";
 
 /**
  * Human-readable message from an ApiError — some endpoints send `detail`
@@ -44,7 +43,6 @@ document.addEventListener("DOMContentLoaded", () => {
  * Switch between settings tabs
  */
 function switchTab(tabId) {
-  currentTab = tabId;
 
   // Update nav items
   document.querySelectorAll(".settings-nav-item").forEach((item) => {
@@ -201,7 +199,6 @@ async function saveSettings(event) {
   // Also save individual settings for use in other pages
   localStorage.setItem("reader-theme", settings.theme);
   localStorage.setItem("reader-zoom", settings.font_size.toString());
-  localStorage.setItem("reader-speed", settings.tts_speed);
 
   // Save to server
   try {
@@ -658,7 +655,6 @@ async function testAIConnection(event) {
   }
 
   const btn = event.target;
-  const originalText = btn.textContent;
   setButtonLoading(btn, true);
 
   try {
@@ -682,7 +678,6 @@ async function testAIConnection(event) {
  */
 async function testNASConnection(event) {
   const btn = event.target;
-  const originalText = btn.textContent;
   setButtonLoading(btn, true);
 
   const statusDiv = document.getElementById("nas-status");
@@ -831,15 +826,6 @@ function showNotification(message, type = "info", duration = 5000) {
   // window.notify, not window.showNotification: the declaration above rebinds
   // that global in a classic script, which would recurse into itself.
   return window.notify(message, { type: type || "info", timeoutMs: duration });
-}
-
-/**
- * Escape HTML to prevent XSS
- */
-function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
 }
 
 // Keyboard shortcuts for settings

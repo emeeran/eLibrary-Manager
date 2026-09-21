@@ -31,7 +31,7 @@ Makes the library search box match book **CONTENT** (body text), not just title/
 
 ### Backfill job
 
-- **AC-5:** `POST /api/library/backfill-content` runs the extraction as a
+- **AC-5 (endpoint removed 2026-09-21):** `POST /api/library/backfill-content` ran the extraction as a
   background task, returns `{scan_id}`, shares the `_active_scans` lock (409 if a
   scan/import is running), and streams progress via the shared
   `/api/library/scan-progress/{scan_id}` SSE endpoint.
@@ -41,7 +41,7 @@ Makes the library search box match book **CONTENT** (body text), not just title/
   from the remaining `pending` books.
 - **AC-7:** The job supports cooperative cancellation and reports
   `processed/total` + current path through the progress store.
-- **AC-8:** `GET /api/library/content-index-status` returns
+- **AC-8 (endpoint removed 2026-09-21):** `GET /api/library/content-index-status` returned
   `{total, indexed, pending, empty, failed}` for the search UI.
 
 ### Search behaviour

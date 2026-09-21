@@ -34,7 +34,7 @@ Enable eLibrary Manager to index and read ebooks stored on a Synology NAS (or an
 | POST | `/api/settings/test-nas` | On-demand NAS connectivity test |
 | POST | `/api/books/{id}/cache` | Pre-cache a book for offline access |
 | DELETE | `/api/books/{id}/cache` | Remove a book from offline cache |
-| GET | `/api/library/cache-status` | Cache statistics and cached book list |
+| GET | `/api/library/cache-status` | **Removed 2026-09-21 (ponytail audit)** — no client caller; offline cache served by `nas_cache.py` directly |
 
 ## Acceptance Criteria
 

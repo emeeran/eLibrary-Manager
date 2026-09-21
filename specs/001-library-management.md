@@ -150,7 +150,7 @@ Library Management is the core feature of eLibrary Manager. It provides all capa
 ### AC-001.16: Refresh Covers (Missing Only)
 
 **Given** the library contains books, some with `cover_path` set and some without
-**When** the user sends `POST /api/library/refresh-covers` (no query param, defaults `force=false`)
+**(Endpoint removed 2026-09-21, ponytail audit — no UI/API caller.)** Original behavior — `POST /api/library/refresh-covers` (no query param, defaults `force=false`)
 **Then** the system iterates all books
 **And** skips books that already have a `cover_path`
 **And** attempts cover extraction for books missing a `cover_path`
@@ -392,7 +392,7 @@ Library Management is the core feature of eLibrary Manager. It provides all capa
 | POST | `/api/library/import-dir` | `{ "path": string }` (DirectoryImportRequest) | `200` `{ "imported", "skipped", "errors", "total" }` | `400` directory not found |
 | POST | `/api/library/import-file` | `{ "file_path": string }` (raw dict) | `200` BookResponse | `400` missing file_path or unsupported format; `404` file not found; `500` import failure |
 | POST | `/api/library/upload` | multipart `file` | `200` BookResponse | `400` unsupported format; `500` upload failure |
-| POST | `/api/library/refresh-covers` | None (query: `force` bool) | `200` `{ "updated", "skipped", "errors", "total" }` | - |
+| POST | `/api/library/refresh-covers` | **Removed 2026-09-21** — no client caller | - | - |
 | GET | `/api/books` | None (query: page, page_size, favorite_only, recent_only, search, format_filter) | `200` BookListResponse | - |
 | GET | `/api/books/{book_id}` | None | `200` BookResponse | `404` not found |
 | PATCH | `/api/books/{book_id}` | BookUpdate (partial) | `200` BookResponse | `404` not found; `422` validation |

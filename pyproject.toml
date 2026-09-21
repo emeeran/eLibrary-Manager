@@ -1,13 +1,13 @@
 [project]
 name = "ebook-manager"
 version = "0.2.14"
-description = "Lightweight ebook manager with Icecream UI and AI summaries"
+description = "Lightweight ebook library manager with reader and AI summaries"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi[standard]>=0.104.0",
     "uvicorn[standard]>=0.24.0",
-    "sqlalchemy[exts]>=2.0.23",
+    "sqlalchemy[asyncio]>=2.0.23",
     "aiosqlite>=0.19.0",
     "ebooklib>=0.18",
     "beautifulsoup4>=4.12.2",
@@ -23,7 +23,7 @@ dependencies = [
     "gtts>=2.5.0",
     "edge-tts>=6.1.0",
     "cryptography>=42.0.0",
-    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.0.0",
     "nh3>=0.3.5",
     "alembic>=1.18.4",
     "cachetools>=5.3.0",

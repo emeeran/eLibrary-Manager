@@ -125,7 +125,6 @@ eLibrary-Manager/
 │           └── factory.py        # Storage backend factory
 ├── frontend/
 │   ├── templates/                # Jinja2 HTML templates
-│   │   ├── base.html             # Base layout with sidebar
 │   │   ├── library.html          # Library grid/table view
 │   │   ├── reader.html           # Book reader with themes
 │   │   ├── settings.html         # Settings management page

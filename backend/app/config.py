@@ -84,11 +84,7 @@ class AppConfig(BaseSettings):
     # NAS Configuration
     nas_enabled: bool = False
     nas_host: str = ""
-    nas_share: str = ""
     nas_mount_path: str = ""
-    nas_protocol: Literal["smb", "nfs"] = "smb"
-    nas_username: str = ""
-    nas_auto_mount: bool = False
     nas_cache_dir: str = "./nas_cache"
 
     # Performance

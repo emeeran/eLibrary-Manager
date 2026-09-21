@@ -43,7 +43,7 @@ eLibrary-Manager/
 │   └── static/               # CSS, JS, images
 ├── specs/                    # Spec-Driven Development specifications
 │   ├── INDEX.md              # Spec registry
-│   └── 001-*.md ... 009-*.md # Feature specs (incl. NAS integration)
+│   └── 001-*.md ... 014-*.md # Feature specs (incl. NAS, Calibre, full-text search)
 ├── alembic/                  # Database migrations
 ├── tests/                    # Pytest suite (run: `uv run python -m pytest`)
 ├── library/                  # Local ebook storage
@@ -123,19 +123,9 @@ All features are governed by formal specifications in `specs/`. The specs are th
 
 ### Spec Registry
 
-| ID | Feature | File |
-|----|---------|------|
-| 001 | Library Management | `specs/001-library-management.md` |
-| 002 | Reader Interface | `specs/002-reader-interface.md` |
-| 003 | AI Summarization | `specs/003-ai-summarization.md` |
-| 004 | Bookmarks | `specs/004-bookmarks.md` |
-| 005 | Notes & Annotations | `specs/005-notes-annotations.md` |
-| 006 | Text-to-Speech | `specs/006-text-to-speech.md` |
-| 007 | Settings | `specs/007-settings.md` |
-| 008 | File Parsers | `specs/008-file-parsers.md` |
-| 009 | NAS Integration | `specs/009-nas-integration.md` |
-
-The authoritative registry (with status, version, dependency graph) is `specs/INDEX.md`.
+The authoritative registry (IDs, status, versions, dependency graph) is
+`specs/INDEX.md` — currently 14 active specs (001–014). Do not duplicate the
+table here; update `specs/INDEX.md` instead.
 
 ## Key Design Requirements
 

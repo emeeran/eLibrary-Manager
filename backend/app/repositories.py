@@ -676,15 +676,6 @@ class BookRepository:
         result = await self.session.execute(query)
         return list(result.scalars().all())
 
-    async def get_all_paths(self) -> dict[str, int]:
-        """Load all book paths with their IDs for stale-file detection.
-
-        Returns:
-            Dict mapping path -> book_id
-        """
-        result = await self.session.execute(select(Book.id, Book.path))
-        return {row.path: row.id for row in result.all()}
-
     async def get_stale_book_ids(self) -> list[int]:
         """Find IDs of books whose files no longer exist on disk.
 

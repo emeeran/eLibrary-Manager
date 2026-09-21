@@ -141,15 +141,6 @@ async def auto_categorize_book(
     return await cat_service.auto_categorize(book)
 
 
-@router.post("/library/auto-categorize-all")
-async def auto_categorize_all(db: AsyncSession = Depends(get_db)) -> dict:
-    """Auto-categorize all books in the library."""
-    from app.services.categorization_service import CategorizationService
-
-    cat_service = CategorizationService(db)
-    return await cat_service.auto_categorize_all()
-
-
 @router.get("/library/auto-categorize-stream")
 async def auto_categorize_stream(db: AsyncSession = Depends(get_db)) -> StreamingResponse:
     """SSE stream for real-time categorization progress."""

@@ -96,11 +96,7 @@ DEFAULTS: SettingsResponse = SettingsResponse(
     auto_summary=False,
     nas_enabled=False,
     nas_host="",
-    nas_share="",
     nas_mount_path="",
-    nas_protocol="smb",
-    nas_username="",
-    nas_auto_mount=False,
     calibre_web_url="",
 )
 
@@ -165,13 +161,7 @@ def _build_response(stored: dict[str, str]) -> SettingsResponse:
         if _str("nas_enabled") is not None
         else defaults["nas_enabled"],
         nas_host=_str("nas_host") or defaults["nas_host"],
-        nas_share=_str("nas_share") or defaults["nas_share"],
         nas_mount_path=_str("nas_mount_path") or defaults["nas_mount_path"],
-        nas_protocol=_str("nas_protocol") or defaults["nas_protocol"],
-        nas_username=_str("nas_username") or defaults["nas_username"],
-        nas_auto_mount=_bool("nas_auto_mount")
-        if _str("nas_auto_mount") is not None
-        else defaults["nas_auto_mount"],
         calibre_web_url=_str("calibre_web_url") or defaults["calibre_web_url"],
     )
 

@@ -238,28 +238,3 @@ class CategorizationService:
     async def auto_categorize(self, book: Book) -> dict:
         """Auto-categorize a book using AI."""
         return await self.ai_categorize(book)
-
-    async def auto_categorize_all(self) -> dict:
-        """Auto-categorize all books in the library."""
-        from app.models import Book
-
-        db_result = await self.session.execute(select(Book))
-        books = list(db_result.scalars().all())
-
-        total_categorized = 0
-        total_categories_added = 0
-
-        for book in books:
-            try:
-                result = await self.ai_categorize(book)
-                if result["categories_added"] > 0:
-                    total_categorized += 1
-                    total_categories_added += result["categories_added"]
-            except Exception as e:
-                logger.warning(f"Failed to categorize '{book.title}': {e}")
-
-        return {
-            "total_books": len(books),
-            "categorized": total_categorized,
-            "categories_added": total_categories_added,
-        }
