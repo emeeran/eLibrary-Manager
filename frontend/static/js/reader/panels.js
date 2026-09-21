@@ -336,6 +336,9 @@ async function loadBookInfo() {
       const mb = (book.file_size / 1048576).toFixed(1);
       details.push(`<strong>File size:</strong> ${mb} MB`);
     }
+    if (book.word_count) {
+      details.push(`<strong>Time to read:</strong> ${formatReadTime(book.word_count)}`);
+    }
 
     // Rating
     const rating = book.rating || 0;

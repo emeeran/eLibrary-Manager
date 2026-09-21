@@ -1,7 +1,7 @@
 // Library Page JavaScript for eBook Manager
 // Pixel-Perfect Icecream UI Clone
 
-/* global apiGet, apiPost, apiDelete, apiFetch, apiRequest */
+/* global apiGet, apiPost, apiDelete, apiFetch, apiRequest, formatReadTime */
 // Globals from the lib/ classic scripts (loaded before this file):
 // api.js (fetch wrappers), notify.js (window.showNotification via the
 // delegating wrapper near the bottom of this file).
@@ -428,6 +428,7 @@ function renderGridView(books, append = false) {
                         <span class="book-card-format">${book.format}</span>
                         ${book.total_pages ? `<span class="book-card-pages">${book.total_pages}p</span>` : ""}
                         ${yearInfo ? `<span class="book-card-year">${yearInfo}</span>` : ""}
+                        ${book.word_count ? `<span class="book-card-time" title="Estimated time to read">${formatReadTime(book.word_count)}</span>` : ""}
                     </div>
                     ${book.categories && book.categories.length ? `<div class="book-card-categories"><span class="category-pill">${escapeHtml(book.categories[0])}</span>${book.categories.length > 1 ? `<span class="category-pill category-pill-more">+${book.categories.length - 1}</span>` : ""}</div>` : ""}
                     ${contentSnippets && contentSnippets[String(book.id)] ? `<div class="book-card-snippet" title="Open at this match" onclick="jumpToMatch(${book.id}, event)">${renderSnippet(contentSnippets[String(book.id)])}</div>` : ""}
@@ -1031,6 +1032,7 @@ async function openDetailsModal(bookId) {
     add("Language", book.language);
     add("ISBN", book.isbn);
     if (book.total_pages) add("Pages", book.total_pages);
+    if (book.word_count) add("Time to read", formatReadTime(book.word_count));
     if (book.file_size) add("File size", `${(book.file_size / 1048576).toFixed(1)} MB`);
     add("Progress", book.progress ? `${Math.round(book.progress)}%` : "");
     if (book.added_date) {

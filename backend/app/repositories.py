@@ -802,6 +802,9 @@ class BookContentRepository:
             await self.session.execute(
                 text("DELETE FROM books_content_fts WHERE book_id = :bid"), {"bid": book_id}
             )
+            book = await self.session.get(Book, book_id)
+            if book:
+                book.word_count = None
 
     async def upsert_extracted(
         self, book_id: int, content_text: str, char_count: int, source_mtime: float | None
@@ -832,6 +835,9 @@ class BookContentRepository:
                     extracted_at=now,
                 )
             )
+        book = await self.session.get(Book, book_id)
+        if book:
+            book.word_count = char_count // 6  # ~6 chars per word
 
     async def status_counts(self) -> dict[str, int]:
         """Return {extract_status: count} for progress reporting."""

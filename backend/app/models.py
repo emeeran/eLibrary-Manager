@@ -59,6 +59,9 @@ class Book(Base):
     total_pages: Mapped[int] = mapped_column(Integer, default=0)
     storage_type: Mapped[str] = mapped_column(String(10), default="local")
     rating: Mapped[int] = mapped_column(Integer, default=0)  # 0=unrated, 1-5 stars
+    # Approximate word count (chars/6) written when content extraction runs.
+    # Nullable: only books with extracted body text have an estimate.
+    word_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Per-book password protecting unhide (approach A: each hidden book has
     # its own password). Stored as a one-way bcrypt hash ("$2b$..."), never
     # reversible. See specs/010-hidden-books.md.
