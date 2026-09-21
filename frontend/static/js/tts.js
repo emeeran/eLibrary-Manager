@@ -15,7 +15,7 @@
   // Current TTS engine
   let currentEngine =
     localStorage.getItem("dawnstar_tts_engine") || ENGINE_EDGETTS;
-  let activeEngine = null; // The engine that successfully initialized
+  const activeEngine = null; // The engine that successfully initialized
   let isServerLoading = false;
 
   // Voice storage
@@ -477,6 +477,25 @@
       });
     }
 
+    // Seed engine/voice from server settings when this browser hasn't chosen
+    // yet, so the operator's server-side default applies everywhere.
+    try {
+      const resp = await fetch("/api/settings");
+      if (resp.ok) {
+        const server = await resp.json();
+        if (server.tts_engine && !localStorage.getItem("dawnstar_tts_engine")) {
+          localStorage.setItem("dawnstar_tts_engine", server.tts_engine);
+        }
+        const eng = getCurrentEngineName() || currentEngine;
+        const serverVoice = (server.tts_voice || "").replace(/^\w+:/, "");
+        if (serverVoice && !localStorage.getItem(`dawnstar_tts_voice_${eng}`)) {
+          localStorage.setItem(`dawnstar_tts_voice_${eng}`, serverVoice);
+        }
+      }
+    } catch (error) {
+      console.warn("TTS settings seed skipped:", error);
+    }
+
     // Load voices based on engine
     await updateVoiceList();
 
@@ -633,6 +652,34 @@
       const MAX_CHUNK = 500;
       const segments = splitTextIntoSegments(plainText, MAX_CHUNK);
       await tts.speakSegments(segments, { voice: voiceValue, rate });
+    }
+  }
+
+  /**
+   * Speak arbitrary text with the current engine's saved voice and rate
+   * (powering speak-selection / speak-from-cursor).
+   */
+  async function speakText(text) {
+    const plain = (text || "").replace(/\s+/g, " ").trim();
+    if (!plain) return;
+    const rate = parseFloat(localStorage.getItem("dawnstar_tts_rate") || "1.0");
+    const voiceValue = localStorage.getItem(
+      "dawnstar_tts_voice_" + (getCurrentEngineName() || currentEngine),
+    );
+    const engine = getCurrentEngineName();
+    const tts = getTTS();
+    if (!tts) return;
+    if (engine === ENGINE_BROWSER) {
+      const voiceIndex = parseInt(voiceValue) || 0;
+      await tts.speak(plain, {
+        voice: webSpeechTTS?.getVoices()[voiceIndex],
+        rate,
+      });
+    } else {
+      await tts.speakSegments(splitTextIntoSegments(plain, 500), {
+        voice: voiceValue,
+        rate,
+      });
     }
   }
 
@@ -1086,7 +1133,7 @@
       1.0;
     const wordsPerSec = (150 * rate) / 60;
     const startTime = performance.now();
-    let loggedOnce = false;
+    const loggedOnce = false;
 
     function tick() {
       if (!audioElement || !_isHighlighting) {
@@ -1245,6 +1292,7 @@
     clearHighlights,
     setRate: (rate) => getTTS()?.setRate(rate),
     speakCurrentChapter,
+    speakText,
     getEngine: () => getCurrentEngineName(),
     setEngine: (engine) => {
       currentEngine = engine;

@@ -308,6 +308,8 @@ class SettingsCreate(BaseModel):
     theme: str | None = Field(None, max_length=30)
     tts_speed: str | None = Field(None, max_length=10)
     tts_pitch: float | None = Field(None, ge=0.5, le=2.0)
+    tts_engine: str | None = Field(None, max_length=20)
+    tts_voice: str | None = Field(None, max_length=100)
     ai_provider: str | None = Field(None, pattern="^(auto|google|groq|ollama)$")
     ai_api_key: str | None = Field(None, max_length=500)
     ollama_url: str | None = Field(None, max_length=500)
@@ -352,6 +354,8 @@ class SettingsResponse(BaseModel):
     theme: str
     tts_speed: str
     tts_pitch: float
+    tts_engine: str = "edgetts"
+    tts_voice: str = ""
     ai_provider: str
     ollama_url: str | None = None
     auto_flip: bool

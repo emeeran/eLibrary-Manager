@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eLibrary Manager - Reader</title>
     <link rel="stylesheet" href="/static/css/reader.css?v=41">
+    <link rel="icon" href="/static/images/dawnstar-mark.svg" type="image/svg+xml"/>
 </head>
 
 <body>
@@ -165,6 +166,18 @@
                         <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
                     </svg>
                 </button>
+                <div class="ic-menu-divider"></div>
+                <button onclick="speakFromSelectionStart()" class="ic-tool-btn" title="Speak from here">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                    </svg>
+                </button>
+                <button onclick="speakSelection()" class="ic-tool-btn" title="Speak selected text">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M8 5v14l11-7L8 5z"/>
+                    </svg>
+                </button>
+                <div class="ic-menu-divider"></div>
                 <button onclick="copySelection()" class="ic-tool-btn" title="Copy">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -211,6 +224,12 @@
                         <li>Then click the color or the 'Add note' button in the opened menu</li>
                     </ol>
                 </div>
+                <button class="ic-add-bookmark-btn" onclick="embedAnnotationsToFile()" title="Write highlights and notes into the book file itself (EPUB spans / PDF annotations). Already-embedded ones are skipped.">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                    </svg>
+                    Save to book file
+                </button>
                 <div class="ic-notes-list" id="ic-notes-list" role="list">
                     <div class="ic-sidebar-empty">No notes yet. Select text to add a note or highlight.</div>
                 </div>
@@ -486,6 +505,11 @@
                 <div class="ic-right-resize-handle" id="summary-resize-handle"></div>
                 <div class="ic-summary-header">
                     <span class="ic-summary-title">Summary</span>
+                    <button class="ic-summary-close" id="ic-summary-flyout-btn" onclick="toggleSummaryFlyout()" title="Open as half-page flyout">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14v2H5v14h14v-2zm2-12h-8l3-3-3-3h8v6z" transform="rotate(180 20 12)"/>
+                        </svg>
+                    </button>
                     <button class="ic-summary-close" onclick="toggleSummaryPanel()" title="Close">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />

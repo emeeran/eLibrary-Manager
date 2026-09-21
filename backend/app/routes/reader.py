@@ -408,6 +408,76 @@ async def create_bookmark(
     return BookmarkResponse.model_validate(bookmark)
 
 
+@router.post("/books/{book_id}/annotations/embed")
+async def embed_annotations_to_file(
+    book_id: int, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Write highlights/notes into the book file itself (spec 005 v1.1).
+
+    EPUB: quoted text is wrapped with marked-up spans; PDF: native highlight
+    and comment annotations. Explicit operator action — the database remains
+    the in-app source of truth. Safe to re-run: already-embedded annotations
+    are skipped.
+
+    Args:
+        book_id: Book primary key
+        db: Database session
+
+    Returns:
+        {"format": ..., "embedded": n, "skipped": m}
+    """
+    import asyncio
+
+    from sqlalchemy import select as sa_select
+
+    from app.models import Annotation, Note
+    from app.repositories import BookRepository
+    from app.services.annotation_embedder import EmbedItem, embed_annotations_into_file
+
+    book = await BookRepository(db).get_by_id(book_id)
+    if not book:
+        raise ResourceNotFoundError("Book not found", {"book_id": book_id})
+
+    items: list[EmbedItem] = []
+    annotations = (
+        await db.execute(sa_select(Annotation).where(Annotation.book_id == book_id))
+    ).scalars().all()
+    for a in annotations:
+        if a.text and a.text.strip():
+            items.append(
+                EmbedItem(key=f"a{a.id}", quoted=a.text, note=a.note or "", color=a.color or "yellow")
+            )
+    notes = (
+        await db.execute(sa_select(Note).where(Note.book_id == book_id))
+    ).scalars().all()
+    for n in notes:
+        if n.quoted_text and n.quoted_text.strip():
+            items.append(
+                EmbedItem(key=f"n{n.id}", quoted=n.quoted_text, note=n.content, color=n.color or "yellow")
+            )
+
+    if not items:
+        raise HTTPException(
+            status_code=422, detail="No notes or annotations to embed for this book"
+        )
+
+    from app.services.annotation_embedder import UnsupportedFormatError
+
+    try:
+        result = await asyncio.to_thread(
+            embed_annotations_into_file, book.format, book.path, items
+        )
+    except UnsupportedFormatError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except OSError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not write to the book file: {e}",
+        ) from e
+
+    return result
+
+
 @router.post("/books/{book_id}/bookmarks/generate")
 async def generate_bookmarks(
     book_id: int, db: AsyncSession = Depends(get_db)

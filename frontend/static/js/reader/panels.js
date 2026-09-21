@@ -138,11 +138,32 @@ function toggleSummaryPanel() {
   const sidebar = document.getElementById("ic-summary-sidebar");
   const isOpen = !sidebar.classList.contains("collapsed");
   closeAllRightPanels();
-  if (isOpen) return; // Was open, now closed by closeAllRightPanels
+  if (isOpen) {
+    // Leaving the panel also exits flyout mode so the next open is a sidebar
+    sidebar.classList.remove("flyout");
+    return;
+  }
   sidebar.classList.remove("collapsed");
   IcecreamReader.summaryVisible = true;
   IcecreamReader.activeRightPanel = "summary";
   checkAIProvider();
+}
+
+/**
+ * Toggle the summary panel between the left sidebar and a half-page
+ * flyout overlay on the right (spec 003 presentation option).
+ */
+function toggleSummaryFlyout() {
+  const sidebar = document.getElementById("ic-summary-sidebar");
+  if (!sidebar) return;
+  if (sidebar.classList.contains("collapsed")) {
+    toggleSummaryPanel(); // open it first, directly into flyout mode
+  }
+  sidebar.classList.toggle("flyout");
+  const btn = document.getElementById("ic-summary-flyout-btn");
+  if (btn) btn.title = sidebar.classList.contains("flyout")
+    ? "Return to sidebar"
+    : "Open as half-page flyout";
 }
 
 /**

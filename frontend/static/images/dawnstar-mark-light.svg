@@ -7,14 +7,14 @@
     </linearGradient>
   </defs>
   <!-- upper arc -->
-  <path d="M 92 262 A 172 172 0 0 1 420 262" fill="none" stroke="#1b2a4a"
+  <path d="M 92 262 A 172 172 0 0 1 420 262" fill="none" stroke="#eef2fa"
         stroke-width="24" stroke-linecap="round"/>
   <!-- open book -->
-  <path d="M 96 322 Q 176 282 250 316 L 250 356 Q 176 326 96 358 Z" fill="#1b2a4a"/>
-  <path d="M 416 322 Q 336 282 262 316 L 262 356 Q 336 326 416 358 Z" fill="#1b2a4a"/>
-  <path d="M 74 372 Q 170 330 254 366 L 254 404 Q 170 372 74 406 Z" fill="#1b2a4a"/>
-  <path d="M 438 372 Q 342 330 258 366 L 258 404 Q 342 372 438 406 Z" fill="#1b2a4a"/>
-  <rect x="52" y="414" width="408" height="18" rx="9" fill="#1b2a4a"/>
+  <path d="M 96 322 Q 176 282 250 316 L 250 356 Q 176 326 96 358 Z" fill="#eef2fa"/>
+  <path d="M 416 322 Q 336 282 262 316 L 262 356 Q 336 326 416 358 Z" fill="#eef2fa"/>
+  <path d="M 74 372 Q 170 330 254 366 L 254 404 Q 170 372 74 406 Z" fill="#eef2fa"/>
+  <path d="M 438 372 Q 342 330 258 366 L 258 404 Q 342 372 438 406 Z" fill="#eef2fa"/>
+  <rect x="52" y="414" width="408" height="18" rx="9" fill="#eef2fa"/>
   <!-- gold S -->
   <path d="M 312 168 C 216 156 194 244 258 278 C 322 312 318 380 200 372"
         fill="none" stroke="url(#ds-gold)" stroke-width="26" stroke-linecap="round"/>

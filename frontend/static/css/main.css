@@ -5358,3 +5358,8 @@ html[data-theme="sepia-dark"] .tts-sentence-highlight {
     font-size: 12px;
     padding: 16px;
 }
+
+/* Dawnstar logo on dark rails: invert the navy mark to white in night theme */
+[data-theme="night"] .logo-icon img {
+  filter: brightness(0) invert(1);
+}

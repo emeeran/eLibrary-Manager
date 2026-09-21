@@ -1,7 +1,7 @@
 # SPEC-005: Notes & Annotations
 
 - **Status:** Active
-- **Version:** 1.0.0
+- **Version:** 1.1.0
 - **Last Updated:** 2026-04-15
 
 ## Purpose
@@ -385,6 +385,19 @@ class AnnotationUpdate(BaseModel):
 | Exceptions | `app/exceptions.py` | `ResourceNotFoundError` (available for future 404 handling on delete) |
 
 ---
+
+### AC-005.18: Embed Annotations into the Book File
+
+**Given** a book with at least one highlight or note whose quoted text appears verbatim in the file
+**When** `POST /api/books/{book_id}/annotations/embed` is called
+**Then** for EPUB, each quoted text is wrapped in the chapter XHTML with a `<span class="elm-annot" data-elm-annot="{key}" title="{note}" style="background:{color}">` and the file is rewritten atomically (temp file + rename)
+**And** for PDF, native highlight annotations (plus comment popups for notes) are added via PyMuPDF text search
+**And** the response is HTTP `200` with `{ "format": ..., "embedded": n, "skipped": m }` — `skipped` counts quotes that could not be located (never partially matched)
+**And** re-running skips already-embedded annotations via the `data-elm-annot` marker (EPUB) — idempotent
+**When** the book has no embeddable annotations, the route returns HTTP `422`
+**When** the format is MOBI (or otherwise unsupported), the route returns HTTP `422`
+**When** the file is not writable, the route returns HTTP `500` with the OS error
+**And** the database remains the in-app source of truth; embedding never deletes rows
 
 ## Test Coverage
 

@@ -151,6 +151,8 @@ def _build_response(stored: dict[str, str]) -> SettingsResponse:
         theme=_str("theme") or defaults["theme"],
         tts_speed=_str("tts_speed") or defaults["tts_speed"],
         tts_pitch=_float("tts_pitch") if _str("tts_pitch") is not None else defaults["tts_pitch"],
+        tts_engine=_str("tts_engine") or "edgetts",
+        tts_voice=_str("tts_voice") or "",
         ai_provider=_str("ai_provider") or cfg.ai_default_provider,
         ollama_url=_str("ollama_url") or cfg.ollama_local_url,
         auto_flip=_bool("auto_flip") if _str("auto_flip") is not None else defaults["auto_flip"],

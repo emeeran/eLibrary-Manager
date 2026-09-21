@@ -390,6 +390,12 @@ async function loadEdgeVoices() {
         });
         voiceSelect.appendChild(optgroup);
       });
+
+    // Restore the operator's saved voice; fall back to the server default
+    const savedVoice = localStorage.getItem("dawnstar_tts_voice_edgetts") || "";
+    if (savedVoice && voiceSelect.querySelector(`option[value="edgetts:${savedVoice}"]`)) {
+      voiceSelect.value = `edgetts:${savedVoice}`;
+    }
   } catch (error) {
     console.error("Failed to load EdgeTTS voices:", error);
     voiceSelect.innerHTML = '<option value="">Failed to load voices</option>';
@@ -435,6 +441,11 @@ async function loadGTVoices() {
         });
         voiceSelect.appendChild(optgroup);
       });
+
+    const savedGTVoice = localStorage.getItem("dawnstar_tts_voice_gtts") || "";
+    if (savedGTVoice && voiceSelect.querySelector(`option[value="gtts:${savedGTVoice}"]`)) {
+      voiceSelect.value = `gtts:${savedGTVoice}`;
+    }
   } catch (error) {
     console.error("Failed to load gTTS voices:", error);
     voiceSelect.innerHTML = '<option value="">Failed to load voices</option>';

@@ -564,6 +564,78 @@ async function generateBookmarksFromToc() {
 }
 
 /**
+ * Speak the currently selected text with the current TTS voice/rate.
+ */
+function speakSelection() {
+  const text = window.getSelection().toString();
+  if (!text.trim()) {
+    showToast("Select text to speak");
+    return;
+  }
+  window.tts?.speakText(text);
+}
+
+/**
+ * Speak from the start of the current selection to the end of the chapter
+ * ("speak from cursor").
+ */
+function speakFromSelectionStart() {
+  const sel = window.getSelection();
+  const content = document.getElementById("ic-chapter-text");
+  if (!sel.rangeCount || !content) {
+    showToast("Select a starting point first");
+    return;
+  }
+  const range = sel.getRangeAt(0);
+  const rest = document.createRange();
+  rest.setStart(range.startContainer, range.startOffset);
+  rest.setEndAfter(content);
+  const text = rest.toString();
+  if (!text.trim()) {
+    showToast("Nothing to read after this point");
+    return;
+  }
+  window.tts?.speakText(text);
+}
+
+/**
+ * Write highlights/notes into the book file itself (spec 005 v1.1).
+ * Explicit operator action with confirmation — the file is modified in place;
+ * the database remains the in-app source of truth and re-runs are skipped.
+ */
+async function embedAnnotationsToFile() {
+  const confirmed = confirm(
+    "Write this book's highlights and notes into the book file itself?\n" +
+      "The file is modified permanently (EPUB spans / PDF annotations); " +
+      "already-embedded annotations are skipped.",
+  );
+  if (!confirmed) return;
+  try {
+    const response = await fetch(
+      `/api/books/${IcecreamReader.bookId}/annotations/embed`,
+      { method: "POST" },
+    );
+    if (response.status === 422) {
+      const body = await response.json().catch(() => ({}));
+      showToast(body.detail || "Nothing to embed");
+      return;
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.detail || `HTTP ${response.status}`);
+    }
+    const result = await response.json();
+    showToast(
+      `Embedded ${result.embedded} into the book file` +
+        (result.skipped ? ` (${result.skipped} not found — skipped)` : ""),
+    );
+  } catch (e) {
+    console.error("Failed to embed annotations:", e);
+    showToast(`Embed failed: ${e.message}`);
+  }
+}
+
+/**
  * Render bookmarks from API
  */
 async function renderBookmarks() {
