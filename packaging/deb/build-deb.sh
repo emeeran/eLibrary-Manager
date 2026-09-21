@@ -54,6 +54,7 @@ mkdir -p "$PKG_DIR/DEBIAN"
 mkdir -p "$PKG_DIR/usr/share/applications"
 mkdir -p "$PKG_DIR/usr/bin"
 mkdir -p "$PKG_DIR/usr/share/icons/hicolor/scalable/apps"
+mkdir -p "$PKG_DIR/usr/share/icons/hicolor/256x256/apps"
 mkdir -p "$PKG_DIR/usr/lib/systemd/system"
 
 # --- Step 3: Create clean venv ---
@@ -191,7 +192,7 @@ chmod 755 "$PKG_DIR/usr/bin/elibrary-open"
 cp "$SCRIPT_DIR/elibrary-manager.desktop" "$PKG_DIR/usr/share/applications/"
 
 # Icon
-cp "$SCRIPT_DIR/elibrary-manager.svg" "$PKG_DIR/usr/share/icons/hicolor/scalable/apps/"
+cp "$SCRIPT_DIR/elibrary-manager.png" "$PKG_DIR/usr/share/icons/hicolor/256x256/apps/"
 
 # Repoint the service to a real user when ELIBRARY_RUN_USER is set (personal
 # installs that must read a user-owned library under /home). Default keeps the
