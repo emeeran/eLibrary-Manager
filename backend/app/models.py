@@ -54,6 +54,9 @@ class Book(Base):
     publisher: Mapped[str | None] = mapped_column(String(300), nullable=True)
     publish_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The reader's own review (free text). Never auto-populated by Calibre
+    # sync or metadata imports — unlike description.
+    review: Mapped[str | None] = mapped_column(Text, nullable=True)
     language: Mapped[str | None] = mapped_column(String(20), nullable=True)
     isbn: Mapped[str | None] = mapped_column(String(30), nullable=True)
     total_pages: Mapped[int] = mapped_column(Integer, default=0)

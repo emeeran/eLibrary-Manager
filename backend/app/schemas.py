@@ -50,6 +50,7 @@ class BookUpdate(BaseModel):
     progress: float | None = Field(None, ge=0, le=100)
     current_chapter: int | None = Field(None, ge=0)
     rating: int | None = Field(None, ge=0, le=5)
+    review: str | None = Field(None, max_length=20000)
 
 
 class BookResponse(BookBase):
@@ -70,6 +71,7 @@ class BookResponse(BookBase):
     publisher: str | None = None
     publish_date: str | None = None
     description: str | None = None
+    review: str | None = None
     language: str | None = None
     isbn: str | None = None
     total_pages: int = 0

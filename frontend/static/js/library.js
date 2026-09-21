@@ -1058,6 +1058,14 @@ async function openDetailsModal(bookId) {
       descEl.classList.add("hidden");
     }
 
+    const reviewEl = document.getElementById("details-review");
+    if (book.review) {
+      reviewEl.textContent = book.review;
+      reviewEl.classList.remove("hidden");
+    } else {
+      reviewEl.classList.add("hidden");
+    }
+
     document.getElementById("details-modal").classList.remove("hidden");
   } catch (error) {
     console.error("Failed to load book details:", error);
@@ -1084,6 +1092,7 @@ async function openEditModal(bookId) {
     document.getElementById("edit-title").value = book.title;
     document.getElementById("edit-author").value = book.author || "";
     document.getElementById("edit-is-favorite").checked = book.is_favorite;
+    document.getElementById("edit-review").value = book.review || "";
 
     // Show modal
     document.getElementById("edit-modal").classList.remove("hidden");
@@ -1124,6 +1133,7 @@ async function saveBookEdits(event) {
         title: title,
         author: author || null,
         is_favorite: isFavorite,
+        review: document.getElementById("edit-review").value.trim() || null,
       }),
     });
 

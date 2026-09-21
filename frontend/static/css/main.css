@@ -2185,6 +2185,14 @@ button {
     white-space: pre-wrap;
 }
 
+.book-details-review::before {
+    content: "Your review";
+    display: block;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
 /* Modal Buttons */
 .btn {
     padding: 10px 16px;
