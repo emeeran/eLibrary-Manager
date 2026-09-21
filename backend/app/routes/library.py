@@ -41,6 +41,24 @@ from cachetools import TTLCache
 # per-instance _count_cache doesn't span requests, so this is the real cache.
 _search_cache: TTLCache = TTLCache(maxsize=256, ttl=60)
 
+# Book fields a hand edit protects from Calibre re-sync (metadata_edited).
+# Everything except the reading-state fields (favorite/hidden/progress).
+HAND_EDITED_FIELDS = frozenset(
+    {
+        "title",
+        "author",
+        "rating",
+        "review",
+        "publisher",
+        "publish_date",
+        "language",
+        "isbn",
+        "series",
+        "series_index",
+        "description",
+    }
+)
+
 
 def invalidate_book_list_cache() -> None:
     """Clear the cached ``/api/books`` list responses.
@@ -763,6 +781,11 @@ async def update_book(
     """
     repo = BookRepository(db)
     book = await repo.update(book_id, update_data)
+    # Any hand edit to the metadata block protects the book's metadata from
+    # being clobbered by the next Calibre re-sync (whole-book granularity).
+    edited_fields = set(update_data.model_dump(exclude_unset=True)) & HAND_EDITED_FIELDS
+    if edited_fields:
+        book.metadata_edited = True
     return book_to_response(book)
 
 

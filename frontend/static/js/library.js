@@ -1093,6 +1093,16 @@ async function openEditModal(bookId) {
     document.getElementById("edit-author").value = book.author || "";
     document.getElementById("edit-is-favorite").checked = book.is_favorite;
     document.getElementById("edit-review").value = book.review || "";
+    document.getElementById("edit-publisher").value = book.publisher || "";
+    document.getElementById("edit-publish-date").value = book.publish_date || "";
+    document.getElementById("edit-language").value = book.language || "";
+    document.getElementById("edit-isbn").value = book.isbn || "";
+    document.getElementById("edit-series").value = book.series || "";
+    document.getElementById("edit-series-index").value =
+      book.series_index != null ? book.series_index : "";
+    document.getElementById("edit-description").value = book.description || "";
+    const editedNote = document.getElementById("edit-edited-note");
+    if (editedNote) editedNote.style.display = book.metadata_edited ? "" : "none";
 
     // Show modal
     document.getElementById("edit-modal").classList.remove("hidden");
@@ -1125,16 +1135,29 @@ async function saveBookEdits(event) {
 
   setButtonLoading(event.submitter, true);
 
+  const editPayload = {
+    title: title,
+    author: author || null,
+    is_favorite: isFavorite,
+    review: document.getElementById("edit-review").value.trim() || null,
+    publisher: document.getElementById("edit-publisher").value.trim() || null,
+    publish_date: document.getElementById("edit-publish-date").value.trim() || null,
+    language: document.getElementById("edit-language").value.trim() || null,
+    isbn: document.getElementById("edit-isbn").value.trim() || null,
+    series: document.getElementById("edit-series").value.trim() || null,
+    description: document.getElementById("edit-description").value.trim() || null,
+  };
+  const seriesIndexRaw = document.getElementById("edit-series-index").value;
+  editPayload.series_index = seriesIndexRaw === "" ? null : parseFloat(seriesIndexRaw);
+  if (editPayload.series_index != null && Number.isNaN(editPayload.series_index)) {
+    editPayload.series_index = null;
+  }
+
   try {
     await apiRequest(`/api/books/${bookId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: title,
-        author: author || null,
-        is_favorite: isFavorite,
-        review: document.getElementById("edit-review").value.trim() || null,
-      }),
+      body: JSON.stringify(editPayload),
     });
 
     closeModal("edit-modal");

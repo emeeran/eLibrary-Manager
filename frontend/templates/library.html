@@ -504,6 +504,42 @@
                         <textarea id="edit-review" name="review" class="form-input" rows="4"
                             placeholder="What did you think of this book?" style="resize:vertical;"></textarea>
                     </div>
+                    <div class="form-group" id="edit-edited-note" style="display:none;">
+                        <span class="text-sm" style="color:var(--accent-blue,#4285F4);">✓ Hand-edited —
+                            protected from Calibre re-sync</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div class="form-group">
+                            <label class="form-label">Publisher</label>
+                            <input type="text" id="edit-publisher" class="form-input" placeholder="Publisher">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Publish date</label>
+                            <input type="text" id="edit-publish-date" class="form-input" placeholder="e.g. 1997-06">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Language</label>
+                            <input type="text" id="edit-language" class="form-input" placeholder="e.g. eng">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">ISBN</label>
+                            <input type="text" id="edit-isbn" class="form-input" placeholder="ISBN">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Series</label>
+                            <input type="text" id="edit-series" class="form-input" placeholder="Series name">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Series index</label>
+                            <input type="number" id="edit-series-index" class="form-input" min="0" step="0.1"
+                                placeholder="# in series">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <textarea id="edit-description" class="form-input" rows="4"
+                            placeholder="Book description" style="resize:vertical;"></textarea>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('edit-modal')">Cancel</button>
@@ -657,7 +693,7 @@
     <script src="/static/js/lib/storage.js?v=1" defer></script>
     <script src="/static/js/lib/notify.js?v=2" defer></script>
     <script src="/static/js/theme.js?v=2" defer></script>
-    <script src="/static/js/library.js?v=29" defer></script>
+    <script src="/static/js/library.js?v=30" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {

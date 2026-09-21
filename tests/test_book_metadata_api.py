@@ -62,3 +62,42 @@ async def test_review_over_length_rejected(client, db_session, book):
         f"/api/books/{book.id}", json={"review": "x" * 20001}
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_hand_edit_sets_metadata_edited(client, db_session, book):
+    """Editing a protected field raises the metadata_edited shield."""
+    resp = await client.patch(
+        f"/api/books/{book.id}", json={"publisher": "Chilton"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["metadata_edited"] is True
+
+
+@pytest.mark.asyncio
+async def test_reading_state_edit_does_not_set_flag(client, db_session, book):
+    """favorite/progress edits are not metadata edits."""
+    resp = await client.patch(f"/api/books/{book.id}", json={"is_favorite": True})
+    assert resp.status_code == 200
+    assert resp.json()["metadata_edited"] is False
+
+
+@pytest.mark.asyncio
+async def test_over_length_fields_rejected(client, db_session, book):
+    """Column-length violations 422 (language max 20, publisher max 300)."""
+    resp = await client.patch(f"/api/books/{book.id}", json={"language": "x" * 21})
+    assert resp.status_code == 422
+    resp = await client.patch(f"/api/books/{book.id}", json={"publisher": "x" * 301})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_series_index_round_trip(client, db_session, book):
+    """Series + numeric index save and come back."""
+    resp = await client.patch(
+        f"/api/books/{book.id}", json={"series": "Dune", "series_index": 1.5}
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["series"] == "Dune"
+    assert data["series_index"] == 1.5

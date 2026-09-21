@@ -57,6 +57,9 @@ class Book(Base):
     # The reader's own review (free text). Never auto-populated by Calibre
     # sync or metadata imports — unlike description.
     review: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set when the user hand-edits metadata in eLM. The Calibre re-sync skips
+    # the metadata block for edited books so hand edits are never clobbered.
+    metadata_edited: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     language: Mapped[str | None] = mapped_column(String(20), nullable=True)
     isbn: Mapped[str | None] = mapped_column(String(30), nullable=True)
     total_pages: Mapped[int] = mapped_column(Integer, default=0)
