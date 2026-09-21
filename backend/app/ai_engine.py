@@ -383,3 +383,10 @@ def reset_ai_orchestrator() -> None:
     """
     global _orchestrator
     _orchestrator = None
+
+    async def complete_text(self, prompt: str, max_tokens: int = 500) -> str:
+        """Public single-prompt generation through the provider fallback chain.
+
+        Used by services that build their own prompts (metadata enrichment).
+        """
+        return await self._fallback_complete(prompt, max_tokens)

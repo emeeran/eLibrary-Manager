@@ -3450,3 +3450,50 @@ function renderStats(container, stats) {
 
 // Make toggleSection global
 window.toggleSection = toggleSection;
+
+/**
+ * AI metadata enrichment (item 2.4): fetch proposals and pre-fill EMPTY
+ * fields of the edit modal only — nothing is written until the user saves.
+ */
+async function suggestMetadata() {
+  const bookId = document.getElementById("edit-book-id").value;
+  const btn = document.getElementById("btn-enrich");
+  const status = document.getElementById("enrich-status");
+  if (!bookId) return;
+
+  btn.disabled = true;
+  status.textContent = "Asking AI…";
+  try {
+    const data = await apiPost(`/api/books/${bookId}/enrich`, {});
+    const proposals = data.proposals || {};
+    const applied = [];
+    // Pre-fill empty fields only; the Save button is the confirmation.
+    const fill = (id, value) => {
+      const el = document.getElementById(id);
+      if (el && !el.value.trim() && value) {
+        el.value = value;
+        applied.push(id.replace("edit-", ""));
+      }
+    };
+    fill("edit-title", proposals.title);
+    fill("edit-author", proposals.author);
+    fill("edit-publisher", proposals.publisher);
+    fill("edit-language", proposals.language);
+    fill("edit-description", proposals.description);
+
+    status.textContent = applied.length
+      ? `Proposed: ${applied.join(", ")} — review and Save to keep.`
+      : "No confident proposals — nothing filled.";
+    if (applied.length) {
+      showNotification(
+        "AI proposals filled into empty fields — save to keep them",
+        "success",
+      );
+    }
+  } catch (error) {
+    console.error("Enrich failed:", error);
+    status.textContent = `Failed: ${error.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}

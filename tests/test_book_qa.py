@@ -1,10 +1,9 @@
 """Tests for "Ask this book" (item 2.1): retrieval, refusals, endpoint contract."""
 
 import pytest
-from sqlalchemy import text
-
 from app.models import Book
-from app.services.book_qa import select_passages, question_terms
+from app.services.book_qa import question_terms, select_passages
+from sqlalchemy import text
 
 MITOSIS = (
     "Mitosis is the process of cell division producing two identical cells. "
@@ -37,7 +36,6 @@ def test_select_passages_empty_content():
 
 @pytest.mark.asyncio
 async def test_ask_unindexed_book_rejected(client, db_session):
-    from app.models import Book as _B  # noqa: F401
     await db_session.execute(
         text("CREATE VIRTUAL TABLE IF NOT EXISTS books_content_fts USING fts5(book_id UNINDEXED, content)")
     )
