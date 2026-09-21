@@ -824,3 +824,67 @@ async def export_book_data(
         lines.append("*No bookmarks, notes, or annotations yet.*")
 
     return {"book_title": book.title, "markdown": "\n".join(lines)}
+
+
+# ---- Ask this book (item 2.1) ----
+
+MAX_ASK_QUESTION_LENGTH = 500
+
+
+@router.post("/books/{book_id}/ask")
+async def ask_book(
+    book_id: int, request: Request, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Answer a question grounded in the book's indexed content.
+
+    Retrieval scans the book's stored text for windows matching the question
+    terms; the top passages go to the AI provider chain with instructions to
+    cite passage numbers and refuse when the book doesn't cover the topic.
+
+    Raises:
+        HTTPException: 422 on bad input or an unindexed book,
+            503 when no AI provider is reachable.
+    """
+    from sqlalchemy import text
+
+    from app.ai_engine import get_ai_orchestrator
+    from app.exceptions import AIServiceError
+    from app.services.book_qa import select_passages
+
+    body = await request.json()
+    question = (body.get("question") or "").strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="question is required")
+    if len(question) > MAX_ASK_QUESTION_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Question too long (max {MAX_ASK_QUESTION_LENGTH} chars)",
+        )
+
+    result = await db.execute(
+        text("SELECT content FROM books_content_fts WHERE book_id = :b"),
+        {"b": book_id},
+    )
+    row = result.first()
+    if row is None or not row.content:
+        raise HTTPException(
+            status_code=422,
+            detail="This book isn't content-indexed yet — run content indexing first.",
+        )
+
+    passages = select_passages(row.content, question)
+    if not passages:
+        # The question's terms don't appear anywhere in the text.
+        return {
+            "answer": "The book doesn't seem to cover that.",
+            "passages": [],
+            "provider": None,
+        }
+
+    try:
+        orchestrator = await get_ai_orchestrator()
+        answer = await orchestrator.ask(question, passages)
+    except AIServiceError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+    return {"answer": answer, "passages": passages, "provider": orchestrator.current_provider}
