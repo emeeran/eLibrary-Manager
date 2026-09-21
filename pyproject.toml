@@ -1,6 +1,6 @@
 [project]
 name = "ebook-manager"
-version = "0.2.14"
+version = "0.2.15"
 description = "Lightweight ebook library manager with reader and AI summaries"
 readme = "README.md"
 requires-python = ">=3.12"
