@@ -150,8 +150,35 @@ class AIProviderOrchestrator:
         }
         if mode not in instructions:
             raise ValueError(f"Unknown transform mode: {mode}")
-        prompt = instructions[mode] + text
+        return await self._fallback_complete(instructions[mode] + text, 500)
 
+    async def ask(self, question: str, passages: list[str]) -> str:
+        """Answer a question grounded in book passages (item 2.1).
+
+        Args:
+            question: The reader's question.
+            passages: Retrieved book passages, in order.
+
+        Returns:
+            The grounded answer text.
+
+        Raises:
+            AIServiceError: If all providers fail.
+        """
+        context = "\n\n".join(
+            f"[{i + 1}] {passage}" for i, passage in enumerate(passages)
+        )
+        prompt = (
+            "You are answering a question about a book, using ONLY the "
+            "numbered passages below. Cite the passage numbers you relied on "
+            "in square brackets, like [1]. If the passages do not contain "
+            "the answer, reply exactly: The book doesn't seem to cover that.\n\n"
+            f"Question: {question}\n\nPassages:\n{context}"
+        )
+        return await self._fallback_complete(prompt, 700)
+
+    async def _fallback_complete(self, prompt: str, max_tokens: int) -> str:
+        """Send one prompt through the provider chain with health-check fallback."""
         last_error = None
         for provider in self.providers:
             try:
@@ -160,10 +187,10 @@ class AIProviderOrchestrator:
                     logger.debug(f"{provider.name} not available, skipping...")
                     continue
 
-                logger.info(f"Attempting {mode} with {provider.name}")
+                logger.info(f"Attempting generation with {provider.name}")
                 result = await self._call_with_retry(
                     provider,
-                    lambda p=provider: p.complete(prompt, max_tokens=500),
+                    lambda p=provider: p.complete(prompt, max_tokens=max_tokens),
                 )
                 self.current_provider = provider.name
                 return result

@@ -178,6 +178,36 @@ async function switchSummaryTab(tab) {
 
   IcecreamReader.summaryTab = tab;
 
+  // "Ask this book" tab: hides the summary generate button, renders the
+  // question box into the summary content area.
+  const askTab = document.getElementById("ic-summary-tab-ask");
+  if (askTab) {
+    if (tab === "ask") {
+      askTab.classList.add("active");
+      chapterTab.classList.remove("active");
+      bookTab.classList.remove("active");
+      if (genBtn) genBtn.style.display = "none";
+      summaryContainer.innerHTML = `
+            <div class="ic-ask">
+                <div style="display:flex;gap:6px;margin-bottom:10px;">
+                    <input type="text" id="ic-ask-input" class="form-input" placeholder="Ask this book…"
+                        style="flex:1;font-size:13px;padding:8px;" maxlength="500"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();askThisBook();}">
+                    <button class="btn btn-primary" id="ic-ask-btn" onclick="askThisBook()" style="padding:8px 14px;">Ask</button>
+                </div>
+                <div id="ic-ask-answer">
+                    <p class="ic-summary-empty-text">Ask a question about this book's contents.</p>
+                </div>
+            </div>
+        `;
+      const input = document.getElementById("ic-ask-input");
+      if (input) input.focus();
+      return;
+    }
+    askTab.classList.remove("active");
+    if (genBtn) genBtn.style.display = "";
+  }
+
   if (tab === "chapter") {
     chapterTab.classList.add("active");
     bookTab.classList.remove("active");

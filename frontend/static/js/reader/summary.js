@@ -429,3 +429,62 @@ function showSummaryActions(show) {
   const actions = document.getElementById("ic-summary-actions");
   if (actions) actions.style.display = show ? "flex" : "none";
 }
+
+/**
+ * Ask this book (item 2.1): grounded Q&A over the book's indexed content
+ */
+async function askThisBook() {
+  const input = document.getElementById("ic-ask-input");
+  const answerEl = document.getElementById("ic-ask-answer");
+  const btn = document.getElementById("ic-ask-btn");
+  const question = input ? input.value.trim() : "";
+  if (!question || !answerEl) return;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "…";
+  }
+  answerEl.innerHTML = `
+        <div class="ic-loading" style="text-align:center;padding:20px;">
+            <div class="ic-spinner"></div>
+            <p style="margin-top:10px;font-size:12px;color:#999;">Searching the book…</p>
+        </div>
+    `;
+
+  try {
+    const response = await fetch(`/api/books/${IcecreamReader.bookId}/ask`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || "Request failed");
+
+    const passages = (data.passages || [])
+      .map(
+        (p, i) =>
+          `<details style="margin-top:6px;"><summary style="font-size:11px;cursor:pointer;color:#999;">Passage ${i + 1}</summary><p style="font-size:12px;color:#666;">${escapeHtml(p)}</p></details>`,
+      )
+      .join("");
+    answerEl.innerHTML = `
+            <div class="ic-summary-text">
+                <p class="ic-summary-meta">${data.provider ? "Answered using " + data.provider : ""}</p>
+                <p style="white-space:pre-wrap;">${escapeHtml(data.answer)}</p>
+                ${passages}
+            </div>
+        `;
+  } catch (error) {
+    console.error("Ask failed:", error);
+    answerEl.innerHTML = `
+            <div class="ic-summary-empty" role="alert" aria-live="polite">
+                <p class="ic-summary-empty-text" style="color:#d32f2f;">${escapeHtml(error.message || "Ask failed.")}</p>
+            </div>
+        `;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Ask";
+    }
+  }
+}
+window.askThisBook = askThisBook;
