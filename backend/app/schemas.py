@@ -347,6 +347,8 @@ class SettingsCreate(BaseModel):
     flip_interval: int | None = Field(None, ge=5, le=300)
     summary_length: str | None = Field(None, pattern="^(short|medium|long)$")
     auto_summary: bool | None = None
+    # Reading goal (item 2.2): tracked minutes per day the reader aims for.
+    daily_goal_minutes: int | None = Field(None, ge=5, le=600)
 
     # NAS Settings
     nas_enabled: bool | None = None

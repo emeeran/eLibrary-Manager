@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -983,6 +984,30 @@ async def update_progress(
     service = ReaderService(db)
     book = await service.update_progress(book_id, progress)
     return book_to_response(book)
+
+
+@router.post("/books/{book_id}/session")
+async def record_reading_session(
+    book_id: int, request: Request, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Record a chunk of active reading time (item 2.2).
+
+    Body: {"seconds": float} — accumulated active seconds since the last
+    flush, tracked client-side only while the tab is visible. Chunks under
+    one second are ignored.
+    """
+    from app.models import ReadingSession
+
+    body = await request.json()
+    seconds = float(body.get("seconds") or 0)
+    if seconds <= 0:
+        return {"recorded": False}
+    minutes = round(seconds / 60, 2)
+    db.add(
+        ReadingSession(book_id=book_id, started_at=datetime.now(UTC), minutes=minutes)
+    )
+    await db.commit()
+    return {"recorded": True, "minutes": minutes}
 
 
 @router.get("/stats")

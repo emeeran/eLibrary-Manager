@@ -5,11 +5,10 @@ and the reading_status list filter.
 """
 
 import pytest
-from sqlalchemy import text
-
 from app.models import Book
 from app.repositories import BookRepository
-from app.schemas import BookCreate, ProgressUpdate
+from app.schemas import ProgressUpdate
+from sqlalchemy import text
 
 
 async def _make_book(db_session, *, progress=0.0, path="/test/rs.epub"):

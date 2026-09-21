@@ -108,6 +108,9 @@ class Book(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+    reading_sessions: Mapped[list["ReadingSession"]] = relationship(
+        "ReadingSession", back_populates="book", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("ix_books_hidden_favorite", "is_hidden", "is_favorite"),
@@ -433,3 +436,36 @@ class BookCategory(Base):
 
     def __repr__(self) -> str:
         return f"<BookCategory(book_id={self.book_id}, category_id={self.category_id})>"
+
+
+class ReadingSession(Base):
+    """One tracked chunk of active reading time on a book.
+
+    Written by the reader's progress-save tick (client accumulates active
+    seconds while the tab is visible and flushes on save / tab hide). Stats,
+    streaks, and the daily goal aggregate ``minutes`` from here instead of
+    guessing from ``last_read_date``.
+
+    Attributes:
+        id: Primary key
+        book_id: Foreign key to Book
+        started_at: When the chunk began (UTC)
+        minutes: Tracked active minutes (float, seconds/60)
+        book: Related Book object
+    """
+
+    __tablename__ = "reading_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), index=True
+    )
+    minutes: Mapped[float] = mapped_column(Float, nullable=False)
+
+    book: Mapped["Book"] = relationship("Book", back_populates="reading_sessions")
+
+    def __repr__(self) -> str:
+        return f"<ReadingSession(book_id={self.book_id}, minutes={self.minutes})>"
