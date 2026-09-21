@@ -625,6 +625,7 @@ async def list_books(
     directory_filter: str | None = None,
     series: str | None = None,
     rating_min: int | None = None,
+    reading_status: str | None = None,
     cursor: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> BookListResponse:
@@ -654,6 +655,8 @@ async def list_books(
     # Series facet: comma-separated names → list (spec 012).
     series_filter = [s.strip() for s in series.split(",") if s.strip()] if series else None
     rating_min = rating_min if (rating_min and 1 <= rating_min <= 5) else None
+    if reading_status not in ("none", "to_read", "reading", "finished"):
+        reading_status = None
 
     service = LibraryService(db)
 
@@ -688,7 +691,7 @@ async def list_books(
 
     session_token = request.cookies.get(_SCN, "")
     user_hash = hashlib.sha256(session_token.encode()).hexdigest()[:8] if session_token else "anon"
-    cache_key = f"{user_hash}|{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}|{series_filter}|{rating_min}|{cursor}"
+    cache_key = f"{user_hash}|{search}|{format_filter}|{sort_by}|{sort_order}|{page}|{favorite_only}|{recent_only}|{reading_only}|{category_id}|{directory_filter}|{hidden_only}|{show_hidden}|{series_filter}|{rating_min}|{reading_status}|{cursor}"
     if cache_key in _search_cache:
         return _search_cache[cache_key]
 
@@ -698,6 +701,7 @@ async def list_books(
         favorite_only=favorite_only,
         recent_only=recent_only,
         reading_only=reading_only,
+        reading_status=reading_status,
         search=search,
         format_filter=format_filter,
         sort_by=sort_by,

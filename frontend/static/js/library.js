@@ -638,6 +638,8 @@ function updateCounts(counts) {
     document.getElementById("count-favorites").textContent =
       counts.favorites || 0;
     document.getElementById("count-reading").textContent = counts.reading || 0;
+    const toReadCount = document.getElementById("count-to-read");
+    if (toReadCount) toReadCount.textContent = counts.to_read || 0;
     document.getElementById("count-deleted").textContent = counts.deleted || 0;
     const hiddenCount = document.getElementById("count-hidden");
     if (hiddenCount) hiddenCount.textContent = counts?.hidden || 0;
@@ -698,6 +700,9 @@ function filterByCategory(category, event) {
       break;
     case "favorites":
       currentFilters.favorite_only = true;
+      break;
+    case "to_read":
+      currentFilters.reading_status = "to_read";
       break;
     case "reading":
       currentFilters.reading_only = true;
@@ -1021,6 +1026,14 @@ async function openDetailsModal(bookId) {
       }
     };
     add("Format", book.format);
+    if (book.reading_status && book.reading_status !== "none") {
+      const statusLabels = {
+        to_read: "To read",
+        reading: "Reading",
+        finished: "Finished",
+      };
+      add("Status", statusLabels[book.reading_status] || book.reading_status);
+    }
     if (book.series) {
       add(
         "Series",
@@ -1093,6 +1106,8 @@ async function openEditModal(bookId) {
     document.getElementById("edit-author").value = book.author || "";
     document.getElementById("edit-is-favorite").checked = book.is_favorite;
     document.getElementById("edit-review").value = book.review || "";
+    document.getElementById("edit-reading-status").value =
+      book.reading_status || "none";
     document.getElementById("edit-publisher").value = book.publisher || "";
     document.getElementById("edit-publish-date").value = book.publish_date || "";
     document.getElementById("edit-language").value = book.language || "";
@@ -1140,6 +1155,7 @@ async function saveBookEdits(event) {
     author: author || null,
     is_favorite: isFavorite,
     review: document.getElementById("edit-review").value.trim() || null,
+    reading_status: document.getElementById("edit-reading-status").value,
     publisher: document.getElementById("edit-publisher").value.trim() || null,
     publish_date: document.getElementById("edit-publish-date").value.trim() || null,
     language: document.getElementById("edit-language").value.trim() || null,
@@ -2102,6 +2118,10 @@ function initializeFiltersFromURL() {
 
   if (urlParams.has("favorites")) {
     currentFilters.favorite_only = true;
+  }
+
+  if (urlParams.has("to_read")) {
+    currentFilters.reading_status = "to_read";
   }
 
   if (urlParams.has("recent")) {

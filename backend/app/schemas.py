@@ -51,6 +51,7 @@ class BookUpdate(BaseModel):
     current_chapter: int | None = Field(None, ge=0)
     rating: int | None = Field(None, ge=0, le=5)
     review: str | None = Field(None, max_length=20000)
+    reading_status: str | None = Field(None, pattern="^(none|to_read|reading|finished)$")
     publisher: str | None = Field(None, max_length=300)
     publish_date: str | None = Field(None, max_length=50)
     language: str | None = Field(None, max_length=20)
@@ -86,6 +87,7 @@ class BookResponse(BookBase):
     rating: int = 0
     word_count: int | None = None
     metadata_edited: bool = False
+    reading_status: str = "none"
     calibre_id: int | None = None
     calibre_uuid: str | None = None
     series: str | None = None

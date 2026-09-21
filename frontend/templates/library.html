@@ -82,6 +82,18 @@
                         <span class="nav-item-count" id="count-favorites">0</span>
                     </div>
 
+                    <div class="nav-item" onclick="filterByCategory('to_read', event)" role="button" tabindex="0"
+                        aria-label="Books on the to-read shelf">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path
+                                    d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8L12 2z" />
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">To Read</span>
+                        <span class="nav-item-count" id="count-to-read">0</span>
+                    </div>
+
                     <!-- Formats with Expandable Submenu -->
                     <div class="nav-item" onclick="toggleFormatSection()">
                         <div class="nav-item-icon">
@@ -504,6 +516,15 @@
                         <textarea id="edit-review" name="review" class="form-input" rows="4"
                             placeholder="What did you think of this book?" style="resize:vertical;"></textarea>
                     </div>
+                    <div class="form-group">
+                        <label class="form-label">Reading status</label>
+                        <select id="edit-reading-status" class="form-input">
+                            <option value="none">Not set</option>
+                            <option value="to_read">To read</option>
+                            <option value="reading">Reading</option>
+                            <option value="finished">Finished</option>
+                        </select>
+                    </div>
                     <div class="form-group" id="edit-edited-note" style="display:none;">
                         <span class="text-sm" style="color:var(--accent-blue,#4285F4);">✓ Hand-edited —
                             protected from Calibre re-sync</span>
@@ -693,7 +714,7 @@
     <script src="/static/js/lib/storage.js?v=1" defer></script>
     <script src="/static/js/lib/notify.js?v=2" defer></script>
     <script src="/static/js/theme.js?v=2" defer></script>
-    <script src="/static/js/library.js?v=30" defer></script>
+    <script src="/static/js/library.js?v=31" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
