@@ -51,6 +51,13 @@ class BookUpdate(BaseModel):
     current_chapter: int | None = Field(None, ge=0)
     rating: int | None = Field(None, ge=0, le=5)
     review: str | None = Field(None, max_length=20000)
+    publisher: str | None = Field(None, max_length=300)
+    publish_date: str | None = Field(None, max_length=50)
+    language: str | None = Field(None, max_length=20)
+    isbn: str | None = Field(None, max_length=30)
+    series: str | None = Field(None, max_length=255)
+    series_index: float | None = Field(None, ge=0)
+    description: str | None = Field(None, max_length=20000)
 
 
 class BookResponse(BookBase):
@@ -78,6 +85,7 @@ class BookResponse(BookBase):
     storage_type: str = "local"
     rating: int = 0
     word_count: int | None = None
+    metadata_edited: bool = False
     calibre_id: int | None = None
     calibre_uuid: str | None = None
     series: str | None = None

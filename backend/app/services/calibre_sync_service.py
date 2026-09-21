@@ -95,16 +95,19 @@ async def sync_library(
             return
         # A previously-pruned volume that reappeared in Calibre: restore it.
         book.is_deleted = False
-        book.title = book_data.title
-        book.author = book_data.author
-        book.publisher = book_data.publisher
-        book.publish_date = book_data.publish_date
-        book.description = book_data.description
-        book.language = book_data.language
-        book.isbn = book_data.isbn
-        book.rating = book_data.rating
-        book.series = book_data.series
-        book.series_index = book_data.series_index
+        # Hand-edited books keep their metadata — Calibre must not clobber
+        # them (whole-book flag set by the eLM PATCH endpoint).
+        if not book.metadata_edited:
+            book.title = book_data.title
+            book.author = book_data.author
+            book.publisher = book_data.publisher
+            book.publish_date = book_data.publish_date
+            book.description = book_data.description
+            book.language = book_data.language
+            book.isbn = book_data.isbn
+            book.rating = book_data.rating
+            book.series = book_data.series
+            book.series_index = book_data.series_index
         if book_data.cover_path:
             book.cover_path = book_data.cover_path
         book.calibre_last_modified = volume.last_modified

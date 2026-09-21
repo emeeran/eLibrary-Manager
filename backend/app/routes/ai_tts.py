@@ -14,10 +14,10 @@ from fastapi.responses import StreamingResponse
 MAX_TTS_TEXT_LENGTH = 50000  # characters
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai_engine import get_ai_orchestrator
 from app.config import get_config
 from app.database import get_db
 from app.edgetts_service import get_edgetts_service
-from app.ai_engine import get_ai_orchestrator
 from app.exceptions import AIServiceError, TTSError
 from app.gtts_service import get_gtts_service
 from app.logging_config import get_logger
