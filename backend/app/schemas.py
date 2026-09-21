@@ -75,6 +75,7 @@ class BookResponse(BookBase):
     total_pages: int = 0
     storage_type: str = "local"
     rating: int = 0
+    word_count: int | None = None
     calibre_id: int | None = None
     calibre_uuid: str | None = None
     series: str | None = None

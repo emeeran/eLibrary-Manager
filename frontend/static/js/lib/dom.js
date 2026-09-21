@@ -91,6 +91,21 @@ function throttle(fn, limit = 100) {
   };
 }
 
+// --- Read-time estimates ---------------------------------------------------
+
+/**
+ * Format a read-time estimate from a word count (~230 wpm).
+ * Returns '' for falsy input; otherwise e.g. '≈ 12 m' or '≈ 4 h 20 m'.
+ */
+function formatReadTime(wordCount) {
+  if (!wordCount) return "";
+  const minutes = Math.round(wordCount / 230);
+  if (minutes < 60) return `≈ ${minutes} m`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m ? `≈ ${h} h ${m} m` : `≈ ${h} h`;
+}
+
 // --- Trusted HTML ----------------------------------------------------------
 
 /**

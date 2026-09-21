@@ -1,7 +1,12 @@
 """Tests for repository layer."""
 
 import pytest
-from app.repositories import BookRepository, ChapterSummaryRepository, SettingsRepository
+from app.repositories import (
+    BookContentRepository,
+    BookRepository,
+    ChapterSummaryRepository,
+    SettingsRepository,
+)
 from app.schemas import BookCreate, ProgressUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -286,3 +291,26 @@ async def test_chapter_summary_cache(db_session: AsyncSession, sample_book_data:
     # Get all by book
     all_summaries = await summary_repo.get_by_book(book.id)
     assert len(all_summaries) == 1
+
+
+@pytest.mark.asyncio
+async def test_upsert_extracted_sets_word_count(db_session: AsyncSession, sample_book_data: dict):
+    """Extraction writes an approximate word_count; empty/failed clears it."""
+    from sqlalchemy import text
+
+    await db_session.execute(
+        text("CREATE VIRTUAL TABLE IF NOT EXISTS books_content_fts USING fts5(book_id UNINDEXED, content)")
+    )
+    book_repo = BookRepository(db_session)
+    book = await book_repo.create(BookCreate(**sample_book_data))
+    repo = BookContentRepository(db_session)
+
+    await repo.upsert_extracted(book.id, "some content", 13800, 1.0)
+    await db_session.commit()
+    await db_session.refresh(book)
+    assert book.word_count == 13800 // 6
+
+    await repo.mark_status(book.id, "failed")
+    await db_session.commit()
+    await db_session.refresh(book)
+    assert book.word_count is None
