@@ -22,9 +22,9 @@ aspirational, not reality. The JS rules in `CLAUDE.md` have been corrected.
 - `frontend/package.json` — dev tooling (esbuild, ESLint flat config, Prettier).
 - `frontend/eslint.config.js` — ESLint flat config enforcing modern, safe
   patterns. Run `npm run lint`.
-- `frontend/build.mjs` — esbuild bundler for new module entries. Run
-  `npm run build` / `npm run watch`. Currently a no-op until entries are
-  registered, so it cannot break existing serving.
+- `frontend/build.mjs` — **removed** (was a no-op scaffold: zero entries
+  registered). Re-add esbuild when the first real module entry exists
+  (phase 6 of this roadmap).
 - `frontend/static/js/lib/` — shared helpers that establish the extraction
   pattern. **Classic scripts** (global scope), not ES modules yet — there is no
   bundler, so they're loaded as plain `<script>` tags before the app modules and

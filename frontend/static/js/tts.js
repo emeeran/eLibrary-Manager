@@ -15,7 +15,6 @@
   // Current TTS engine
   let currentEngine =
     localStorage.getItem("dawnstar_tts_engine") || ENGINE_EDGETTS;
-  const activeEngine = null; // The engine that successfully initialized
   let isServerLoading = false;
 
   // Voice storage

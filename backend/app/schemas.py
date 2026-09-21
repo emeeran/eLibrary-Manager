@@ -321,12 +321,8 @@ class SettingsCreate(BaseModel):
     # NAS Settings
     nas_enabled: bool | None = None
     nas_host: str | None = Field(None, max_length=100)
-    nas_share: str | None = Field(None, max_length=200)
     nas_mount_path: str | None = Field(None, max_length=500)
-    nas_protocol: str | None = Field(None, pattern="^(smb|nfs)$")
-    nas_username: str | None = Field(None, max_length=100)
     nas_password: str | None = Field(None, max_length=200)
-    nas_auto_mount: bool | None = None
 
     # Calibre integration settings
     calibre_web_url: str | None = Field(
@@ -366,11 +362,7 @@ class SettingsResponse(BaseModel):
     # NAS Settings (password excluded for security)
     nas_enabled: bool = False
     nas_host: str = ""
-    nas_share: str = ""
     nas_mount_path: str = ""
-    nas_protocol: str = "smb"
-    nas_username: str = ""
-    nas_auto_mount: bool = False
 
     # Calibre integration
     calibre_web_url: str = ""

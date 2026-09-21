@@ -249,104 +249,6 @@ async def scan_library(
 
     asyncio.create_task(_run_background_scan(scan_id, _scan_coro, "Scan complete"))
     return {"scan_id": scan_id, "status": "started"}
-
-
-@router.post("/library/backfill-content")
-async def backfill_content() -> dict:
-    """Build the full-text CONTENT index as a background task (spec 012).
-
-    Extracts every book's text into ``books_content_fts`` so the library search
-    box matches book content, not just title/author. Returns a ``scan_id`` for
-    the shared SSE progress stream. Mutually exclusive with any running
-    scan/import (shares ``_active_scans``).
-    """
-    if _active_scans:
-        raise HTTPException(
-            status_code=409,
-            detail="A scan or import is already in progress. Please wait for it to complete.",
-        )
-
-    scan_id = uuid.uuid4().hex[:8]
-    scan_store.create(scan_id)
-    _active_scans.add(scan_id)
-
-    async def _run() -> None:
-        from app.database import db_manager as _db_manager
-        from app.services.content_backfill_service import run_content_backfill
-        from app.services.library_service import invalidate_stats_cache
-
-        try:
-            async with _db_manager.get_session() as session:
-
-                def _cancel() -> None:
-                    if scan_store.is_cancelled(scan_id):
-                        raise ScanCancelledError()
-
-                async def _progress(processed: int, total: int, current: str) -> None:
-                    if scan_store.is_cancelled(scan_id):
-                        raise ScanCancelledError()
-                    scan_store.update(
-                        scan_id,
-                        phase="indexing",
-                        processed=processed,
-                        total_found=total,
-                        current_file=current,
-                        message=f"Indexing content: {processed}/{total}",
-                    )
-
-                try:
-                    stats = await run_content_backfill(
-                        session, progress_callback=_progress, cancel_check=_cancel
-                    )
-                    await session.commit()
-                    invalidate_stats_cache()
-                    invalidate_book_list_cache()
-                    scan_store.update(
-                        scan_id,
-                        status="completed",
-                        phase="done",
-                        message=(
-                            f"Content index complete: {stats['extracted']} indexed, "
-                            f"{stats['empty']} empty, {stats['failed']} failed"
-                        ),
-                    )
-                except ScanCancelledError:
-                    try:
-                        await session.rollback()
-                    except Exception:  # noqa: BLE001
-                        pass
-                    invalidate_stats_cache()
-                    scan_store.update(
-                        scan_id,
-                        status="cancelled",
-                        phase="cancelled",
-                        message="Content indexing cancelled by user",
-                    )
-        except Exception as e:  # noqa: BLE001
-            scan_store.update(scan_id, status="failed", phase="failed", message=str(e))
-        finally:
-            _active_scans.discard(scan_id)
-
-    asyncio.create_task(_run())
-    return {"scan_id": scan_id, "status": "started"}
-
-
-@router.get("/library/content-index-status")
-async def content_index_status(db: AsyncSession = Depends(get_db)) -> dict:
-    """Report content-index coverage (extracted / pending / empty / failed)."""
-    from app.repositories import BookContentRepository
-
-    counts = await BookContentRepository(db).status_counts()
-    total = await BookRepository(db).count()
-    return {
-        "total": total,
-        "indexed": counts.get("extracted", 0),
-        "pending": counts.get("pending", 0),
-        "empty": counts.get("empty", 0),
-        "failed": counts.get("failed", 0),
-    }
-
-
 @router.get("/library/scan-progress/{scan_id}")
 async def scan_progress_stream(scan_id: str) -> StreamingResponse:
     """Stream scan progress via Server-Sent Events.
@@ -646,24 +548,6 @@ async def upload_book(
         logger = get_logger(__name__)
         logger.error(f"Upload failed: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}") from e
-
-
-@router.post("/library/refresh-covers")
-async def refresh_covers(force: bool = False, db: AsyncSession = Depends(get_db)) -> dict:
-    """Re-extract covers for books missing them.
-
-    Args:
-        force: If True, re-extract all covers. If False, only missing ones.
-        db: Database session
-
-    Returns:
-        Refresh statistics
-    """
-    service = LibraryService(db)
-    results = await service.refresh_covers(force=force)
-    return results
-
-
 @router.get("/books/series")
 async def list_series(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """Distinct series with book counts, for the series facet (spec 012)."""
@@ -1083,40 +967,6 @@ async def remove_book_cache(book_id: int, db: AsyncSession = Depends(get_db)) ->
     return {
         "message": "Cache removed" if removed else "Book was not cached",
     }
-
-
-@router.get("/library/cache-status")
-async def get_cache_status() -> dict:
-    """Get NAS cache status and statistics.
-
-    Returns:
-        Cache status with size info and cached book list.
-    """
-    from app.nas_cache import get_nas_cache
-
-    cache = get_nas_cache()
-    if not cache:
-        return {
-            "cached_books": 0,
-            "total_cache_size_bytes": 0,
-            "max_cache_size_bytes": 0,
-            "books": [],
-        }
-
-    cached = cache.list_cached()
-    return {
-        "cached_books": len(cached),
-        "total_cache_size_bytes": cache.get_total_size(),
-        "max_cache_size_bytes": cache.max_size,
-        "books": cached,
-    }
-
-
-# ============================================
-# DIRECTORY BROWSING ENDPOINTS
-# ============================================
-
-
 @router.get("/library/directories")
 async def list_directories(
     parent: str | None = None,

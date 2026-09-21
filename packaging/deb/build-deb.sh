@@ -102,7 +102,7 @@ else
         "gtts>=2.5.0" \
         "edge-tts>=6.1.0" \
         "cryptography>=42.0.0" \
-        "passlib[bcrypt]>=1.7.4" \
+        "bcrypt>=4.0.0" \
         "nh3>=0.3.5" \
         "alembic>=1.18.4" \
         "cachetools>=5.3.0"
@@ -192,7 +192,7 @@ chmod 755 "$PKG_DIR/usr/bin/elibrary-open"
 cp "$SCRIPT_DIR/elibrary-manager.desktop" "$PKG_DIR/usr/share/applications/"
 
 # Icon
-cp "$SCRIPT_DIR/elibrary-manager.png" "$PKG_DIR/usr/share/icons/hicolor/256x256/apps/"
+cp "$PROJECT_ROOT/frontend/static/images/dawnstar-mark.png" "$PKG_DIR/usr/share/icons/hicolor/256x256/apps/elibrary-manager.png"
 
 # Repoint the service to a real user when ELIBRARY_RUN_USER is set (personal
 # installs that must read a user-owned library under /home). Default keeps the
