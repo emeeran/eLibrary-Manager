@@ -236,6 +236,7 @@ Provides read-aloud functionality for ebook content using multiple TTS engines w
 **Given** the operator picks a voice on the Settings page (values prefixed with their engine, e.g. `edgetts:en-US-ChristopherNeural`)
 **When** the selection changes
 **Then** the chosen voice id is persisted to `localStorage["dawnstar_tts_voice_<engine>"]` and the engine to `localStorage["dawnstar_tts_engine"]` — the exact keys the reader's speak path reads
+**And** the choice is ALSO persisted to the server settings (`tts_engine`/`tts_voice`) immediately, without requiring Save — localStorage is per-origin, so the server copy is what makes the default follow the operator across browsers, devices, and addresses
 **And** the next TTS playback sends that voice id to `POST /api/tts/synthesize`
 **And** changing the engine on Settings persists to both `tts-engine` (settings) and `dawnstar_tts_engine` (reader)
 

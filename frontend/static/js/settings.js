@@ -391,8 +391,22 @@ async function loadEdgeVoices() {
         voiceSelect.appendChild(optgroup);
       });
 
-    // Restore the operator's saved voice; fall back to the server default
-    const savedVoice = localStorage.getItem("dawnstar_tts_voice_edgetts") || "";
+    // Restore the operator's saved voice: this browser's local choice first,
+    // then the server-side default (another browser/origin), then EdgeTTS default
+    let savedVoice = localStorage.getItem("dawnstar_tts_voice_edgetts") || "";
+    if (!savedVoice) {
+      try {
+        const settings = await apiGet("/api/settings");
+        const serverVoice = (settings.tts_voice || "").replace(/^\w+:/, "");
+        if (settings.tts_engine) localStorage.setItem("dawnstar_tts_engine", settings.tts_engine);
+        if (serverVoice) {
+          localStorage.setItem("dawnstar_tts_voice_edgetts", serverVoice);
+          savedVoice = serverVoice;
+        }
+      } catch (error) {
+        console.warn("Voice default lookup skipped:", error);
+      }
+    }
     if (savedVoice && voiceSelect.querySelector(`option[value="edgetts:${savedVoice}"]`)) {
       voiceSelect.value = `edgetts:${savedVoice}`;
     }
@@ -487,6 +501,14 @@ function onTTSVoiceChanged() {
   const engine = prefix === "webspeech" ? "browser" : prefix || localStorage.getItem("tts-engine") || "edgetts";
   localStorage.setItem(`dawnstar_tts_voice_${engine}`, voiceId);
   if (prefix) localStorage.setItem("dawnstar_tts_engine", engine);
+
+  // Persist server-side IMMEDIATELY (not only on Save) — localStorage is
+  // per-origin, so a voice picked on localhost must follow the operator to
+  // the LAN address, another browser, and the packaged service.
+  const full = prefix ? value : `${engine}:${voiceId}`;
+  apiPost("/api/settings", { tts_engine: engine, tts_voice: full }).catch((error) => {
+    showNotification(`Could not save default voice: ${apiErrorMessage(error)}`, "error");
+  });
 }
 
 /**
