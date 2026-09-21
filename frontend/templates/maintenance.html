@@ -395,6 +395,20 @@
                     </div>
                     <div class="maint-result-box" id="cov-result"></div>
                 </div>
+
+                <!-- Backup / Restore -->
+                <div class="maint-card">
+                    <div class="maint-card-header">
+                        <h3>Backup &amp; Restore</h3>
+                    </div>
+                    <p class="maint-card-desc">One ZIP: the database (safe live copy), covers, and settings. Restore always takes an automatic pre-restore backup first; books, covers and settings come back after the swap — reload the page afterwards.</p>
+                    <div class="maint-btn-group">
+                        <button class="settings-btn settings-btn-primary" id="btn-backup" onclick="createBackup()">Create Backup</button>
+                        <select id="restore-select" class="bulk-select" aria-label="Backup to restore"></select>
+                        <button class="settings-btn" onclick="restoreSelectedBackup()">Restore Selected</button>
+                    </div>
+                    <div class="maint-result-box" id="backup-result"></div>
+                </div>
             </div>
         </main>
     </div>
@@ -411,7 +425,7 @@
         if (tab === 'stale') detectStale();
         if (tab === 'duplicates') detectDuplicates();
         if (tab === 'orphans') detectOrphans();
-        if (tab === 'database') loadDbInfo();
+        if (tab === 'database') { loadDbInfo(); loadBackups(); }
     }
 
     // ---- Helpers ----
@@ -627,6 +641,58 @@
             showResult('vacuum-result', 'maint-result-error', `<strong>Error:</strong> ${e.message}`);
         }
     }
+
+    // ---- Backup / Restore ----
+    async function loadBackups() {
+        try {
+            const r = await fetch('/api/maintenance/backups');
+            if (!r.ok) return;
+            const d = await r.json();
+            const sel = document.getElementById('restore-select');
+            sel.innerHTML = d.backups.length
+                ? d.backups.map(n => `<option value="${n}">${n}</option>`).join('')
+                : '<option value="">No backups yet</option>';
+        } catch (e) { /* non-critical */ }
+    }
+
+    async function createBackup() {
+        const btn = document.getElementById('btn-backup');
+        btn.disabled = true;
+        showResult('backup-result', 'maint-result-info', 'Creating backup…');
+        try {
+            const r = await fetch('/api/maintenance/backup', { method: 'POST' });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.detail || 'Backup failed');
+            const mb = (d.size_bytes / 1048576).toFixed(1);
+            showResult('backup-result', 'maint-result-success', `<strong>Backup created:</strong> ${d.file} (${mb} MB)`);
+            loadBackups();
+        } catch (e) {
+            showResult('backup-result', 'maint-result-error', `<strong>Error:</strong> ${e.message}`);
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    async function restoreSelectedBackup() {
+        const sel = document.getElementById('restore-select');
+        const name = sel.value;
+        if (!name) { showResult('backup-result', 'maint-result-error', 'No backup selected.'); return; }
+        if (!confirm(`Restore "${name}"? The current database, covers and settings will be replaced. An automatic pre-restore backup is taken first.`)) return;
+        showResult('backup-result', 'maint-result-info', 'Restoring… (automatic pre-restore backup first)');
+        try {
+            const body = new FormData();
+            body.append('backup_name', name);
+            const r = await fetch('/api/maintenance/restore', { method: 'POST', body });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.detail || 'Restore failed');
+            showResult('backup-result', 'maint-result-success',
+                `<strong>Restored.</strong> Pre-restore backup: ${d.pre_restore_backup}. Settings applied: ${d.settings_applied}. Reload the page.`);
+        } catch (e) {
+            showResult('backup-result', 'maint-result-error', `<strong>Error:</strong> ${e.message}`);
+        }
+    }
+    window.createBackup = createBackup;
+    window.restoreSelectedBackup = restoreSelectedBackup;
 
     // ---- Background Task Runner ----
     async function runBackgroundTask(prefix, url, method) {
