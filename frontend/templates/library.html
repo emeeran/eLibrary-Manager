@@ -508,6 +508,41 @@
         </div>
     </div>
 
+    <!-- Book Details Modal -->
+    <div id="details-modal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-header">
+                <h2 class="modal-title">Book Details</h2>
+                <button class="modal-close" onclick="closeModal('details-modal')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path
+                            d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="book-details-layout">
+                    <div class="book-details-cover">
+                        <img id="details-cover" alt="Book cover" onerror="coverError(this)">
+                    </div>
+                    <div class="book-details-main">
+                        <h3 class="book-details-title" id="details-title"></h3>
+                        <p class="book-details-author" id="details-author"></p>
+                        <div class="book-details-stars" id="details-rating"></div>
+                        <dl class="book-details-meta" id="details-meta"></dl>
+                        <div class="book-details-categories" id="details-categories"></div>
+                    </div>
+                </div>
+                <div class="book-details-description" id="details-description"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('details-modal')">Close</button>
+                <button type="button" class="btn btn-secondary" onclick="editFromDetails()">Edit</button>
+                <button type="button" class="btn btn-primary" onclick="readFromDetails()">Read</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Import Directory Modal -->
     <div id="import-modal" class="modal-overlay hidden">
         <div class="modal" style="max-width:560px;">

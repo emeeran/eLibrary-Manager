@@ -316,6 +316,12 @@ async function loadBookInfo() {
     // Build extended info
     const details = [];
     if (book.format) details.push(`<strong>Format:</strong> ${book.format}`);
+    if (book.series) {
+      const seriesIdx = book.series_index ? ` #${book.series_index}` : "";
+      details.push(
+        `<strong>Series:</strong> ${escapeHtml(book.series)}${seriesIdx}`,
+      );
+    }
     if (book.publisher)
       details.push(`<strong>Publisher:</strong> ${escapeHtml(book.publisher)}`);
     if (book.publish_date)

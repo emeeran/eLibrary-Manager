@@ -27,6 +27,8 @@ const SVG_LOCK =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>';
 const SVG_CALIBRE =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>';
+const SVG_INFO =
+  '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>';
 
 // Fast HTML escape using lookup table
 const _escMap = {
@@ -432,6 +434,7 @@ function renderGridView(books, append = false) {
                 </div>
             </div>
             <div class="book-card-actions">
+                <button class="book-card-action-btn" data-action="details" data-book-id="${book.id}" title="Details">${SVG_INFO}</button>
                 <button class="book-card-action-btn" data-action="edit" data-book-id="${book.id}" title="Edit">${SVG_EDIT}</button>
                 <button class="book-card-action-btn" data-action="cover" data-book-id="${book.id}" title="Change Cover">${SVG_IMAGE}</button>
                 <button class="book-card-action-btn" data-action="delete" data-book-id="${book.id}" title="Delete">${SVG_DELETE}</button>
@@ -552,6 +555,9 @@ function tableRowHtml(book) {
             </td>
             <td class="table-col-actions">
                 <div class="table-actions">
+                    <button class="table-action-btn" onclick="event.stopPropagation(); openDetailsModal(${book.id})" title="Details">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+                    </button>
                     <button class="table-action-btn" onclick="event.stopPropagation(); openEditModal(${book.id})" title="Edit">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
@@ -975,6 +981,98 @@ async function toggleFavorite(bookId, event) {
 /**
  * Open edit book modal
  */
+/**
+ * Open the read-only book details modal
+ */
+let _detailsBookId = null;
+async function openDetailsModal(bookId) {
+  try {
+    const book = await apiGet(`/api/books/${bookId}`);
+    _detailsBookId = book.id;
+
+    const cover = document.getElementById("details-cover");
+    if (book.cover_path) {
+      cover.dataset.title = book.title;
+      cover.dataset.author = book.author || "";
+      cover.src = `/covers/${encodeURIComponent(book.cover_path.split("/").pop())}`;
+      cover.style.display = "";
+    } else {
+      cover.style.display = "none";
+    }
+
+    document.getElementById("details-title").textContent = book.title;
+    document.getElementById("details-author").textContent =
+      book.author || "Unknown Author";
+
+    const ratingEl = document.getElementById("details-rating");
+    ratingEl.innerHTML = [1, 2, 3, 4, 5]
+      .map(
+        (i) =>
+          `<span class="star ${i <= (book.rating || 0) ? "filled" : ""}">&#9733;</span>`,
+      )
+      .join("");
+
+    // Metadata rows — populated fields only
+    const rows = [];
+    const add = (label, value) => {
+      if (value !== undefined && value !== null && value !== "") {
+        rows.push(`<dt>${label}</dt><dd>${escapeHtml(String(value))}</dd>`);
+      }
+    };
+    add("Format", book.format);
+    if (book.series) {
+      add(
+        "Series",
+        book.series_index ? `${book.series} #${book.series_index}` : book.series,
+      );
+    }
+    add("Publisher", book.publisher);
+    add("Published", book.publish_date);
+    add("Language", book.language);
+    add("ISBN", book.isbn);
+    if (book.total_pages) add("Pages", book.total_pages);
+    if (book.file_size) add("File size", `${(book.file_size / 1048576).toFixed(1)} MB`);
+    add("Progress", book.progress ? `${Math.round(book.progress)}%` : "");
+    if (book.added_date) {
+      add("Added", new Date(book.added_date).toLocaleDateString());
+    }
+    if (book.last_read_date) {
+      add("Last read", new Date(book.last_read_date).toLocaleDateString());
+    }
+    if (book.storage_type === "nas") add("Storage", "NAS");
+    add("Path", book.path);
+    document.getElementById("details-meta").innerHTML = rows.join("");
+
+    const cats = book.categories || [];
+    document.getElementById("details-categories").innerHTML = cats
+      .map((c) => `<span class="category-pill">${escapeHtml(c)}</span>`)
+      .join("");
+
+    const descEl = document.getElementById("details-description");
+    if (book.description) {
+      descEl.textContent = book.description;
+      descEl.classList.remove("hidden");
+    } else {
+      descEl.classList.add("hidden");
+    }
+
+    document.getElementById("details-modal").classList.remove("hidden");
+  } catch (error) {
+    console.error("Failed to load book details:", error);
+    showError("Failed to load book details");
+  }
+}
+
+function readFromDetails() {
+  closeModal("details-modal");
+  if (_detailsBookId) openBook(_detailsBookId);
+}
+
+function editFromDetails() {
+  closeModal("details-modal");
+  if (_detailsBookId) openEditModal(_detailsBookId);
+}
+
 async function openEditModal(bookId) {
   try {
     const book = await apiGet(`/api/books/${bookId}`);
@@ -2182,6 +2280,9 @@ function initializeGridDelegation() {
       const action = actionBtn.dataset.action;
       const bookId = parseInt(actionBtn.dataset.bookId);
       switch (action) {
+        case "details":
+          openDetailsModal(bookId);
+          break;
         case "edit":
           openEditModal(bookId);
           break;
