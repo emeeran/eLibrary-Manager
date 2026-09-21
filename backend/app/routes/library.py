@@ -15,12 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_config
 from app.database import get_db
+from app.logging_config import get_logger
 from app.repositories import BookRepository
 from app.scan_progress import ScanCancelledError, scan_store
 from app.schemas import (
     BookListResponse,
     BookResponse,
     BookUpdate,
+    BulkBookUpdate,
     DirectoryImportRequest,
     ProgressUpdate,
     book_to_response,
@@ -29,6 +31,7 @@ from app.services import LibraryService
 
 router = APIRouter(prefix="/api", tags=["library"])
 config = get_config()
+logger = get_logger(__name__)
 
 # Guard against concurrent scans
 _active_scans: set[str] = set()
@@ -767,6 +770,73 @@ async def get_book(book_id: int, db: AsyncSession = Depends(get_db)) -> BookResp
     service = LibraryService(db)
     book = await service.get_book(book_id)
     return book_to_response(book)
+
+
+@router.patch("/books/bulk")
+async def bulk_update_books(
+    payload: BulkBookUpdate, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Apply one operation to many books.
+
+    Per-book failures (e.g. an id that no longer exists) are reported and do
+    not stop the run. Field updates are fast, so there is no SSE progress —
+    the request returns counts when done.
+    """
+    op, value = payload.op, payload.value
+    from sqlalchemy import select
+
+    from app.models import Book, BookCategory, Category
+
+    # Per-op value validation (bool is an int subclass — reject it first
+    # where an int is expected).
+    if op == "set_rating":
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 5:
+            raise HTTPException(status_code=422, detail="set_rating needs an integer 0-5")
+    elif op == "set_reading_status":
+        if value not in ("none", "to_read", "reading", "finished"):
+            raise HTTPException(status_code=422, detail="invalid reading_status")
+    elif op == "set_favorite":
+        if not isinstance(value, bool):
+            raise HTTPException(status_code=422, detail="set_favorite needs a boolean")
+    elif op == "set_category":
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise HTTPException(status_code=422, detail="set_category needs a category id")
+        if await db.get(Category, value) is None:
+            raise HTTPException(status_code=422, detail=f"category {value} not found")
+
+    result = await db.execute(select(Book).where(Book.id.in_(payload.ids)))
+    found = {book.id: book for book in result.scalars().all()}
+    failed = [{"id": i, "error": "not found"} for i in payload.ids if i not in found]
+
+    for book in found.values():
+        try:
+            if op == "set_rating":
+                book.rating = value
+            elif op == "set_reading_status":
+                book.reading_status = value
+            elif op == "set_favorite":
+                book.is_favorite = value
+            elif op == "set_category":
+                await db.execute(
+                    BookCategory.__table__.delete().where(BookCategory.book_id == book.id)
+                )
+                db.add(BookCategory(book_id=book.id, category_id=value))
+            elif op == "soft_delete":
+                book.is_deleted = True
+        except Exception as e:  # noqa: BLE001 - per-book isolation by design
+            logger.warning(f"Bulk {op} failed for book {book.id}: {e}")
+            failed.append({"id": book.id, "error": str(e)})
+
+    await db.commit()
+    invalidate_book_list_cache()
+    from app.services.library_service import invalidate_stats_cache
+
+    invalidate_stats_cache()
+    return {
+        "requested": len(payload.ids),
+        "updated": len(found) - len([f for f in failed if f["id"] in found]),
+        "failed": failed,
+    }
 
 
 @router.patch("/books/{book_id}", response_model=BookResponse)
