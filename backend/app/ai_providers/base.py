@@ -42,6 +42,28 @@ class BaseAIProvider(ABC):
         pass
 
     @abstractmethod
+    async def complete(
+        self, prompt: str, *, max_tokens: int = 1000, temperature: float = 0.3
+    ) -> str:
+        """Send an arbitrary prompt through this provider.
+
+        Used for non-summarization generations (selection translate/define,
+        book Q&A). Subclasses implement the provider-specific call.
+
+        Args:
+            prompt: Full prompt text.
+            max_tokens: Response token cap.
+            temperature: Sampling temperature.
+
+        Returns:
+            Model response text.
+
+        Raises:
+            AIServiceError: If the request fails or returns empty text.
+        """
+        pass
+
+    @abstractmethod
     async def _perform_health_check(self) -> bool:
         """Perform the actual health check against the provider.
 

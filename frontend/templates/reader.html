@@ -178,6 +178,23 @@
                     </svg>
                 </button>
                 <div class="ic-menu-divider"></div>
+                <button onclick="translateSelection()" class="ic-tool-btn" title="Translate">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+                    </svg>
+                </button>
+                <button onclick="defineSelection()" class="ic-tool-btn" title="Define">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M6 2h12a2 2 0 012 2v16a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2zm2 4v2h8V6H8zm0 4v2h8v-2H8zm0 4v2h5v-2H8z"/>
+                    </svg>
+                </button>
+                <button onclick="webLookupSelection('google')" class="ic-tool-btn" title="Google">
+                    <span style="font-size:11px;font-weight:700;">G</span>
+                </button>
+                <button onclick="webLookupSelection('wikipedia')" class="ic-tool-btn" title="Wikipedia">
+                    <span style="font-size:11px;font-weight:700;">W</span>
+                </button>
+                <div class="ic-menu-divider"></div>
                 <button onclick="copySelection()" class="ic-tool-btn" title="Copy">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -643,8 +660,8 @@
     <script src="/static/js/reader/settings.js?v=42"></script>
     <script src="/static/js/reader/chapters.js?v=42"></script>
     <script src="/static/js/reader/search.js?v=42"></script>
-    <script src="/static/js/reader/annotations.js?v=42"></script>
-    <script src="/static/js/reader/panels.js?v=42"></script>
+    <script src="/static/js/reader/annotations.js?v=43"></script>
+    <script src="/static/js/reader/panels.js?v=43"></script>
     <script src="/static/js/reader/summary.js?v=42"></script>
     <script src="/static/js/reader/tts-bridge.js?v=42"></script>
     <script src="/static/js/reader/init.js?v=42"></script>

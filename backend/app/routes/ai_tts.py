@@ -17,7 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_config
 from app.database import get_db
 from app.edgetts_service import get_edgetts_service
-from app.exceptions import TTSError
+from app.ai_engine import get_ai_orchestrator
+from app.exceptions import AIServiceError, TTSError
 from app.gtts_service import get_gtts_service
 from app.logging_config import get_logger
 from app.services import ReaderService
@@ -30,6 +31,8 @@ config = get_config()
 ENGINE_EDGETTS = "edgetts"
 ENGINE_BROWSER = "browser"
 ENGINE_GTTS = "gtts"
+
+MAX_TRANSFORM_TEXT_LENGTH = 2000  # characters — selection transforms stay short
 
 
 # ============================================
@@ -83,6 +86,43 @@ async def switch_ai_provider(provider_name: str, db: AsyncSession = Depends(get_
     result = await service.switch_ai_provider(provider_name)
 
     return result
+
+
+@router.post("/ai/transform")
+async def transform_selection(request: Request) -> dict:
+    """Translate or define a text selection via the AI provider chain.
+
+    Expects JSON body:
+        text: The selected text (max 2000 chars)
+        mode: "translate" or "define"
+
+    Returns:
+        {"result": str, "provider": str}
+
+    Raises:
+        HTTPException: 422 on invalid input, 503 when no AI provider is healthy.
+    """
+    body = await request.json()
+    text = (body.get("text") or "").strip()
+    mode = body.get("mode")
+
+    if not text:
+        raise HTTPException(status_code=422, detail="text field is required")
+    if len(text) > MAX_TRANSFORM_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Selection too long ({len(text)} chars). Maximum is {MAX_TRANSFORM_TEXT_LENGTH}.",
+        )
+    if mode not in ("translate", "define"):
+        raise HTTPException(status_code=422, detail="mode must be 'translate' or 'define'")
+
+    try:
+        orchestrator = await get_ai_orchestrator()
+        result = await orchestrator.transform(text, mode)
+    except AIServiceError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+    return {"result": result, "provider": orchestrator.current_provider}
 
 
 # ============================================

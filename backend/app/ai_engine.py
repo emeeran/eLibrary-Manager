@@ -1,6 +1,7 @@
 """Multi-provider AI orchestration with automatic fallback."""
 
 import asyncio
+from collections.abc import Awaitable, Callable
 
 from app.ai_providers import (
     BaseAIProvider,
@@ -120,6 +121,75 @@ class AIProviderOrchestrator:
             },
         )
 
+    async def transform(self, text: str, mode: str) -> str:
+        """Run a selection transform (translate/define) with provider fallback.
+
+        Args:
+            text: The selected text to transform.
+            mode: Either "translate" or "define".
+
+        Returns:
+            The transformed text.
+
+        Raises:
+            ValueError: If ``mode`` is unknown.
+            AIServiceError: If all providers fail.
+        """
+        instructions = {
+            "translate": (
+                "Translate the following text into English. If it is already "
+                "English, reply with the original text unchanged. Reply with "
+                "the translation only — no commentary.\n\nText:\n"
+            ),
+            "define": (
+                "Define the given word or short phrase as a dictionary would: "
+                "part of speech, then a concise definition (at most 2-3 "
+                "sentences). If it is a proper noun, briefly explain what it "
+                "is. Reply with the definition only — no commentary.\n\nText:\n"
+            ),
+        }
+        if mode not in instructions:
+            raise ValueError(f"Unknown transform mode: {mode}")
+        prompt = instructions[mode] + text
+
+        last_error = None
+        for provider in self.providers:
+            try:
+                # Check provider health first
+                if not await provider.health_check():
+                    logger.debug(f"{provider.name} not available, skipping...")
+                    continue
+
+                logger.info(f"Attempting {mode} with {provider.name}")
+                result = await self._call_with_retry(
+                    provider,
+                    lambda p=provider: p.complete(prompt, max_tokens=500),
+                )
+                self.current_provider = provider.name
+                return result
+
+            except AIServiceError as e:
+                last_error = e
+                logger.warning(f"{provider.name} failed: {e}")
+                continue
+            except Exception as e:
+                last_error = e
+                logger.warning(f"{provider.name} failed unexpectedly: {e}")
+                continue
+
+        error_msg = "All AI providers failed"
+        if last_error:
+            error_msg += f" - Last error: {str(last_error)}"
+
+        logger.error(error_msg)
+        raise AIServiceError(
+            error_msg,
+            {
+                "providers_count": len(self.providers),
+                "last_error": str(last_error) if last_error else None,
+            },
+        )
+
     @staticmethod
     def _strip_html(text: str) -> str:
         """Strip HTML to plain text (run via ``asyncio.to_thread``)."""
@@ -130,7 +200,15 @@ class AIProviderOrchestrator:
     async def _summarize_with_retry(
         self, provider: BaseAIProvider, text: str, context: str | None
     ) -> str:
-        """Call ``provider.summarize`` with bounded retry + exponential backoff.
+        """Call ``provider.summarize`` with bounded retry + exponential backoff."""
+        return await self._call_with_retry(
+            provider, lambda: provider.summarize(text, context)
+        )
+
+    async def _call_with_retry(
+        self, provider: BaseAIProvider, call: Callable[[], Awaitable[str]]
+    ) -> str:
+        """Run a provider call with bounded retry + exponential backoff.
 
         Retries only on :class:`AIServiceError` (transient provider failures such
         as timeouts, 429s, 5xx). Other exceptions propagate immediately — they
@@ -141,7 +219,7 @@ class AIProviderOrchestrator:
         last_exc: AIServiceError | None = None
         for attempt in range(max_retries + 1):
             try:
-                return await provider.summarize(text, context)
+                return await call()
             except AIServiceError as exc:
                 last_exc = exc
                 if attempt >= max_retries:

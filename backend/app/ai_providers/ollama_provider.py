@@ -62,30 +62,47 @@ class OllamaProvider(BaseAIProvider):
         Raises:
             AIServiceError: If summarization fails
         """
+        logger.debug(f"Sending request to {self.name}: {len(text)} chars")
+        return await self.complete(
+            self._build_prompt(text, context), max_tokens=500, temperature=0.7
+        )
+
+    async def complete(
+        self, prompt: str, *, max_tokens: int = 1000, temperature: float = 0.3
+    ) -> str:
+        """Send an arbitrary prompt to Ollama.
+
+        Args:
+            prompt: Full prompt text.
+            max_tokens: Response token cap.
+            temperature: Sampling temperature.
+
+        Returns:
+            Model response text.
+
+        Raises:
+            AIServiceError: If the request fails or returns empty text.
+        """
         try:
             client = AsyncOpenAI(
                 base_url=f"{self._base_url}/v1",
                 api_key="ollama",  # Ollama doesn't require real key
             )
 
-            prompt = self._build_prompt(text, context)
-
-            logger.debug(f"Sending request to {self.name}: {len(text)} chars")
-
             response = await client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=500,
-                temperature=0.7,
+                max_tokens=max_tokens,
+                temperature=temperature,
             )
 
-            summary = response.choices[0].message.content.strip()
+            result = (response.choices[0].message.content or "").strip()
 
-            if not summary:
-                raise AIServiceError(f"Empty summary received from {self.name}")
+            if not result:
+                raise AIServiceError(f"Empty response received from {self.name}")
 
-            logger.info(f"{self.name} summary generated: {len(summary)} chars")
-            return summary
+            logger.info(f"{self.name} response generated: {len(result)} chars")
+            return result
 
         except AIServiceError:
             raise

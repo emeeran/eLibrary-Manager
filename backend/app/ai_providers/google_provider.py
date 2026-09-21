@@ -79,33 +79,51 @@ class GoogleProvider(BaseAIProvider):
         Raises:
             AIServiceError: If summarization fails
         """
+        logger.debug(f"Sending request to Google Gemini: {len(text)} chars")
+        return await self.complete(
+            self._build_prompt(text, context), max_tokens=500, temperature=0.7
+        )
+
+    async def complete(
+        self, prompt: str, *, max_tokens: int = 1000, temperature: float = 0.3
+    ) -> str:
+        """Send an arbitrary prompt to Google Gemini.
+
+        Args:
+            prompt: Full prompt text.
+            max_tokens: Response token cap.
+            temperature: Sampling temperature.
+
+        Returns:
+            Model response text.
+
+        Raises:
+            AIServiceError: If the request fails or returns empty text.
+        """
         if not self._available:
             raise AIServiceError("Google provider is not available")
 
         try:
-            prompt = self._build_prompt(text, context)
-
-            logger.debug(f"Sending request to Google Gemini: {len(text)} chars")
-
             client = self._get_client()
+
             # Use the async surface (``client.aio``) so this never blocks the
             # event loop while waiting on the network.
             response = await client.aio.models.generate_content(
                 model=self.model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
-                    max_output_tokens=500,
-                    temperature=0.7,
+                    max_output_tokens=max_tokens,
+                    temperature=temperature,
                 ),
             )
 
-            summary = response.text.strip()
+            result = response.text.strip()
 
-            if not summary:
-                raise AIServiceError("Empty summary received from Google Gemini")
+            if not result:
+                raise AIServiceError("Empty response received from Google Gemini")
 
-            logger.info(f"Google Gemini summary generated: {len(summary)} chars")
-            return summary
+            logger.info(f"Google Gemini response generated: {len(result)} chars")
+            return result
 
         except AIServiceError:
             raise
