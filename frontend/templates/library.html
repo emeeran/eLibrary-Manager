@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eLibrary Manager</title>
-    <link rel="stylesheet" href="/static/css/main.css?v=24">
+    <link rel="stylesheet" href="/static/css/main.css?v=25">
     <!-- Using SVG icons inline, no external font dependency -->
     <link rel="icon" href="/static/images/dawnstar-mark.png" type="image/svg+xml"/>
 </head>
@@ -693,6 +693,17 @@
         </div>
     </div>
 
+    <!-- Drag-and-Drop Overlay -->
+    <div id="drop-overlay" class="drop-overlay hidden" aria-hidden="true">
+        <div class="drop-overlay-box">
+            <svg width="42" height="42" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+            <p>Drop eBooks to add them to your library</p>
+            <p class="drop-overlay-hint">EPUB · PDF · MOBI</p>
+        </div>
+    </div>
+
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay hidden">
         <div style="display: flex; flex-direction: column; align-items: center;">
@@ -714,7 +725,7 @@
     <script src="/static/js/lib/storage.js?v=1" defer></script>
     <script src="/static/js/lib/notify.js?v=2" defer></script>
     <script src="/static/js/theme.js?v=2" defer></script>
-    <script src="/static/js/library.js?v=31" defer></script>
+    <script src="/static/js/library.js?v=32" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {

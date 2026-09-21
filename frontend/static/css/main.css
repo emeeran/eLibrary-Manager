@@ -4186,3 +4186,37 @@ html[data-theme="sepia-dark"] .tts-sentence-highlight {
 [data-theme="night"] .logo-icon img {
   filter: brightness(0) invert(1);
 }
+
+/* Drag-and-drop upload overlay */
+.drop-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9998;
+    background: rgba(66, 133, 244, 0.08);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.drop-overlay-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 32px 48px;
+    border: 2px dashed var(--accent-blue);
+    border-radius: 16px;
+    background: var(--content-bg-white);
+    color: var(--accent-blue);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.drop-overlay-hint {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-tertiary);
+}
