@@ -390,7 +390,7 @@ function renderGridView(books, append = false) {
   grid.className = "book-grid";
 
   const html = books
-    .map((book) => {
+    .map((book, idx) => {
       const yearInfo = book.publish_date
         ? book.publish_date.substring(0, 4)
         : "";
@@ -400,6 +400,7 @@ function renderGridView(books, append = false) {
       return `
         <div class="book-card-wrapper" role="listitem">
             <div class="book-card" data-book-id="${book.id}" tabindex="0" role="button" aria-label="Read ${safeTitle} by ${safeAuthor}">
+                ${selectionMode ? `<div class="book-card-check"><input type="checkbox" data-book-id="${book.id}" data-idx="${idx}" ${_selectedIds.has(book.id) ? "checked" : ""} aria-label="Select ${safeTitle}"></div>` : ""}
                 <div class="book-card-cover">
                     ${
                       book.cover_path
@@ -523,10 +524,11 @@ function uploadCover(bookId) {
 /**
  * Render books as table
  */
-function tableRowHtml(book) {
+function tableRowHtml(book, idx = -1) {
   return `
         <tr class="book-table-row" onclick="openBook(${book.id})" tabindex="0" role="button" aria-label="Read ${escapeHtml(book.title)} by ${escapeHtml(book.author || "Unknown Author")}">
             <td class="table-col-cover">
+                ${selectionMode ? `<label class="book-card-check"><input type="checkbox" data-book-id="${book.id}" data-idx="${idx}" ${_selectedIds.has(book.id) ? "checked" : ""} aria-label="Select ${escapeHtml(book.title)}"></label>` : ""}
                 <div class="table-cover">
                     ${
                       book.cover_path
@@ -586,7 +588,7 @@ function renderTableView(books, append = false) {
     if (tbody) {
       tbody.insertAdjacentHTML(
         "beforeend",
-        books.map((book) => tableRowHtml(book)).join(""),
+        books.map((book, idx) => tableRowHtml(book, idx)).join(""),
       );
       return;
     }
@@ -606,7 +608,7 @@ function renderTableView(books, append = false) {
                 </tr>
             </thead>
             <tbody>
-                ${books.map((book) => tableRowHtml(book)).join("")}
+                ${books.map((book, idx) => tableRowHtml(book, idx)).join("")}
             </tbody>
         </table>
     `;
@@ -2397,6 +2399,107 @@ document.addEventListener("keydown", (e) => {
 // ============================================
 
 /**
+ * Bulk selection mode (item 1.8)
+ */
+let selectionMode = false;
+const _selectedIds = new Set();
+let _lastClickedIdx = -1;
+
+function toggleSelectionMode() {
+  selectionMode = !selectionMode;
+  document.getElementById("btn-select-mode").classList.toggle("active", selectionMode);
+  if (!selectionMode) clearSelection();
+  // Reset pagination and re-render so checkboxes appear/disappear.
+  loadBooks();
+}
+
+function clearSelection() {
+  _selectedIds.clear();
+  _lastClickedIdx = -1;
+  document.getElementById("bulk-bar").classList.add("hidden");
+  ["bulk-rating", "bulk-status", "bulk-category"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  document.querySelectorAll(".book-card-check input:checked").forEach((box) => {
+    box.checked = false;
+  });
+}
+
+function toggleBookSelection(bookId, checked, idx, shiftKey) {
+  if (shiftKey && _lastClickedIdx >= 0) {
+    // Range select across the currently rendered cards.
+    const boxes = [...document.querySelectorAll(".book-card-check input")];
+    const [from, to] = [
+      Math.min(_lastClickedIdx, idx),
+      Math.max(_lastClickedIdx, idx),
+    ];
+    boxes.slice(from, to + 1).forEach((box) => {
+      const id = parseInt(box.dataset.bookId, 10);
+      box.checked = true;
+      _selectedIds.add(id);
+    });
+  } else if (checked) {
+    _selectedIds.add(bookId);
+  } else {
+    _selectedIds.delete(bookId);
+  }
+  _lastClickedIdx = idx;
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById("bulk-bar");
+  document.getElementById("bulk-count").textContent = `${_selectedIds.size} selected`;
+  bar.classList.toggle("hidden", !selectionMode || _selectedIds.size === 0);
+}
+
+async function runBulkOp(op, value) {
+  if (_selectedIds.size === 0) return;
+  if (op === "soft_delete") {
+    const ok = window.confirm(
+      `Delete ${_selectedIds.size} book${_selectedIds.size > 1 ? "s" : ""}? You can restore them from the Deleted view.`,
+    );
+    if (!ok) return;
+  }
+  if (value === "" || value == null) return;
+  try {
+    const result = await apiRequest("/api/books/bulk", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: [..._selectedIds], op, value }),
+    });
+    const failed = result.failed.length
+      ? `, ${result.failed.length} failed`
+      : "";
+    showNotification(`Updated ${result.updated} book(s)${failed}`, "success");
+    clearSelection();
+    loadBooks();
+  } catch (error) {
+    console.error("Bulk op failed:", error);
+    showNotification(error.message, "error");
+  }
+}
+
+function bulkDeleteSelected() {
+  return runBulkOp("soft_delete", null);
+}
+
+function populateBulkCategoryOptions() {
+  // Reuse the sidebar category list once it's loaded.
+  const select = document.getElementById("bulk-category");
+  if (!select || select.options.length > 1) return;
+  document.querySelectorAll(".category-item").forEach((item) => {
+    const id = item.dataset.categoryId;
+    if (!id) return;
+    const option = document.createElement("option");
+    option.value = id;
+    option.textContent = item.querySelector("span")?.textContent || "Category";
+    select.appendChild(option);
+  });
+}
+
+/**
  * Event delegation for book grid — single handler instead of per-card onclick
  */
 function initializeGridDelegation() {
@@ -2404,6 +2507,20 @@ function initializeGridDelegation() {
   if (!grid) return;
 
   grid.addEventListener("click", (e) => {
+    // Bulk selection checkboxes (grid + table)
+    const check = e.target.closest(".book-card-check input");
+    if (check) {
+      e.stopPropagation();
+      const idx = parseInt(check.dataset.idx, 10) || 0;
+      toggleBookSelection(
+        parseInt(check.dataset.bookId, 10),
+        check.checked,
+        idx,
+        e.shiftKey,
+      );
+      return;
+    }
+
     // Check for action buttons first
     const actionBtn = e.target.closest("[data-action]");
     if (actionBtn) {
@@ -2619,6 +2736,7 @@ async function loadCategories() {
   try {
     _categories = await apiGet("/api/categories");
     renderCategorySidebar();
+    populateBulkCategoryOptions();
   } catch (e) {
     console.error("Failed to load categories:", e);
     showNotification("Could not load categories", "error");

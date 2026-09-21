@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eLibrary Manager</title>
-    <link rel="stylesheet" href="/static/css/main.css?v=25">
+    <link rel="stylesheet" href="/static/css/main.css?v=26">
     <!-- Using SVG icons inline, no external font dependency -->
     <link rel="icon" href="/static/images/dawnstar-mark.png" type="image/svg+xml"/>
 </head>
@@ -308,6 +308,12 @@
                             <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>
                         </svg>
                     </button>
+                    <!-- Bulk selection mode -->
+                    <button class="toolbar-btn" id="btn-select-mode" onclick="toggleSelectionMode()" title="Select books for bulk actions">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                        </svg>
+                    </button>
                     <!-- Live result count for the grid below (shown while a search/filter is active) -->
                     <span id="result-count" aria-live="polite" hidden
                         style="font-size:12px;color:var(--text-secondary,#8a8a8a);white-space:nowrap;margin-left:8px;"></span>
@@ -401,6 +407,33 @@
             </section>
 
             <!-- Book Grid Container -->
+            <!-- Bulk actions bar (visible in selection mode when books are checked) -->
+            <div id="bulk-bar" class="bulk-bar hidden">
+                <span class="bulk-bar-count" id="bulk-count">0 selected</span>
+                <select id="bulk-rating" class="bulk-select" onchange="runBulkOp('set_rating', this.value)" aria-label="Set rating">
+                    <option value="" selected disabled>Rate ★…</option>
+                    <option value="1">★ 1</option>
+                    <option value="2">★ 2</option>
+                    <option value="3">★ 3</option>
+                    <option value="4">★ 4</option>
+                    <option value="5">★ 5</option>
+                    <option value="0">Clear rating</option>
+                </select>
+                <select id="bulk-status" class="bulk-select" onchange="runBulkOp('set_reading_status', this.value)" aria-label="Set reading status">
+                    <option value="" selected disabled>Status…</option>
+                    <option value="to_read">To read</option>
+                    <option value="reading">Reading</option>
+                    <option value="finished">Finished</option>
+                    <option value="none">Not set</option>
+                </select>
+                <select id="bulk-category" class="bulk-select" onchange="runBulkOp('set_category', this.value)" aria-label="Set category">
+                    <option value="" selected disabled>Category…</option>
+                </select>
+                <button class="bulk-btn" onclick="runBulkOp('set_favorite', true)">♥ Favorite</button>
+                <button class="bulk-btn" onclick="runBulkOp('set_favorite', false)">♡ Unfavorite</button>
+                <button class="bulk-btn bulk-btn-danger" onclick="bulkDeleteSelected()">Delete</button>
+                <button class="bulk-btn" onclick="clearSelection()">Clear</button>
+            </div>
             <div class="book-grid-container">
                 <div id="book-grid" class="book-grid" role="list" aria-label="Book library">
                     <!-- Books loaded via JS -->
@@ -725,7 +758,7 @@
     <script src="/static/js/lib/storage.js?v=1" defer></script>
     <script src="/static/js/lib/notify.js?v=2" defer></script>
     <script src="/static/js/theme.js?v=2" defer></script>
-    <script src="/static/js/library.js?v=32" defer></script>
+    <script src="/static/js/library.js?v=33" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {

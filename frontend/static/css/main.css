@@ -4220,3 +4220,86 @@ html[data-theme="sepia-dark"] .tts-sentence-highlight {
     font-weight: 500;
     color: var(--text-tertiary);
 }
+
+/* Bulk selection mode */
+#btn-select-mode.active {
+    color: var(--accent-blue);
+    background: var(--sidebar-hover);
+}
+
+.book-card-check {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 3;
+}
+
+.book-card-check input {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--accent-blue);
+}
+
+.book-table-row .book-card-check {
+    position: static;
+}
+
+.bulk-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 16px;
+    margin-bottom: 8px;
+    background: var(--content-bg-white);
+    border: 1px solid var(--content-border);
+    border-radius: var(--radius-lg);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.bulk-bar.hidden {
+    display: none;
+}
+
+.bulk-bar-count {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-right: 4px;
+}
+
+.bulk-select {
+    padding: 6px 8px;
+    border: 1px solid var(--content-border);
+    border-radius: 8px;
+    background: var(--content-bg-white);
+    color: var(--text-primary);
+    font-size: 13px;
+}
+
+.bulk-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--content-border);
+    border-radius: 8px;
+    background: var(--content-bg-white);
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    transition: var(--tr-bg);
+}
+
+.bulk-btn:hover {
+    background: var(--sidebar-hover);
+}
+
+.bulk-btn-danger {
+    color: #D93025;
+    border-color: #F6C9C5;
+}
+
+.bulk-btn-danger:hover {
+    background: #FCE8E6;
+}

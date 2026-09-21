@@ -42,7 +42,6 @@ class BookCreate(BookBase):
 
 class BookUpdate(BaseModel):
     """Schema for updating book metadata."""
-
     title: str | None = Field(None, min_length=1, max_length=500)
     author: str | None = Field(None, max_length=300)
     is_favorite: bool | None = None
@@ -59,6 +58,24 @@ class BookUpdate(BaseModel):
     series: str | None = Field(None, max_length=255)
     series_index: float | None = Field(None, ge=0)
     description: str | None = Field(None, max_length=20000)
+
+
+class BulkBookUpdate(BaseModel):
+    """One operation applied to many books.
+
+    ``value`` meaning depends on ``op``:
+        set_rating         → int 0-5
+        set_reading_status → "none"|"to_read"|"reading"|"finished"
+        set_favorite       → bool
+        set_category       → int category id (replaces the books' categories)
+        soft_delete        → ignored
+    """
+
+    ids: list[int] = Field(..., min_length=1, max_length=10000)
+    op: str = Field(
+        ..., pattern="^(set_rating|set_reading_status|set_favorite|set_category|soft_delete)$"
+    )
+    value: int | bool | str | None = None
 
 
 class BookResponse(BookBase):
