@@ -1,7 +1,8 @@
 # SPEC-006: Text-to-Speech
 
 - **Status:** Active
-- **Version:** 1.0.0
+- **Version:** 1.1.0
+- **Last Updated:** 2026-09-21
 - **Last Updated:** 2026-04-15
 
 ## Purpose
@@ -229,6 +230,21 @@ Provides read-aloud functionality for ebook content using multiple TTS engines w
 | Constants | `app/routes/ai_tts.py` | `ENGINE_EDGETTS`, `ENGINE_BROWSER`, `ENGINE_GTTS` |
 
 ---
+
+### AC-006.18: Voice Selection Reaches the Synthesizer
+
+**Given** the operator picks a voice on the Settings page (values prefixed with their engine, e.g. `edgetts:en-US-ChristopherNeural`)
+**When** the selection changes
+**Then** the chosen voice id is persisted to `localStorage["dawnstar_tts_voice_<engine>"]` and the engine to `localStorage["dawnstar_tts_engine"]` — the exact keys the reader's speak path reads
+**And** the next TTS playback sends that voice id to `POST /api/tts/synthesize`
+**And** changing the engine on Settings persists to both `tts-engine` (settings) and `dawnstar_tts_engine` (reader)
+
+### AC-006.19: US English Male Voice Catalog
+
+**Given** the EdgeTTS engine
+**When** `GET /api/tts/voices?engine=edgetts` is called
+**Then** the catalog includes at least the US male voices: Guy, Andrew, Brian, Christopher, Eric, Roger, Steffan (`en-US-*Neural`)
+**And** each is selectable and passed through to EdgeTTS unchanged
 
 ## Test Coverage
 

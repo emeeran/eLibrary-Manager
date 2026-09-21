@@ -21,6 +21,12 @@ class EdgeTTSService:
         # English US
         "en-US-AriaNeural": "Aria (US, Female)",
         "en-US-GuyNeural": "Guy (US, Male)",
+        "en-US-AndrewNeural": "Andrew (US, Male)",
+        "en-US-BrianNeural": "Brian (US, Male)",
+        "en-US-ChristopherNeural": "Christopher (US, Male)",
+        "en-US-EricNeural": "Eric (US, Male)",
+        "en-US-RogerNeural": "Roger (US, Male)",
+        "en-US-SteffanNeural": "Steffan (US, Male)",
         "en-US-JennyNeural": "Jenny (US, Female)",
         "en-US-MichelleNeural": "Michelle (US, Female)",
         # English UK

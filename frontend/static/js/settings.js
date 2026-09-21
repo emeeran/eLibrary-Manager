@@ -447,6 +447,8 @@ async function loadGTVoices() {
  */
 function changeTTSEngine(engine) {
   localStorage.setItem("tts-engine", engine);
+  // The reader's TTS engine reads dawnstar_tts_engine — keep both keys in sync
+  localStorage.setItem("dawnstar_tts_engine", engine);
   loadVoices();
 
   // Show/hide pitch control (only for Web Speech and EdgeTTS)
@@ -456,6 +458,24 @@ function changeTTSEngine(engine) {
   if (pitchRow) {
     pitchRow.style.display = engine === "gtts" ? "none" : "flex";
   }
+}
+
+/**
+ * Persist the selected voice to the keys the reader's speak path consumes
+ * (dawnstar_tts_voice_<engine> / dawnstar_tts_engine). Without this the
+ * chosen voice never reaches synthesis — the reader had no other writer.
+ * Option values are engine-prefixed: "edgetts:en-US-GuyNeural".
+ */
+function onTTSVoiceChanged() {
+  const value = document.getElementById("tts-voice")?.value || "";
+  const sep = value.indexOf(":");
+  const prefix = sep === -1 ? "" : value.slice(0, sep);
+  const voiceId = sep === -1 ? value : value.slice(sep + 1);
+  if (!voiceId) return;
+  // tts.js calls the Web Speech engine "browser"; settings options say "webspeech"
+  const engine = prefix === "webspeech" ? "browser" : prefix || localStorage.getItem("tts-engine") || "edgetts";
+  localStorage.setItem(`dawnstar_tts_voice_${engine}`, voiceId);
+  if (prefix) localStorage.setItem("dawnstar_tts_engine", engine);
 }
 
 /**
