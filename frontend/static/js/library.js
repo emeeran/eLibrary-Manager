@@ -2399,6 +2399,21 @@ document.addEventListener("keydown", (e) => {
 // ============================================
 
 /**
+ * Persist the daily reading goal (minutes) as a settings key (item 2.2)
+ */
+async function saveDailyGoal(minutes) {
+  const value = parseInt(minutes, 10);
+  if (!value || value < 5) return;
+  try {
+    await apiPost("/api/settings", { daily_goal_minutes: String(value) });
+    showNotification("Daily goal updated", "success");
+    loadStatsPanel();
+  } catch (error) {
+    showNotification(error.message, "error");
+  }
+}
+
+/**
  * Bulk selection mode (item 1.8)
  */
 let selectionMode = false;
@@ -3385,10 +3400,27 @@ function renderStats(container, stats) {
         </div>`;
   }
 
+  if (stats.today_minutes != null) {
+    const goal = stats.daily_goal_minutes || 30;
+    const pct = Math.min(stats.goal_progress_pct || 0, 100);
+    html += `
+        <div style="padding:8px 12px 4px;font-size:12px;color:var(--text-secondary,#5A5A5A);text-align:center;">
+            Today: ${Math.round(stats.today_minutes)} min
+            <div style="height:6px;background:var(--content-bg,#f0f0f0);border-radius:3px;margin:6px 0 2px;overflow:hidden;">
+                <div style="height:100%;width:${pct}%;background:var(--accent-gradient,linear-gradient(90deg,#4285F4,#34A853));"></div>
+            </div>
+            goal ${Math.round(goal)} min
+            <input type="number" id="stats-goal-input" min="5" max="600" step="5" value="${Math.round(goal)}"
+                style="width:64px;margin-left:6px;padding:2px 4px;border:1px solid var(--content-border,#E5E7EB);border-radius:6px;font-size:11px;"
+                title="Daily goal (minutes)" onchange="saveDailyGoal(this.value)">
+        </div>`;
+  }
+
   if (stats.estimated_reading_hours > 0) {
+    const src = stats.reading_time_source === "tracked" ? "tracked" : "estimated";
     html += `
         <div style="padding:4px 12px 8px;font-size:12px;color:var(--text-secondary,#5A5A5A);text-align:center;">
-            ~${stats.estimated_reading_hours}h estimated reading time
+            ~${stats.estimated_reading_hours}h ${src} reading time
         </div>`;
   }
 

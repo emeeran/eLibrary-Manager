@@ -90,16 +90,43 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
     )
     avg_progress = round(avg_result.scalar() or 0, 1)
 
-    # Total estimated reading time (based on last_read_date deltas)
-    # Each day with a last_read_date counts as ~30 min reading
-    reading_time_result = await db.execute(
-        select(func.count(func.distinct(func.date(Book.last_read_date)))).where(
-            Book.is_hidden.is_(False),
-            Book.last_read_date.isnot(None),
+    # Reading time: tracked sessions are the source of truth; the
+    # per-reading-day heuristic only fills in when no sessions exist yet.
+    from app.models import ReadingSession, Setting
+
+    minutes_result = await db.execute(select(func.coalesce(func.sum(ReadingSession.minutes), 0.0)))
+    tracked_minutes = round(minutes_result.scalar() or 0.0, 1)
+    today_minutes_result = await db.execute(
+        select(func.coalesce(func.sum(ReadingSession.minutes), 0.0)).where(
+            func.date(ReadingSession.started_at) == now.date()
         )
     )
-    reading_days = reading_time_result.scalar() or 0
-    estimated_reading_hours = round(reading_days * 0.5, 1)  # 30 min per day estimate
+    today_minutes = round(today_minutes_result.scalar() or 0.0, 1)
+
+    goal_result = await db.execute(
+        select(Setting.value).where(Setting.key == "daily_goal_minutes")
+    )
+    daily_goal_minutes = float(goal_result.scalar() or 30)
+    goal_progress_pct = (
+        round(today_minutes / daily_goal_minutes * 100)
+        if daily_goal_minutes > 0
+        else 0
+    )
+
+    if tracked_minutes > 0:
+        reading_time_source = "tracked"
+        estimated_reading_hours = round(tracked_minutes / 60, 1)
+    else:
+        # Heuristic fallback: each distinct reading day counts as ~30 min.
+        reading_time_result = await db.execute(
+            select(func.count(func.distinct(func.date(Book.last_read_date)))).where(
+                Book.is_hidden.is_(False),
+                Book.last_read_date.isnot(None),
+            )
+        )
+        reading_days = reading_time_result.scalar() or 0
+        reading_time_source = "estimated"
+        estimated_reading_hours = round(reading_days * 0.5, 1)
 
     # Most read authors (top 5 by book count, limited to books with progress > 0)
     authors_result = await db.execute(
@@ -127,8 +154,11 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
         {"format": row.format, "count": row.count} for row in format_result.all()
     ]
 
-    # Reading streak (consecutive days with last_read_date ending at today or yesterday)
-    streak = await _calculate_reading_streak(db, now)
+    # Reading streak: tracked session days when present, else book-open days.
+    session_dates_result = await db.execute(
+        select(func.distinct(func.date(ReadingSession.started_at)))
+    )
+    streak = await _calculate_reading_streak(db, now, set(session_dates_result.scalars().all()))
 
     return {
         "total_books": total_books,
@@ -138,21 +168,29 @@ async def get_reading_stats(db: AsyncSession = Depends(get_db)) -> dict:
         "books_this_month": books_this_month,
         "average_progress": avg_progress,
         "estimated_reading_hours": estimated_reading_hours,
+        "reading_time_source": reading_time_source,
+        "tracked_minutes": tracked_minutes,
+        "today_minutes": today_minutes,
+        "daily_goal_minutes": daily_goal_minutes,
+        "goal_progress_pct": min(goal_progress_pct, 100),
         "reading_streak": streak,
         "top_authors": top_authors,
         "format_distribution": format_distribution,
     }
 
 
-async def _calculate_reading_streak(db: AsyncSession, now: datetime) -> int:
+async def _calculate_reading_streak(
+    db: AsyncSession, now: datetime, extra_dates: set | None = None
+) -> int:
     """Calculate consecutive reading streak.
 
     A streak is the number of consecutive days ending at today or yesterday
-    where at least one book was opened.
+    where at least one book was opened or a reading session was tracked.
 
     Args:
         db: Database session
         now: Current datetime
+        extra_dates: Additional reading dates (tracked session days) merged in.
 
     Returns:
         int: Number of consecutive days in the streak
@@ -167,13 +205,16 @@ async def _calculate_reading_streak(db: AsyncSession, now: datetime) -> int:
         .order_by(func.date(Book.last_read_date).desc())
     )
     reading_dates = set(dates_result.scalars().all())
+    if extra_dates:
+        reading_dates |= {d for d in extra_dates if d is not None}
 
     if not reading_dates:
         return 0
 
-    # Check if today or yesterday is in the set
-    today = now.date()
-    yesterday = (now - timedelta(days=1)).date()
+    # Normalize to ISO strings — SQLite's date() yields text, not date objects.
+    reading_dates = {str(d)[:10] for d in reading_dates}
+    today = now.date().isoformat()
+    yesterday = (now - timedelta(days=1)).date().isoformat()
 
     if today not in reading_dates and yesterday not in reading_dates:
         return 0
@@ -181,9 +222,11 @@ async def _calculate_reading_streak(db: AsyncSession, now: datetime) -> int:
     # Count consecutive days backwards
     streak = 0
     check_date = today if today in reading_dates else yesterday
+    check_day = datetime.fromisoformat(check_date).date()
 
     while check_date in reading_dates:
         streak += 1
-        check_date = check_date - timedelta(days=1)
+        check_day = check_day - timedelta(days=1)
+        check_date = check_day.isoformat()
 
     return streak

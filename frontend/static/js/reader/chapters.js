@@ -685,10 +685,51 @@ async function saveProgressNow(chapterIndex) {
         body: data,
       });
     }
+    flushReadingSession();
   } catch (error) {
     console.error("Failed to save progress:", error);
   }
 }
+
+/**
+ * Active reading-time tracking (item 2.2): accumulate seconds only while
+ * the tab is visible; flush to /session on progress saves, tab hide, and
+ * every 5 minutes of continuous reading.
+ */
+IcecreamReader.activeSeconds = IcecreamReader.activeSeconds || 0;
+
+setInterval(() => {
+  if (document.visibilityState === "visible") IcecreamReader.activeSeconds += 15;
+}, 15000);
+
+async function flushReadingSession() {
+  const seconds = IcecreamReader.activeSeconds || 0;
+  if (seconds < 30 || !IcecreamReader.bookId) return;
+  IcecreamReader.activeSeconds = 0;
+  const data = JSON.stringify({ seconds });
+  const url = `/api/books/${IcecreamReader.bookId}/session`;
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url, new Blob([data], { type: "application/json" }));
+    } else {
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: data,
+      });
+    }
+  } catch (error) {
+    console.error("Failed to record reading session:", error);
+  }
+}
+
+setInterval(() => {
+  if (document.visibilityState === "visible") flushReadingSession();
+}, 5 * 60 * 1000);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") flushReadingSession();
+});
 
 // Save progress on page unload
 window.addEventListener("beforeunload", () => {
