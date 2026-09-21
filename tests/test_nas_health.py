@@ -73,7 +73,12 @@ async def test_monitor_survives_backend_exception(caplog):
 
     with caplog.at_level(logging.ERROR, logger="app.nas_health"):
         task = asyncio.create_task(monitor._run_loop())
-        await asyncio.sleep(0.06)
+        # Wait for the second call instead of a fixed sleep — a wall-clock
+        # window is load-sensitive under the full suite.
+        for _ in range(200):
+            if backend.calls >= 2:
+                break
+            await asyncio.sleep(0.01)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
