@@ -24,6 +24,7 @@ RATE_LIMITS: dict[str, tuple[int, int]] = {
     "/api/library/auto-categorize": (2, 300),
     "/api/settings/test-ai": (5, 60),
     "/api/settings/backup": (3, 60),
+    "/api/ai/transform": (30, 60),
     "/api/auth/login": (10, 60),
     # Per-book hide/unhide run bcrypt verification — cap hard to throttle brute
     # force. Matched by exact-path suffix below so they don't affect reads.

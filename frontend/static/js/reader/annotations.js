@@ -196,6 +196,78 @@ function copySelection() {
 }
 
 /**
+ * Open a web lookup (Google / Wikipedia) for the current selection
+ */
+function webLookupSelection(engine) {
+  const text = window.getSelection().toString().trim();
+  if (!text) return;
+  const url =
+    engine === "wikipedia"
+      ? `https://en.wikipedia.org/w/index.php?search=${encodeURIComponent(text)}`
+      : `https://www.google.com/search?q=${encodeURIComponent(text)}`;
+  window.open(url, "_blank", "noopener");
+  document.getElementById("ic-selection-menu").style.display = "none";
+}
+
+/**
+ * Translate / define the current selection via the AI provider chain and
+ * show the result in the summary panel.
+ */
+async function runSelectionTransform(mode) {
+  const text = window.getSelection().toString().trim();
+  document.getElementById("ic-selection-menu").style.display = "none";
+  if (!text) return;
+
+  // Open the summary panel if closed, then show a loading state in it
+  const sidebar = document.getElementById("ic-summary-sidebar");
+  if (sidebar.classList.contains("collapsed")) toggleSummaryPanel();
+  const container = document.getElementById("ic-summary-content");
+  const title = mode === "translate" ? "Translating…" : "Looking up…";
+  container.innerHTML = `
+        <div class="ic-loading" style="text-align: center; padding: 40px 20px;">
+            <div class="ic-spinner"></div>
+            <p style="margin-top: 12px;">${title}</p>
+        </div>
+    `;
+  showSummaryActions(false);
+
+  try {
+    const response = await fetch("/api/ai/transform", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, mode }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || "Request failed");
+    }
+    container.innerHTML = `
+            <div class="ic-summary-text">
+                <p class="ic-summary-meta">${escapeHtml(text)} &bull; ${data.provider || "AI"}</p>
+                <p style="white-space: pre-wrap;">${escapeHtml(data.result)}</p>
+            </div>
+        `;
+  } catch (error) {
+    console.error(`Selection ${mode} failed:`, error);
+    container.innerHTML = `
+            <div class="ic-summary-empty" role="alert" aria-live="polite">
+                <p class="ic-summary-empty-text" style="color: #d32f2f;">
+                    ${escapeHtml(error.message || `Selection ${mode} failed.`)}
+                </p>
+            </div>
+        `;
+  }
+}
+
+function translateSelection() {
+  return runSelectionTransform("translate");
+}
+
+function defineSelection() {
+  return runSelectionTransform("define");
+}
+
+/**
  * Is the Notes & Annotations panel currently visible?
  *
  * The notes list fetch is book-wide (two requests) and only matters when the
