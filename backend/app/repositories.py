@@ -301,6 +301,7 @@ class BookRepository:
         directory_filter: str | None = None,
         series_filter: list[str] | None = None,
         rating_min: int | None = None,
+        reading_status: str | None = None,
         show_deleted: bool = False,
     ) -> tuple:
         """Build base query conditions for book listing.
@@ -318,6 +319,8 @@ class BookRepository:
             conditions.append(Book.is_recent)
         if reading_only:
             conditions.append(Book.progress > 0)
+        if reading_status:
+            conditions.append(Book.reading_status == reading_status)
         if format_filter:
             conditions.append(Book.format == format_filter.upper())
         if series_filter:
@@ -379,6 +382,7 @@ class BookRepository:
         directory_filter: str | None = None,
         series_filter: list[str] | None = None,
         rating_min: int | None = None,
+        reading_status: str | None = None,
         cursor: str | None = None,
     ) -> tuple[list[Book], int]:
         """List books with optional filters and sorting, returning total count.
@@ -405,6 +409,7 @@ class BookRepository:
             directory_filter=directory_filter,
             series_filter=series_filter,
             rating_min=rating_min,
+            reading_status=reading_status,
         )
         for pred in field_preds:
             query = query.where(pred)
@@ -437,6 +442,7 @@ class BookRepository:
             directory_filter=directory_filter,
             series_filter=series_filter,
             rating_min=rating_min,
+            reading_status=reading_status,
         )
 
         # Keyset (cursor) pagination when a cursor is supplied; else OFFSET.
@@ -478,12 +484,13 @@ class BookRepository:
         directory_filter: str | None = None,
         series_filter: list[str] | None = None,
         rating_min: int | None = None,
+        reading_status: str | None = None,
     ) -> int:
         """Count books matching filters, with short-lived cache for pagination."""
         cache_key = (
             f"{favorite_only}|{recent_only}|{reading_only}|{search}|{format_filter}|"
             f"{source_filter}|{category_id}|{hidden_only}|{show_hidden}|"
-            f"{directory_filter}|{series_filter}|{rating_min}"
+            f"{directory_filter}|{series_filter}|{rating_min}|{reading_status}"
         )
 
         now = time.time()
@@ -506,6 +513,7 @@ class BookRepository:
             directory_filter=directory_filter,
             series_filter=series_filter,
             rating_min=rating_min,
+            reading_status=reading_status,
         )
         for pred in field_preds:
             query = query.where(pred)
@@ -569,6 +577,13 @@ class BookRepository:
         book = await self.get_by_id_or_404(book_id)
         book.current_chapter = progress_data.chapter_index
         book.progress = progress_data.progress
+        # Auto-advance the triage shelf (never auto-downgrade a manual
+        # to_read): >=95% finished (matches the stats "completed" definition),
+        # any real progress starts the book.
+        if progress_data.progress >= 95:
+            book.reading_status = "finished"
+        elif progress_data.progress > 0 and book.reading_status != "reading":
+            book.reading_status = "reading"
         await self.session.flush()
         return book
 

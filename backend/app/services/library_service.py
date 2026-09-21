@@ -562,6 +562,7 @@ class LibraryService:
         directory_filter: str | None = None,
         series_filter: list[str] | None = None,
         rating_min: int | None = None,
+        reading_status: str | None = None,
         cursor: str | None = None,
     ) -> tuple[list[Book], int]:
         """List books with pagination, filters, and sorting."""
@@ -573,6 +574,7 @@ class LibraryService:
             favorite_only=favorite_only,
             recent_only=recent_only,
             reading_only=reading_only,
+            reading_status=reading_status,
             search=search,
             format_filter=format_filter,
             sort_by=sort_by,
@@ -613,6 +615,9 @@ class LibraryService:
                 func.coalesce(func.sum(Book.file_size).filter(Book.is_deleted.is_(False)), 0),
                 func.count().filter(Book.is_hidden, Book.is_deleted.is_(False)),
                 func.count().filter(Book.is_deleted),
+                func.count().filter(
+                    Book.reading_status == "to_read", Book.is_deleted.is_(False)
+                ),
             )
         )
         row = result.one()
@@ -625,6 +630,7 @@ class LibraryService:
             "total_size_bytes": row[4] or 0,
             "deleted_books": row[6] or 0,  # soft-deleted (pruned from Calibre)
             "hidden_books": row[5] or 0,
+            "to_read_books": row[7] or 0,
         }
         _stats_cache = (stats, time.time())
         return stats
@@ -648,6 +654,7 @@ class LibraryService:
             if deleted_override is not None
             else stats.get("deleted_books", 0),
             "hidden": stats.get("hidden_books", 0),
+            "to_read": stats.get("to_read_books", 0),
         }
 
     async def refresh_covers(self, force: bool = False) -> dict:

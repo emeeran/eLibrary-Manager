@@ -60,6 +60,12 @@ class Book(Base):
     # Set when the user hand-edits metadata in eLM. The Calibre re-sync skips
     # the metadata block for edited books so hand edits are never clobbered.
     metadata_edited: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # Triage shelf: none | to_read | reading | finished. Auto-advanced by
+    # progress saves (>=95% -> finished, matching the stats definition);
+    # never auto-downgraded from to_read.
+    reading_status: Mapped[str] = mapped_column(
+        String(10), default="none", server_default="none", index=True
+    )
     language: Mapped[str | None] = mapped_column(String(20), nullable=True)
     isbn: Mapped[str | None] = mapped_column(String(30), nullable=True)
     total_pages: Mapped[int] = mapped_column(Integer, default=0)
