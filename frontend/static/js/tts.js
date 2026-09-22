@@ -197,7 +197,6 @@
         audioElement._objectUrl = objectUrl;
         // Single-segment highlight: wrap text as one segment
         _buildSegmentWordMap([text]);
-        _buildSegmentSentenceMap();
         _startSegmentTracking(0);
         this.isPlaying = true;
         isServerLoading = false;
@@ -227,7 +226,6 @@
 
         // Build segment-to-DOM-word mapping for highlighting
         _buildSegmentWordMap(segments);
-        _buildSegmentSentenceMap();
 
         // Fetch first segment immediately
         const firstBlob = await _fetchAudioChunk(
@@ -839,13 +837,11 @@
   // ========================================
 
   let _wordSpans = []; // All word spans in the chapter DOM
-  let _currentWordIndex = -1; // Currently highlighted word
   let _isHighlighting = false;
   let _segmentWordMap = []; // [{startWord, endWord}, ...] per segment
   let _trackRAF = null; // RAF handle for tracking loop
   let _sentenceSpans = []; // All sentence spans in the chapter DOM
-  let _currentSentenceIndex = -1; // Currently highlighted sentence
-  let _segmentSentenceMap = []; // [{startSentence, endSentence}, ...] per segment
+  let _currentSentenceEl = null; // Currently highlighted sentence span
 
   /**
    * Wrap sentences and words in the chapter DOM with spans.
@@ -1018,95 +1014,20 @@
   }
 
   /**
-   * Build a map from TTS segment index → DOM sentence range.
-   * Uses text matching to find which sentences contain the segment's words.
+   * Highlight the sentence containing the given word index.
+   * Word spans live inside sentence spans, so the sentence is found via closest().
    */
-  function _buildSegmentSentenceMap() {
-    // segmentSentencesAndWords is already called by _buildSegmentWordMap
-    if (_wordSpans.length === 0 || _sentenceSpans.length === 0) {
-      _segmentSentenceMap = [];
-      return;
+  function _highlightSentenceAtWord(wordIndex) {
+    const wordSpan = _wordSpans[wordIndex];
+    const sentenceEl = wordSpan ? wordSpan.closest(".tts-sentence") : null;
+    if (!sentenceEl || sentenceEl === _currentSentenceEl) return;
+
+    if (_currentSentenceEl) {
+      _currentSentenceEl.classList.remove("tts-sentence-highlight");
     }
-
-    // Build word index for each sentence
-    const sentenceWordRanges = [];
-    let wordIndex = 0;
-
-    for (const sentence of _sentenceSpans) {
-      const sentenceWords = sentence.textContent
-        .trim()
-        .split(/\s+/)
-        .filter((w) => w.length > 0).length;
-      sentenceWordRanges.push({
-        start: wordIndex,
-        end: wordIndex + sentenceWords,
-      });
-      wordIndex += sentenceWords;
-    }
-
-    // Map each segment to its sentence range
-    _segmentSentenceMap = _segmentWordMap.map((range) => {
-      if (range.startWord >= range.endWord) {
-        return { startSentence: 0, endSentence: 1 };
-      }
-
-      // Find which sentence contains the start word
-      let startSentence = 0;
-      for (let s = 0; s < sentenceWordRanges.length; s++) {
-        if (
-          range.startWord >= sentenceWordRanges[s].start &&
-          range.startWord < sentenceWordRanges[s].end
-        ) {
-          startSentence = s;
-          break;
-        }
-      }
-
-      // Find which sentence contains the end word
-      let endSentence = startSentence + 1;
-      for (let s = 0; s < sentenceWordRanges.length; s++) {
-        if (
-          range.endWord > sentenceWordRanges[s].start &&
-          range.endWord <= sentenceWordRanges[s].end
-        ) {
-          endSentence = s + 1;
-          break;
-        }
-      }
-
-      return { startSentence, endSentence };
-    });
-  }
-
-  /**
-   * Highlight the sentence for the current segment.
-   */
-  function _highlightSentence(segIndex) {
-    // Clear previous sentence highlight
-    if (
-      _currentSentenceIndex >= 0 &&
-      _currentSentenceIndex < _sentenceSpans.length
-    ) {
-      _sentenceSpans[_currentSentenceIndex].classList.remove(
-        "tts-sentence-highlight",
-      );
-    }
-
-    const sentenceRange = _segmentSentenceMap[segIndex];
-    if (
-      !sentenceRange ||
-      sentenceRange.startSentence >= sentenceRange.endSentence
-    ) {
-      return;
-    }
-
-    // Highlight the first sentence in the range (most segments contain one sentence)
-    _currentSentenceIndex = sentenceRange.startSentence;
-    if (_currentSentenceIndex < _sentenceSpans.length) {
-      _sentenceSpans[_currentSentenceIndex].classList.add(
-        "tts-sentence-highlight",
-      );
-    }
+    _currentSentenceEl = sentenceEl;
+    sentenceEl.classList.add("tts-sentence-highlight");
+    sentenceEl.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   /**
@@ -1124,7 +1045,7 @@
 
     const totalSegWords = range.endWord - range.startWord;
     _dimSegmentWords(segIndex);
-    _highlightSentence(segIndex);
+    _highlightSentenceAtWord(range.startWord);
 
     // Estimate speech rate: ~150 WPM at 1x, scaled by playback rate
     const rate =
@@ -1132,19 +1053,9 @@
       1.0;
     const wordsPerSec = (150 * rate) / 60;
     const startTime = performance.now();
-    const loggedOnce = false;
 
     function tick() {
-      if (!audioElement || !_isHighlighting) {
-        if (!loggedOnce)
-          console.warn(
-            "[TTS] tick exit: audio=",
-            !!audioElement,
-            "highlighting=",
-            _isHighlighting,
-          );
-        return;
-      }
+      if (!audioElement || !_isHighlighting) return;
 
       let progress;
       if (audioElement.duration && isFinite(audioElement.duration)) {
@@ -1162,19 +1073,7 @@
         Math.floor(progress * totalSegWords),
         totalSegWords - 1,
       );
-      const wordIndex = range.startWord + wordOffset;
-
-      if (wordIndex !== _currentWordIndex && wordIndex < _wordSpans.length) {
-        if (_currentWordIndex >= 0 && _currentWordIndex < _wordSpans.length) {
-          _wordSpans[_currentWordIndex].classList.remove("tts-word-highlight");
-        }
-        _currentWordIndex = wordIndex;
-        _wordSpans[wordIndex].classList.add("tts-word-highlight");
-        _wordSpans[wordIndex].scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
-      }
+      _highlightSentenceAtWord(range.startWord + wordOffset);
 
       if (segIndex < _segmentWordMap.length - 1 || progress < 0.99) {
         _trackRAF = requestAnimationFrame(tick);
@@ -1205,12 +1104,7 @@
 
   function highlightWord(index) {
     if (index < 0 || index >= _wordSpans.length) return;
-    if (_currentWordIndex >= 0 && _currentWordIndex < _wordSpans.length) {
-      _wordSpans[_currentWordIndex].classList.remove("tts-word-highlight");
-    }
-    _currentWordIndex = index;
-    _wordSpans[index].classList.add("tts-word-highlight");
-    _wordSpans[index].scrollIntoView({ behavior: "smooth", block: "center" });
+    _highlightSentenceAtWord(index);
   }
 
   function clearHighlights() {
@@ -1226,11 +1120,9 @@
     });
     _wordSpans = [];
     _sentenceSpans = [];
-    _currentWordIndex = -1;
-    _currentSentenceIndex = -1;
+    _currentSentenceEl = null;
     _isHighlighting = false;
     _segmentWordMap = [];
-    _segmentSentenceMap = [];
     if (_trackRAF) cancelAnimationFrame(_trackRAF);
     _trackRAF = null;
   }

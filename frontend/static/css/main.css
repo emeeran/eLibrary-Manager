@@ -351,7 +351,7 @@ button {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 100;
+    z-index: 102; /* above .sidebar-resize-handle (101), which otherwise steals its clicks */
     transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
