@@ -1,0 +1,84 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+trash2review
+prod-agent/
+trash2review/
+.claude/
+.codacy/
+.git*/
+local/
+
+
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/
+
+# Project Specific
+library/
+uploads/
+dawnstar_data/
+backups/
+static_covers/
+static_book_images/
+nas_cache/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend tooling
+frontend/node_modules/
+frontend/static/js/dist/
+
+# Ignore vscode AI rules
+.github/instructions/codacy.instructions.md

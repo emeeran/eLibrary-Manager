@@ -1,0 +1,30 @@
+#!/bin/sh
+# eLibrary Manager default-viewer bridge (spec 014).
+#
+# Called by the desktop entry for double-clicked ebook files:
+#   Exec=elibrary-open %u
+# Translates a local path or file:// URI into the /open deep link and
+# opens it in the default browser. Requires an authenticated session —
+# a cold session is sent to /login?next=... and returns to the book.
+
+set -eu
+
+CONFIG_FILE=${ELIBRARY_CONFIG_FILE:-/etc/elibrary-manager/config.env}
+PORT=$(grep -E '^[[:space:]]*ELIBRARY_PORT[[:space:]]*=' "$CONFIG_FILE" 2>/dev/null \
+    | tail -1 | cut -d= -f2 | tr -dc '0-9')
+PORT=${PORT:-8000}
+
+[ $# -ge 1 ] || { echo "usage: elibrary-open <file|file://URI>" >&2; exit 2; }
+
+ENC=$(python3 - "$1" <<'PYEOF'
+import sys
+import urllib.parse
+
+arg = sys.argv[1]
+if arg.startswith("file://"):
+    arg = urllib.parse.unquote(arg[len("file://"):])
+print(urllib.parse.quote(arg, safe=""))
+PYEOF
+)
+
+exec xdg-open "http://localhost:${PORT}/open?path=${ENC}"

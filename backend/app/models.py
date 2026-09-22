@@ -1,0 +1,471 @@
+"""SQLAlchemy models for eBook Manager."""
+
+from datetime import UTC, datetime
+
+import sqlalchemy as sa
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+
+
+class Book(Base):
+    """Represents an ebook in the library.
+
+    Stores metadata, reading progress, and user preferences for each book.
+    Related to ChapterSummary (1:many), BookCategory (many:many via junction).
+    """
+
+    __tablename__ = "books"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(500), nullable=False, index=True)
+    author: Mapped[str | None] = mapped_column(String(300), nullable=True, index=True)
+    path: Mapped[str] = mapped_column(String(1000), nullable=False, unique=True)
+    cover_path: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    format: Mapped[str] = mapped_column(String(20), nullable=False, default="EPUB")
+
+    # Reading Progress
+    total_chapters: Mapped[int] = mapped_column(Integer, default=0)
+    current_chapter: Mapped[int] = mapped_column(Integer, default=0)
+    progress: Mapped[float] = mapped_column(Float, default=0.0, index=True)
+
+    # User Flags
+    is_favorite: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    is_recent: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # Soft-delete: a Calibre volume that vanished from the linked library is
+    # marked deleted (excluded from normal views) but kept for recovery.
+    is_deleted: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=sa.false(), index=True
+    )
+
+    # Metadata
+    file_size: Mapped[int] = mapped_column(Integer, default=0)
+    added_date: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        index=True,
+    )
+    last_read_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+
+    # Enhanced Metadata
+    publisher: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    publish_date: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The reader's own review (free text). Never auto-populated by Calibre
+    # sync or metadata imports — unlike description.
+    review: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Set when the user hand-edits metadata in eLM. The Calibre re-sync skips
+    # the metadata block for edited books so hand edits are never clobbered.
+    metadata_edited: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    # Triage shelf: none | to_read | reading | finished. Auto-advanced by
+    # progress saves (>=95% -> finished, matching the stats definition);
+    # never auto-downgraded from to_read.
+    reading_status: Mapped[str] = mapped_column(
+        String(10), default="none", server_default="none", index=True
+    )
+    language: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    isbn: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    total_pages: Mapped[int] = mapped_column(Integer, default=0)
+    storage_type: Mapped[str] = mapped_column(String(10), default="local")
+    rating: Mapped[int] = mapped_column(Integer, default=0)  # 0=unrated, 1-5 stars
+    # Approximate word count (chars/6) written when content extraction runs.
+    # Nullable: only books with extracted body text have an estimate.
+    word_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Per-book password protecting unhide (approach A: each hidden book has
+    # its own password). Stored as a one-way bcrypt hash ("$2b$..."), never
+    # reversible. See specs/010-hidden-books.md.
+    hidden_password: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+
+    # Calibre linkage for volumes imported from a Calibre library.
+    # ``calibre_id``  → the numeric book id in Calibre's metadata.db.
+    # ``calibre_uuid`` → the stable UUID Calibre assigns to each record.
+    # Both nullable so non-Calibre books are unaffected. Used to deep-link into
+    # Calibre-Web and to detect re-syncs. See specs/011-calibre-integration.md.
+    calibre_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    calibre_uuid: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Raw Calibre ``books.last_modified`` timestamp string captured at the last
+    # sync. Compared by exact equality on re-import to detect metadata changes
+    # without date parsing. See specs/011-calibre-integration.md (v1.1).
+    calibre_last_modified: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Calibre series membership (name + position within the series). Nullable so
+    # non-series / non-Calibre books are unaffected.
+    series: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    series_index: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Relationships
+    summaries: Mapped[list["ChapterSummary"]] = relationship(
+        "ChapterSummary",
+        back_populates="book",
+        cascade="all, delete-orphan",
+        lazy="raise",
+    )
+    category_links: Mapped[list["BookCategory"]] = relationship(
+        "BookCategory",
+        back_populates="book",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+    reading_sessions: Mapped[list["ReadingSession"]] = relationship(
+        "ReadingSession", back_populates="book", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_books_hidden_favorite", "is_hidden", "is_favorite"),
+        Index("ix_books_format_hidden", "format", "is_hidden"),
+        Index("ix_books_recent_hidden", "is_recent", "is_hidden"),
+        Index("ix_books_hidden_added", "is_hidden", "added_date"),
+        Index("ix_books_hidden_title", "is_hidden", "title"),
+        Index("ix_books_storage_type", "storage_type"),
+    )
+
+    def __repr__(self) -> str:
+        """String representation of Book."""
+        return f"<Book(id={self.id}, title='{self.title}', author='{self.author}')>"
+
+
+class ChapterSummary(Base):
+    """AI-generated summary for a book chapter.
+
+    Attributes:
+        id: Primary key
+        book_id: Foreign key to Book
+        chapter_index: Zero-based chapter index
+        chapter_title: Optional chapter title
+        summary_text: Generated summary content
+        provider: AI provider used (google/groq/ollama_cloud/ollama_local)
+        created_at: When summary was generated
+        book: Related Book object
+    """
+
+    __tablename__ = "chapter_summaries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    chapter_title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    summary_text: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, default="google", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    # Relationships
+    book: Mapped["Book"] = relationship("Book", back_populates="summaries")
+
+    __table_args__ = (
+        Index("ix_chapter_summaries_book_chapter", "book_id", "chapter_index", unique=True),
+    )
+
+    def __repr__(self) -> str:
+        """String representation of ChapterSummary."""
+        return (
+            f"<ChapterSummary(id={self.id}, book_id={self.book_id}, "
+            f"chapter_index={self.chapter_index}, provider='{self.provider}')>"
+        )
+
+
+class BookContent(Base):
+    """Per-book content-extraction status (spec 012).
+
+    Tracks whether a book's full text has been extracted for full-text search.
+    The extracted text itself lives in the ``books_content_fts`` FTS5 virtual
+    table (not here) — this table is a lightweight status/checkpoint tracker so
+    the background backfill job is resumable.
+
+    Attributes:
+        book_id: FK to Book (cascade delete).
+        extract_status: "pending" | "extracted" | "empty" | "failed".
+        char_count: Length of the extracted text (0 until extracted).
+        source_mtime: File mtime captured at extraction (for future re-extract).
+        extracted_at: When extraction last completed.
+    """
+
+    __tablename__ = "book_contents"
+
+    book_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("books.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    extract_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="pending", server_default="pending"
+    )
+    char_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    source_mtime: Mapped[float | None] = mapped_column(Float, nullable=True)
+    extracted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<BookContent(book_id={self.book_id}, status='{self.extract_status}')>"
+
+
+class BookSummary(Base):
+    """AI-generated comprehensive book summary.
+
+    Attributes:
+        id: Primary key
+        book_id: Foreign key to Book
+        summary_text: Generated summary content
+        provider: AI provider used
+        created_at: When summary was generated
+    """
+
+    __tablename__ = "book_summaries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    summary_text: Mapped[str] = mapped_column(Text, nullable=False)
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, default="google")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        """String representation of BookSummary."""
+        return f"<BookSummary(id={self.id}, book_id={self.book_id}, provider='{self.provider}')>"
+
+
+class Bookmark(Base):
+    """User bookmark for a specific location in a book.
+
+    Attributes:
+        id: Primary key
+        book_id: Foreign key to Book
+        chapter_index: Chapter index
+        position_in_chapter: Character position in chapter
+        title: User-provided bookmark title (optional)
+        notes: User notes for this bookmark (optional)
+        created_at: When bookmark was created
+        book: Related Book object
+    """
+
+    __tablename__ = "bookmarks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    position_in_chapter: Mapped[int] = mapped_column(Integer, default=0)
+    title: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    # Relationships
+    book: Mapped["Book"] = relationship("Book")
+
+    __table_args__ = (Index("ix_bookmarks_book_chapter", "book_id", "chapter_index"),)
+
+    def __repr__(self) -> str:
+        """String representation of Bookmark."""
+        return f"<Bookmark(id={self.id}, book_id={self.book_id}, chapter={self.chapter_index})>"
+
+
+class Note(Base):
+    """User note attached to a specific location in a book.
+
+    Attributes:
+        id: Primary key
+        book_id: Foreign key to Book
+        chapter_index: Chapter index
+        position_in_chapter: Character position in chapter
+        content: Note content
+        color: Note highlight color (optional)
+        created_at: When note was created
+        updated_at: When note was last updated
+        book: Related Book object
+    """
+
+    __tablename__ = "notes"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    position_in_chapter: Mapped[int] = mapped_column(Integer, default=0)
+    quoted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    color: Mapped[str] = mapped_column(String(20), nullable=False, default="yellow")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(UTC),
+        nullable=False,
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    # Relationships
+    book: Mapped["Book"] = relationship("Book")
+
+    __table_args__ = (Index("ix_notes_book_chapter", "book_id", "chapter_index"),)
+
+    def __repr__(self) -> str:
+        """String representation of Note."""
+        return f"<Note(id={self.id}, book_id={self.book_id}, chapter={self.chapter_index})>"
+
+
+class Annotation(Base):
+    """Text highlight/annotation in a book.
+
+    Attributes:
+        id: Primary key
+        book_id: Foreign key to Book
+        chapter_index: Chapter index
+        start_position: Character start position
+        end_position: Character end position
+        text: Annotated text content
+        color: Highlight color
+        note: Optional note attached to annotation
+        created_at: When annotation was created
+        book: Related Book object
+    """
+
+    __tablename__ = "annotations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    color: Mapped[str] = mapped_column(String(20), nullable=False, default="yellow")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), nullable=False
+    )
+
+    # Relationships
+    book: Mapped["Book"] = relationship("Book")
+
+    __table_args__ = (Index("ix_annotations_book_chapter", "book_id", "chapter_index"),)
+
+    def __repr__(self) -> str:
+        """String representation of Annotation."""
+        return f"<Annotation(id={self.id}, book_id={self.book_id}, chapter={self.chapter_index})>"
+
+
+class Setting(Base):
+    """Application setting stored as key-value pair.
+
+    Attributes:
+        id: Primary key
+        key: Unique setting key
+        value: Setting value as string
+    """
+
+    __tablename__ = "settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    value: Mapped[str] = mapped_column(Text, nullable=False)
+
+    def __repr__(self) -> str:
+        return f"<Setting(key='{self.key}', value='{self.value[:50]}')>"
+
+
+class Category(Base):
+    """User-defined category/tag for organizing books.
+
+    Attributes:
+        id: Primary key
+        name: Unique category name
+        color: Hex color code for display
+    """
+
+    __tablename__ = "categories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
+    color: Mapped[str] = mapped_column(String(7), nullable=False, default="#8b5cf6")
+
+    # Relationships
+    book_links: Mapped[list["BookCategory"]] = relationship(
+        "BookCategory",
+        back_populates="category",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
+
+    def __repr__(self) -> str:
+        return f"<Category(id={self.id}, name='{self.name}')>"
+
+
+class BookCategory(Base):
+    """Many-to-many relationship between books and categories.
+
+    Attributes:
+        book_id: Foreign key to Book
+        category_id: Foreign key to Category
+    """
+
+    __tablename__ = "book_categories"
+
+    book_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("books.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+    category_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("categories.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
+    )
+
+    # Relationships
+    book: Mapped["Book"] = relationship("Book", back_populates="category_links")
+    category: Mapped["Category"] = relationship(
+        "Category", back_populates="book_links", lazy="selectin"
+    )
+
+    __table_args__ = (Index("ix_book_categories_composite", "category_id", "book_id"),)
+
+    def __repr__(self) -> str:
+        return f"<BookCategory(book_id={self.book_id}, category_id={self.category_id})>"
+
+
+class ReadingSession(Base):
+    """One tracked chunk of active reading time on a book.
+
+    Written by the reader's progress-save tick (client accumulates active
+    seconds while the tab is visible and flushes on save / tab hide). Stats,
+    streaks, and the daily goal aggregate ``minutes`` from here instead of
+    guessing from ``last_read_date``.
+
+    Attributes:
+        id: Primary key
+        book_id: Foreign key to Book
+        started_at: When the chunk began (UTC)
+        minutes: Tracked active minutes (float, seconds/60)
+        book: Related Book object
+    """
+
+    __tablename__ = "reading_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC), index=True
+    )
+    minutes: Mapped[float] = mapped_column(Float, nullable=False)
+
+    book: Mapped["Book"] = relationship("Book", back_populates="reading_sessions")
+
+    def __repr__(self) -> str:
+        return f"<ReadingSession(book_id={self.book_id}, minutes={self.minutes})>"

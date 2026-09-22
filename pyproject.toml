@@ -1,0 +1,95 @@
+[project]
+name = "ebook-manager"
+version = "0.2.15"
+description = "Lightweight ebook library manager with reader and AI summaries"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "sqlalchemy[asyncio]>=2.0.23",
+    "aiosqlite>=0.19.0",
+    "ebooklib>=0.18",
+    "beautifulsoup4>=4.12.2",
+    "jinja2>=3.1.2",
+    "google-genai>=0.3.0",
+    "openai>=1.0.0",
+    "httpx>=0.25.2",
+    "pillow>=10.1.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "pymupdf>=1.24.0",
+    "pymobi>=0.1.3",
+    "gtts>=2.5.0",
+    "edge-tts>=6.1.0",
+    "cryptography>=42.0.0",
+    "bcrypt>=4.0.0",
+    "nh3>=0.3.5",
+    "alembic>=1.18.4",
+    "cachetools>=5.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "pytest-cov>=4.1.0",
+    "black>=23.12.0",
+    "ruff>=0.1.8",
+    "mypy>=1.7.1",
+]
+
+[tool.black]
+line-length = 100
+target-version = ['py312']
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# `Depends()` in argument defaults is idiomatic FastAPI;
+# route modules use deferred imports for circular-import avoidance.
+"backend/app/routes/*" = ["B008", "E402"]
+# Conditional/deferred imports inside lifespan & service init
+# B008: `/api/health` uses `Depends(get_db)` — idiomatic FastAPI, same as routes/*
+"backend/app/main.py" = ["B008", "E402"]
+"backend/app/services/*" = ["E402"]
+# PyMuPDF warning suppression must run before sibling imports
+"backend/app/parsers/pdf_parser.py" = ["E402"]
+# Re-exports in __init__ modules are intentional
+"**/__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+pythonpath = ["backend"]
+addopts = "-ra"
+# Scope collection to the project suite so a bare `pytest` never drifts into
+# sibling/untracked dirs (e.g. the gitignored trash2review/ reference folder).
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["backend/app"]
+omit = ["backend/app/main.py"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
+
+[project.scripts]
+# Use `python -m pytest` so resolution does not depend on a console-script
+# shebang that may go stale across venv relocations.
+test = "python -m pytest tests/ -v"
+lint = "ruff check backend/ tests/"
