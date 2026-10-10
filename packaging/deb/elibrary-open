@@ -1,11 +1,12 @@
 #!/bin/sh
 # eLibrary Manager default-viewer bridge (spec 014).
 #
-# Called by the desktop entry for double-clicked ebook files:
+# Called by the desktop entry. With a file argument (double-clicked ebook):
 #   Exec=elibrary-open %u
-# Translates a local path or file:// URI into the /open deep link and
+# it translates the local path or file:// URI into the /open deep link and
 # opens it in the default browser. Requires an authenticated session —
 # a cold session is sent to /login?next=... and returns to the book.
+# With no argument (launcher icon click) it opens the app itself.
 
 set -eu
 
@@ -14,7 +15,8 @@ PORT=$(grep -E '^[[:space:]]*ELIBRARY_PORT[[:space:]]*=' "$CONFIG_FILE" 2>/dev/n
     | tail -1 | cut -d= -f2 | tr -dc '0-9')
 PORT=${PORT:-8000}
 
-[ $# -ge 1 ] || { echo "usage: elibrary-open <file|file://URI>" >&2; exit 2; }
+# Launcher icon click: no file argument, just open the app.
+[ $# -ge 1 ] || exec xdg-open "http://localhost:${PORT}/"
 
 ENC=$(python3 - "$1" <<'PYEOF'
 import sys
