@@ -1,8 +1,8 @@
 # SPEC-014: Default File Viewer Integration
 
 - **Status:** Active
-- **Version:** 1.0.0
-- **Last Updated:** 2026-09-20
+- **Version:** 1.1.0
+- **Last Updated:** 2026-10-10
 - **Depends On:** SPEC-001 (Library Management), SPEC-002 (Reader Interface), SPEC-007 (Settings), SPEC-013 (Calibre Deep Link — banner conventions)
 
 ## Purpose
@@ -92,6 +92,8 @@ on a 404.**
 **Given** `elibrary-open <path | file://URI>` is invoked by the desktop entry
 **When** the script runs
 **Then** it reads `ELIBRARY_PORT` from `/etc/elibrary-manager/config.env` (fallback `8000`), converts a `file://` URI to a plain path, percent-encodes it, and `exec`s `xdg-open http://localhost:{PORT}/open?path={encoded}`
+
+**And** when invoked with **no argument** (launcher icon click), it `exec`s `xdg-open http://localhost:{PORT}/` so the desktop entry opens the app instead of exiting silently
 
 ---
 
