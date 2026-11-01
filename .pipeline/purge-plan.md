@@ -1,30 +1,35 @@
-# Phase 1 — Redundant File Purge Plan (DRY RUN)
+# Phase 1 — Purge Plan (APPLIED 2026-11-01)
 
-**Not yet applied.** Review this list; say `--apply` to execute (each item is
-`git mv`'d into `.pipeline/purge/<mirrored-path>`, never deleted).
+Generated 2026-11-01 from `.pipeline/inventory.csv` + content scans.
+All moves executed via `git mv` into `trash2review/<same-path>`.
 
-## Candidates to move
+## Move candidates
 
-| # | path | reason | confidence | inbound refs found |
-|---|------|--------|------------|--------------------|
-| 1 | `final_report.md` | Stale AI code-review synthesis report dated **2026-05-02** (624 lines). Its headline findings — "no database migration framework", "blocking I/O on the event loop", "in-memory session store", "secrets derived from DB URL" — are all **outdated**: the project now has Alembic migrations, async AI providers, stateless HMAC sessions, and `SECRET_KEY` validation. Not referenced by any code, config, doc, or README. | HIGH | none (only `.pipeline/inventory.csv`, a self-listing) |
+| path | reason | confidence | inbound refs |
+|---|---|---|---|
+| `uploads/` (12 ebook files, ~90 MB) | User content committed to VCS. 0 of 220 DB book rows reference `uploads/`; the upload endpoint recreates the dir on demand (`library.py:517`). Books belong in the (untracked) `library/` dir. | high | 0 |
+| `conductor/plan.md` | Completed one-off session plan ("Node 24 in CI"); the change it describes is already applied in `.github/workflows/ci.yml`. | high | 0 |
+| `docs/calibre-web-elibrary.user.js` | Superseded by spec 013's server-side `/calibre/launch` endpoint; the userscript only matched a third-party demo host (`*.ashiknesin.com`). | medium | 0 |
+| `scripts/setup_nas_mount.sh` | One-off ops script under the old "Dawnstar" branding; NAS setup is now in-app (spec 009). Decision-fork rule applied: parked, not deleted. | medium | 0 |
 
-**Restore after move:** `git mv .pipeline/purge/final_report.md final_report.md`
+## Already parked (pre-existing, untracked — no action)
 
-## Reviewed and found CLEAN (no action)
+`trash2review/` already contained, from an earlier session: PRD documents,
+`automation/`, `automation-reports/`, `icecream UI/`, `readiness.md`. These
+stay untracked in the pen for human review.
 
-- **Tracked build/cache artifacts** — none (`__pycache__`, `*.pyc`, `node_modules`, `dist/`, `*.min.js` are all gitignored; nothing leaked into git).
-- **Exact-content duplicates** (md5 across all tracked source) — none.
-- **Superseded generations** (`_old`, `_v2`, `_backup`, `_new`, `*~`, `*.bak`, `(copy)`, `old/`, `temp/`) — none.
-- **Orphaned Python modules** (`backend/app/**`) — none. Every `routes/*.py` is registered in `main.py`; every `services/`, `parsers/`, `storage/`, `ai_providers/` module is imported somewhere. (Verified by exhaustive import cross-reference.)
-- **Orphaned JS modules** (`frontend/static/js/**`) — none. Every `.js` file is loaded by a `<script src>` in `library.html` / `reader.html` / `settings.html`.
-- **Near-duplicate / redundant-abstraction pairs** — none. Suspect pairs checked and confirmed distinct (`security.py` vs `security_middleware.py`; `middleware.py` vs `security_middleware.py`; `edgetts_service.py` vs `gtts_service.py`; `content_extractor.py` vs `content_backfill_service.py`; `calibre_sync_service.py` vs `calibre_sync_monitor.py`).
+## Explicitly NOT moving (false positives / load-bearing)
 
-## Noted but NOT moved (out of scope for a purge)
+- `alembic/versions/*` (10 files flagged zero-ref) — referenced through the
+  alembic revision chain, not by name. Load-bearing.
+- `packaging/deb/build-deb.sh`, `run-dev.sh`, `start.sh` — launchers.
+- `docker-compose.yml` + `Dockerfile` — valid, referenced pair.
+- `backups/`, `local/` — untracked local data (DB snapshots, session notes,
+  APK); never tracked, nothing to move.
+- `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/DEPLOYMENT.md` — referenced
+  project documentation (staleness is a Phase 4 audit question, not a purge).
 
-- `.claude/settings.local.json` is tracked but is a *local* Claude-Code settings file (the `.local.` convention implies user-specific). It's not dead code — moving it would disrupt the user's tooling. Flagged for the style/convention phase (belongs in `.gitignore`, not deleted).
-- `Gemini-Dawnstar eBook Manager PRD.md` is referenced by `CLAUDE.md` but is **not tracked** (it lives in the gitignored root `trash2review/` reference dump). Dangling doc reference — a docs fix, not a purge.
+## Accompanying change (required by the uploads move)
 
-## Verdict
-
-The tree is already clean at the file level. Only the one stale report qualifies.
+`.gitignore` gains `uploads/` — the upload endpoint recreates the dir at
+runtime, and without the ignore the next upload would re-pollute the repo.
