@@ -20,9 +20,7 @@ wheels/
 .installed.cfg
 *.egg
 MANIFEST
-trash2review
 prod-agent/
-trash2review/
 .claude/
 .codacy/
 .git*/
