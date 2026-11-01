@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 
 [[package]]
@@ -583,7 +583,7 @@ wheels = [
 
 [[package]]
 name = "ebook-manager"
-version = "0.2.14"
+version = "0.3.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiosqlite" },

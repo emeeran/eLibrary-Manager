@@ -12,8 +12,9 @@ PKG_VERSION="${1:-0.1.0}"
 PKG_ARCH="amd64"
 PKG_MAINTAINER="eLibrary Manager <noreply@elibrary-manager.local>"
 PKG_DESCRIPTION="Lightweight ebook collection manager with AI-powered chapter summarization.
- Reads EPUB, PDF, and MOBI files. Provides a web-based reader with
- bookmarking, note-taking, and text-to-speech support."
+ Reads EPUB, PDF, MOBI, FB2, CBZ, and Markdown files. Provides a web-based
+ reader with bookmarking, note-taking, text-to-speech, OPDS catalogs,
+ and highlighting support."
 PKG_DEPENDS="python3.12, libgl1, libglib2.0-0, xdg-utils"
 # Service runs as this user. Set ELIBRARY_RUN_USER (e.g. =em) at build time for
 # personal installs that must read a user-owned library under /home; the build
