@@ -77,7 +77,7 @@ only — no Moon+ code, resources, or assets are copied into eLibrary.
 | OPDS catalogs | none | **New 015** — pair with 009 NAS |
 | Dual-page, auto-scroll, page animations, scroll modes | dual-page already covered (AC-002.37); auto-scroll + page-turn animations landed in 002 v1.1 (94e9b14) | **Done (002 v1.1)** |
 | TTS pitch/interval/filters/timer/notification | partial (006) | **Extend 006** |
-| Highlight styles (squiggly, strikeout, color templates) | partial (005) | **Extend 005** |
+| Highlight styles (squiggly, strikeout, color templates) | landed in 005 v1.2 (1fc9837) | **Done (005 v1.2)** |
 | Formats: fb2, djvu, cbz, rtf, docx, md, chm | fb2/cbz/md landed in 008 v1.2 (c8703a0) | **Done (008 v1.2)**; djvu/rtf/docx/chm deferred (djvu needs a native engine) |
 | Auto-scroll / speed-read (RSVP) | none | **New spec** |
 | Dictionary lookup | none | **New spec** (optional) |
