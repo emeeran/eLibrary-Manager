@@ -1,8 +1,8 @@
 # SPEC-005: Notes & Annotations
 
 - **Status:** Active
-- **Version:** 1.1.0
-- **Last Updated:** 2026-04-15
+- **Version:** 1.2.0
+- **Last Updated:** 2026-11-01
 
 ## Purpose
 
@@ -229,6 +229,34 @@ Provides users with the ability to attach notes and text-highlight annotations t
 **When** `delete_annotation` succeeds
 **Then** the system logs at INFO level: `"Annotation {annotation_id} deleted"`
 
+### Highlight Styles — v1.2 (Moon+ parity)
+
+#### AC-005.26: Annotation Style Field
+**Given** the annotations API (`POST /api/books/{book_id}/annotations`)
+**When** a request includes `style`
+**Then** one of `highlight` | `underline` | `squiggly` | `strikethrough` is accepted and persisted on the annotation row (`annotations.style`)
+**And** an omitted `style` defaults to `highlight` (identical to pre-v1.2 behavior)
+**And** a `style` outside the allowed set responds HTTP 422 and stores nothing
+
+#### AC-005.27: Style Rendering
+**Given** an annotation with a non-default style
+**When** the reader re-applies persisted highlights for a chapter
+**Then** `underline`, `squiggly`, and `strikethrough` styles render as text decorations in the annotation's color (no background)
+**And** `highlight` renders as the legacy background fill
+
+#### AC-005.28: Style Picker and Color Templates
+**Given** the reader selection menu
+**When** the user picks a style button (highlight/underline/squiggly/strike)
+**Then** the chosen style applies to subsequent color-swatch clicks
+**And** the choice persists (`reader-hl-default-style`) and is reflected as the active button on next load
+**And** the last-used color persists (`reader-hl-default-color`) — Moon+ "color template" behavior
+
+#### AC-005.29: Style-Aware Embedding
+**Given** the embed-into-file feature (spec 005 v1.1)
+**When** annotations with styles are embedded
+**Then** EPUB spans carry the matching CSS (background / underline / wavy underline / line-through, colored)
+**And** PDF annotations use the matching PyMuPDF subtype (HIGHLIGHT / UNDERLINE / SQUIGGLY / STRIKEOUT)
+
 ---
 
 ## API Contract
@@ -424,6 +452,10 @@ class AnnotationUpdate(BaseModel):
 | AC-005.19 Delete Annotation | — | — | GAP |
 | AC-005.20 Delete Annotation — Idempotent | — | — | GAP |
 | AC-005.21 Annotation — Attached Note | — | — | GAP |
+| AC-005.26 Annotation style field (v1.2) | tests/test_annotation_styles.py | test_annotation_style_roundtrip, test_annotation_style_default_is_highlight, test_annotation_style_validation | Covered |
+| AC-005.27 Style rendering (v1.2) | — | — | GAP (frontend; requires Playwright/E2E) |
+| AC-005.28 Style picker + color templates (v1.2) | — | — | GAP (frontend; requires Playwright/E2E) |
+| AC-005.29 Style-aware embedding (v1.2) | tests/test_annotation_styles.py | test_embedder_style_maps_to_pdf_types | Covered |
 | AC-005.22 Cascade Delete on Book Removal | — | — | GAP |
 | AC-005.23 Color Palette | — | — | GAP |
 | AC-005.24 Book ID Indexing | — | — | GAP |

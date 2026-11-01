@@ -262,6 +262,13 @@ class AnnotationBase(BaseModel):
 
     text: str = Field(..., min_length=1, description="Annotated text")
     color: str = Field("yellow", pattern="^(yellow|green|blue|pink|orange)$")
+    # Visual style (spec 005 v1.2, Moon+ parity). Defaults to the legacy
+    # background-highlight behavior.
+    style: str = Field(
+        "highlight",
+        pattern="^(highlight|underline|squiggly|strikethrough)$",
+        description="Highlight visual style",
+    )
     note: str | None = Field(None, description="Optional note attached to annotation")
 
 

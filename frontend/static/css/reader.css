@@ -1234,8 +1234,64 @@ html[data-theme="night"] .ic-search-nav-btn:hover {
 }
 
 /* Highlights */
+/* Each color class defines --hl-c so the style variants (underline,
+   squiggly, strikethrough — spec 005 v1.2) can reuse it for decoration. */
 .hl-yellow {
-    background-color: var(--ic-highlight-yellow);
+    --hl-c: var(--ic-highlight-yellow);
+    background-color: var(--hl-c);
+}
+
+.hl-green {
+    --hl-c: var(--ic-highlight-green);
+    background-color: var(--hl-c);
+}
+
+.hl-blue {
+    --hl-c: var(--ic-highlight-blue);
+    background-color: var(--hl-c);
+}
+
+.hl-pink {
+    --hl-c: var(--ic-highlight-pink);
+    background-color: var(--hl-c);
+}
+
+.hl-orange {
+    --hl-c: #ffe0b2;
+    background-color: var(--hl-c);
+}
+
+/* Style variants (spec 005 v1.2, Moon+ parity): non-highlight styles
+   replace the background with a text decoration in the same color. */
+.ic-highlight.style-underline,
+.ic-highlight.style-squiggly,
+.ic-highlight.style-strikethrough {
+    background-color: transparent;
+}
+
+.ic-highlight.style-underline {
+    text-decoration: underline;
+    text-decoration-color: var(--hl-c, currentColor);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 3px;
+}
+
+.ic-highlight.style-squiggly {
+    text-decoration: underline wavy;
+    text-decoration-color: var(--hl-c, currentColor);
+    text-underline-offset: 3px;
+}
+
+.ic-highlight.style-strikethrough {
+    text-decoration: line-through;
+    text-decoration-color: var(--hl-c, currentColor);
+    text-decoration-thickness: 2px;
+}
+
+/* Style-picker buttons in the selection menu (spec 005 v1.2). */
+.ic-style-btn.active {
+    color: var(--ic-blue, #2196f3);
+    background: rgba(33, 150, 243, 0.12);
 }
 
 .ic-highlight {

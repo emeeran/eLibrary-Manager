@@ -342,6 +342,12 @@ class Annotation(Base):
     end_position: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     color: Mapped[str] = mapped_column(String(20), nullable=False, default="yellow")
+    # Visual style of the highlight (spec 005 v1.2, Moon+ parity):
+    # highlight (background, legacy default) | underline | squiggly |
+    # strikethrough.
+    style: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="highlight", server_default="highlight"
+    )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(UTC), nullable=False

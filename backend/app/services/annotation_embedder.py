@@ -50,6 +50,44 @@ class UnsupportedFormatError(ValueError):
     """Raised when the book format cannot carry embedded annotations."""
 
 
+# Spec 005 v1.2: highlight styles. CSS per style for EPUB spans; PDF
+# annotation subtypes map 1:1 onto PyMuPDF's text-markup annots.
+_STYLE_EPUB_CSS = {
+    "highlight": "background:{color};",
+    "underline": "background:none;text-decoration:underline;text-decoration-color:{color};text-underline-offset:3px;",
+    "squiggly": "background:none;text-decoration:underline wavy;text-decoration-color:{color};text-underline-offset:3px;",
+    "strikethrough": "background:none;text-decoration:line-through;text-decoration-color:{color};",
+}
+_STYLE_PDF_TYPE = {
+    "highlight": "HIGHLIGHT",
+    "underline": "UNDERLINE",
+    "squiggly": "SQUIGGLY",
+    "strikethrough": "STRIKEOUT",
+}
+
+
+def _add_pdf_markup_annot(page: fitz.Page, rect: fitz.Rect, style: str) -> fitz.Annot:
+    """Add a text-markup annotation of the given style (spec 005 v1.2).
+
+    PyMuPDF exposes one adder method per subtype rather than a type flag.
+
+    Args:
+        page: The PDF page.
+        rect: Located text rectangle.
+        style: highlight | underline | squiggly | strikethrough.
+
+    Returns:
+        The created annotation.
+    """
+    if style == "underline":
+        return page.add_underline_annot(rect)
+    if style == "squiggly":
+        return page.add_squiggly_annot(rect)
+    if style == "strikethrough":
+        return page.add_strikeout_annot(rect)
+    return page.add_highlight_annot(rect)
+
+
 @dataclass
 class EmbedItem:
     """One annotation/note to embed into the file."""
@@ -58,6 +96,7 @@ class EmbedItem:
     quoted: str  # the highlighted text to locate in the file
     note: str  # attached note text (may be empty)
     color: str  # eLM color name
+    style: str = "highlight"  # highlight | underline | squiggly | strikethrough
 
 
 def _epub_wrap_needles(quoted: str) -> list[str]:
@@ -150,10 +189,13 @@ def _embed_epub(path: str, items: list[EmbedItem]) -> tuple[int, int]:
                         continue
                     title = html.escape(item.note, quote=True) if item.note else ""
                     title_attr = f' title="{title}"' if title else ""
-                    css = _COLORS_CSS.get(item.color, _COLORS_CSS["yellow"])
+                    color = _COLORS_CSS.get(item.color, _COLORS_CSS["yellow"])
+                    css = _STYLE_EPUB_CSS.get(item.style, _STYLE_EPUB_CSS["highlight"]).format(
+                        color=color
+                    )
                     wrapped = (
                         f'<span class="elm-annot" data-elm-annot="{key}"'
-                        f'{title_attr} style="background:{css};">{needle}</span>'
+                        f'{title_attr} style="{css}">{needle}</span>'
                     )
                     content = content[:idx] + wrapped + content[idx + len(needle) :]
                     del pending[key]
@@ -181,7 +223,8 @@ def _embed_pdf(path: str, items: list[EmbedItem]) -> tuple[int, int]:
                 if not rects:
                     continue
                 rect = rects[0]
-                highlight = page.add_highlight_annot(rect)
+                # Spec 005 v1.2: annotation subtype follows the style.
+                highlight = _add_pdf_markup_annot(page, rect, item.style)
                 highlight.set_colors(stroke=_COLORS_PDF.get(item.color, _COLORS_PDF["yellow"]))
                 highlight.update()
                 if item.note:
