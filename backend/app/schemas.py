@@ -14,7 +14,7 @@ class BookBase(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=500, description="Book title")
     author: str | None = Field(None, max_length=300, description="Book author")
-    format: str = Field(default="EPUB", pattern="^(EPUB|PDF|MOBI)$")
+    format: str = Field(default="EPUB", pattern="^(EPUB|PDF|MOBI|FB2|CBZ|MD)$")
 
 
 class BookCreate(BookBase):

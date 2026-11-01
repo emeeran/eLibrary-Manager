@@ -1,8 +1,8 @@
 # SPEC-008: File Parsers
 
 - **Status:** Active
-- **Version:** 1.1.0
-- **Last Updated:** 2026-09-20
+- **Version:** 1.2.0
+- **Last Updated:** 2026-11-01
 - **Depends On:** None (foundational spec)
 
 ## Purpose
@@ -429,6 +429,55 @@ File Parsers provide the foundational content extraction layer for eLibrary Mana
 
 #### AC-008.48: Directory Enumeration Is Non-Blocking
 
+### v1.2 Formats — FB2 / CBZ / Markdown (Moon+ parity)
+
+#### AC-008.49: FB2 Metadata Extraction
+**Given** a valid FictionBook2 (.fb2) file with `title-info` metadata
+**When** `FB2Parser.extract_metadata()` is called
+**Then** it returns a `BookCreate` with `format="FB2"`, title from `book-title`,
+author composed from `author/first-name + middle-name + last-name`,
+description from `annotation`, language from `lang`, publisher/year from
+`publish-info`, and `genre` elements as `subjects`
+**And** a file with no `book-title` falls back to the filename stem
+
+#### AC-008.50: FB2 Cover Extraction
+**Given** an FB2 with `title-info/coverpage/image` pointing at a `binary` id via `l:href`
+**When** `FB2Parser.extract_cover()` is called
+**Then** the decoded image is written to the covers directory and its path returned
+**And** a missing/corrupt cover yields `None` (never raises)
+
+#### AC-008.51: FB2 Chapter Extraction
+**Given** an FB2 whose first `<body>` contains N `<section>` elements
+**When** `FB2Parser.get_chapters()` is called
+**Then** each section becomes a chapter titled from its `<title>` (fallback `Section i`)
+**And** section content is converted to HTML (`p`, `emph` → `<em>`, `strong` → `<strong>`, `subtitle` → `<h4>`, `empty-line` → `<hr/>`)
+**And** the `<title>` subtree is excluded from chapter content
+**And** a body without sections yields a single chapter from the whole body
+
+#### AC-008.52: CBZ Parsing
+**Given** a CBZ (zip of page images) with optional `ComicInfo.xml`
+**When** the parser interface is exercised
+**Then** `extract_metadata` uses ComicInfo fields (Title, Series, Number, Writer, Publisher, Genre, Summary) with `Series #Number`/filename fallbacks and comma-split Genre subjects
+**And** `get_chapters` returns one chapter per page image in natural sort order (`page_2 < page_10`), each embedding the image as a data URI, titled `Page N`
+**And** `extract_cover` writes the first page image to the covers directory
+**And** a non-zip payload raises `EbookParsingError`
+
+#### AC-008.53: Markdown Parsing
+**Given** a .md document
+**When** the parser interface is exercised
+**Then** `extract_metadata` uses the first top-level `# ` heading as title (filename fallback)
+**And** `get_chapters` splits on top-level `# ` headings (title heading starts chapter 1; subsequent `# ` headings open new chapters)
+**And** the built-in converter renders headings, bold/italic, inline code, fenced code blocks, ordered/unordered lists, links, blockquotes, and horizontal rules
+**And** a document without headings is a single chapter titled by filename
+**And** `extract_cover` always returns `None`
+
+#### AC-008.54: Scanner Routes the New Formats
+**Given** the scanner's format set now includes `.fb2`, `.cbz`, `.md`
+**When** `extract_metadata` / `get_chapters` / `count_chapters` / `get_single_chapter` are called on files with those extensions
+**Then** the scanner dispatches through the same unified interface as EPUB/PDF/MOBI
+**And** `Book.format` accepts `FB2|CBZ|MD` in addition to `EPUB|PDF|MOBI`
+**And** full-text content extraction handles FB2 (XML text), MD (raw text), and CBZ (no indexable text, returns "")
+
 **Given** a library on a slow network mount (CIFS/autofs) where `os.scandir` can stall for seconds per directory
 **When** `fast_index_directory` enumerates a directory
 **Then** the `os.scandir` walk runs in `asyncio.to_thread`, never on the event loop
@@ -555,6 +604,10 @@ DawnstarError:
 | AC-008.36: MOBI parser ImportError without pymobi | — | — | GAP |
 | AC-008.39: MOBI regex chapter splitting | — | — | GAP |
 | AC-008.40: MOBI single-chapter fallback | — | — | GAP |
+| AC-008.49–51: FB2 metadata/cover/chapters (v1.2) | `tests/test_parsers_v12.py` | `test_fb2_metadata`, `test_fb2_cover_extracted`, `test_fb2_chapters`, `test_fb2_corrupt_raises` | Covered |
+| AC-008.52: CBZ parsing (v1.2) | `tests/test_parsers_v12.py` | `test_cbz_metadata_from_comicinfo`, `test_cbz_pages_are_chapters`, `test_cbz_corrupt_raises` | Covered |
+| AC-008.53: Markdown parsing (v1.2) | `tests/test_parsers_v12.py` | `test_md_metadata_uses_title_heading`, `test_md_chapters_split_on_h1`, `test_md_without_headings_is_single_chapter` | Covered |
+| AC-008.54: Scanner routes new formats (v1.2) | `tests/test_parsers_v12.py` | `test_scanner_routes_new_formats` | Covered |
 
 ---
 

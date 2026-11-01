@@ -2,11 +2,12 @@
 
 import os
 from pathlib import Path
+from typing import Any
 
 from app.config import get_config
 from app.exceptions import EbookParsingError, LibraryScannerError
 from app.logging_config import get_logger
-from app.parsers import EPUBParser, MOBIParser, PDFParser
+from app.parsers import CBZParser, EPUBParser, FB2Parser, MDParser, MOBIParser, PDFParser
 from app.schemas import BookCreate
 from app.storage import StorageBackend
 from app.storage.local import LocalStorageBackend
@@ -17,12 +18,12 @@ logger = get_logger(__name__)
 class LibraryScanner:
     """Scanner for ebook library indexing.
 
-    Recursively scans a directory for EPUB, PDF, and MOBI files,
-    extracts metadata using format-specific parsers, and prepares
-    them for database insertion.
+    Recursively scans a directory for supported ebook files (EPUB, PDF, MOBI,
+    FB2, CBZ, Markdown), extracts metadata using format-specific parsers, and
+    prepares them for database insertion.
     """
 
-    SUPPORTED_FORMATS = frozenset({".epub", ".pdf", ".mobi"})
+    SUPPORTED_FORMATS = frozenset({".epub", ".pdf", ".mobi", ".fb2", ".cbz", ".md"})
 
     def __init__(
         self,
@@ -50,6 +51,28 @@ class LibraryScanner:
             book_images_path=self.config.book_images_path,
         )
         self.mobi_parser = MOBIParser(covers_path=self.covers_path)
+        # Spec 008 v1.2 formats (Moon+ parity): FB2 / CBZ / Markdown
+        self.fb2_parser = FB2Parser(covers_path=self.covers_path)
+        self.cbz_parser = CBZParser(covers_path=self.covers_path)
+        self.md_parser = MDParser(covers_path=self.covers_path)
+
+    def _parser_for_format(self, ext: str) -> Any:
+        """Return the parser instance for a file extension.
+
+        Args:
+            ext: Lowercase extension including the dot (e.g. ".fb2").
+
+        Returns:
+            The matching parser, or None for unsupported extensions.
+        """
+        return {
+            ".epub": self.epub_parser,
+            ".pdf": self.pdf_parser,
+            ".mobi": self.mobi_parser,
+            ".fb2": self.fb2_parser,
+            ".cbz": self.cbz_parser,
+            ".md": self.md_parser,
+        }.get(ext)
 
     async def scan_directory(
         self,
@@ -262,13 +285,8 @@ class LibraryScanner:
         path = Path(ebook_path)
         ext = path.suffix.lower()
 
-        if ext == ".epub":
-            parser = self.epub_parser
-        elif ext == ".pdf":
-            parser = self.pdf_parser
-        elif ext == ".mobi":
-            parser = self.mobi_parser
-        else:
+        parser = self._parser_for_format(ext)
+        if parser is None:
             raise LibraryScannerError(
                 f"Unsupported file format: {ext}", {"path": ebook_path, "format": ext}
             )
@@ -288,12 +306,11 @@ class LibraryScanner:
         path = Path(ebook_path)
         ext = path.suffix.lower()
 
-        if ext == ".epub":
-            return await self.epub_parser.extract_cover(ebook_path)
-        elif ext == ".pdf":
-            return await self.pdf_parser.extract_cover(ebook_path)
-        elif ext == ".mobi":
-            return await self.mobi_parser.extract_cover(ebook_path)
+        if ext in (".epub", ".pdf", ".mobi", ".fb2", ".cbz", ".md"):
+            parser = self._parser_for_format(ext)
+            if parser is not None:
+                return await parser.extract_cover(ebook_path)
+        return None
 
         return None
 
@@ -312,12 +329,9 @@ class LibraryScanner:
         path = Path(ebook_path)
         ext = path.suffix.lower()
 
-        if ext == ".epub":
-            return await self.epub_parser.get_chapters(ebook_path)
-        elif ext == ".pdf":
-            return await self.pdf_parser.get_chapters(ebook_path)
-        elif ext == ".mobi":
-            return await self.mobi_parser.get_chapters(ebook_path)
+        parser = self._parser_for_format(ext)
+        if parser is not None:
+            return await parser.get_chapters(ebook_path)
 
         raise EbookParsingError(f"Cannot extract chapters from {ext} files", {"path": ebook_path})
 
@@ -342,10 +356,10 @@ class LibraryScanner:
         path = Path(ebook_path)
         ext = path.suffix.lower()
 
-        if ext == ".pdf":
-            return await self.pdf_parser.get_single_chapter(ebook_path, chapter_index)
-        elif ext == ".epub":
-            return await self.epub_parser.get_single_chapter(ebook_path, chapter_index)
+        if ext in (".pdf", ".epub", ".fb2", ".cbz", ".md"):
+            parser = self._parser_for_format(ext)
+            if parser is not None:
+                return await parser.get_single_chapter(ebook_path, chapter_index)
         elif ext == ".mobi":
             # MOBI requires full text for chapter splitting — no single-chapter shortcut
             chapters = await self.mobi_parser.get_chapters(ebook_path)
@@ -373,12 +387,9 @@ class LibraryScanner:
         path = Path(ebook_path)
         ext = path.suffix.lower()
 
-        if ext == ".epub":
-            return await self.epub_parser.count_chapters(ebook_path)
-        elif ext == ".pdf":
-            return await self.pdf_parser.count_chapters(ebook_path)
-        elif ext == ".mobi":
-            return await self.mobi_parser.count_chapters(ebook_path)
+        parser = self._parser_for_format(ext)
+        if parser is not None:
+            return await parser.count_chapters(ebook_path)
 
         return 0
 
@@ -417,12 +428,9 @@ class LibraryScanner:
         path = Path(ebook_path)
         ext = path.suffix.lower()
 
-        if ext == ".epub":
-            return await self.epub_parser.get_table_of_contents(ebook_path)
-        elif ext == ".pdf":
-            return await self.pdf_parser.get_table_of_contents(ebook_path)
-        elif ext == ".mobi":
-            return await self.mobi_parser.get_table_of_contents(ebook_path)
+        parser = self._parser_for_format(ext)
+        if parser is not None and hasattr(parser, "get_table_of_contents"):
+            return await parser.get_table_of_contents(ebook_path)
 
         # Return basic TOC for unsupported formats
         chapters = await self.get_chapters(ebook_path)
