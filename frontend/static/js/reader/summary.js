@@ -248,7 +248,6 @@ function renderAIProviders(providers) {
 
   const displayNames = {
     google: "Google Gemini",
-    groq: "Groq",
     ollama_cloud: "Ollama Cloud",
     ollama_local: "Ollama Local",
   };

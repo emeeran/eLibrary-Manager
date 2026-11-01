@@ -63,11 +63,8 @@ def _reinit_nas_backend(app: object, nas_enabled: bool, mount_path: str, host: s
 
 def _apply_ai_credentials(provider: str, api_key: str | None = None) -> None:
     """Set AI provider env var and reset orchestrator so changes take effect."""
-    if api_key:
-        if provider == "google":
-            os.environ["GOOGLE_API_KEY"] = api_key
-        elif provider == "groq":
-            os.environ["GROQ_API_KEY"] = api_key
+    if api_key and provider == "google":
+        os.environ["GOOGLE_API_KEY"] = api_key
 
     reset_ai_orchestrator()
 

@@ -1,12 +1,12 @@
 # SPEC-003: AI Summarization
 
 - **Status:** Active
-- **Version:** 1.0.0
-- **Last Updated:** 2026-04-15
+- **Version:** 1.1.0
+- **Last Updated:** 2026-11-01
 
 ## Purpose
 
-Provides AI-generated summaries for individual book chapters and complete books. Uses a multi-provider orchestrator with automatic fallback across four AI backends (Google Gemini, Groq, Ollama Cloud, Ollama Local) to maximize availability. Summaries are cached in the database and served from cache on subsequent requests unless the client explicitly forces a refresh. A rate limiter prevents exceeding per-provider API quotas.
+Provides AI-generated summaries for individual book chapters and complete books. Uses a multi-provider orchestrator with automatic fallback across three AI backends (Google Gemini, Ollama Cloud, Ollama Local) to maximize availability. Summaries are cached in the database and served from cache on subsequent requests unless the client explicitly forces a refresh. A rate limiter prevents exceeding per-provider API quotas.
 
 ---
 
@@ -75,7 +75,7 @@ Provides AI-generated summaries for individual book chapters and complete books.
 
 ### AC-003.08: Provider Fallback Chain
 
-**Given** the orchestrator is initialized with the provider priority order: Google (1) -> Groq (2) -> Ollama Cloud (3) -> Ollama Local (4)
+**Given** the orchestrator is initialized with the provider priority order: Google (1) -> Ollama Cloud (2) -> Ollama Local (3)
 **When** the orchestrator's `summarize()` method is called
 **Then** the system iterates providers in priority order
 **And** for each provider: performs a health check first; if unhealthy, skips to the next provider
@@ -89,30 +89,21 @@ Provides AI-generated summaries for individual book chapters and complete books.
 **Given** the application configuration (`AppConfig`) is loaded
 **When** the `AIProviderOrchestrator` is instantiated
 **Then** Google provider is included only if `google_api_key` is non-empty
-**And** Groq provider is included only if `groq_api_key` is non-empty
 **And** Ollama Cloud provider is always included (no API key required)
 **And** Ollama Local provider is always included (no API key required)
-**And** providers are ordered by priority: Google (1), Groq (2), Ollama Cloud (3), Ollama Local (4)
+**And** providers are ordered by priority: Google (1), Ollama Cloud (2), Ollama Local (3)
 
 ### AC-003.10: Google Gemini Provider
 
 **Given** `google_api_key` is configured
 **When** `GoogleProvider.summarize()` is called
 **Then** the system builds a prompt via `_build_prompt()` and sends it to the Google Gemini API
-**And** uses model from config (default: `gemini-1.5-flash`)
+**And** uses model from config (default: `gemini-2.5-flash`)
 **And** uses `max_output_tokens=500` and `temperature=0.7`
 **And** returns the stripped response text
 **And** if the response text is empty, raises `AIServiceError("Empty summary received from Google Gemini")`
 
-### AC-003.11: Groq Provider
-
-**Given** `groq_api_key` is configured
-**When** `GroqProvider.summarize()` is called
-**Then** the system builds a prompt via `_build_prompt()` and sends it to the Groq chat completions API
-**And** uses model `llama-3.3-70b-versatile`
-**And** uses `max_tokens=500` and `temperature=0.7`
-**And** returns `response.choices[0].message.content.strip()`
-**And** if the response text is empty, raises `AIServiceError("Empty summary received from Groq")`
+<!-- AC-003.11 removed in v1.1.0: the Groq provider was never implemented (was marked GAP); the fallback chain is Google -> Ollama Cloud -> Ollama Local. -->
 
 ### AC-003.12: Ollama Cloud Provider
 
@@ -128,7 +119,7 @@ Provides AI-generated summaries for individual book chapters and complete books.
 **Given** Ollama is running locally at the configured URL (default: `http://localhost:11434`)
 **When** `OllamaLocalProvider.summarize()` is called
 **Then** the system creates an `AsyncOpenAI` client with `base_url={local_url}/v1` and `api_key="ollama"`
-**And** sends the prompt via chat completions with model `llama3.3`, `max_tokens=500`, `temperature=0.7`
+**And** sends the prompt via chat completions with the model from config (default: `llama3.2:3b`), `max_tokens=500`, `temperature=0.7`
 **And** returns the stripped response text
 **And** if the response text is empty, raises `AIServiceError("Empty summary received from local Ollama")`
 
@@ -137,7 +128,6 @@ Provides AI-generated summaries for individual book chapters and complete books.
 **Given** a provider is initialized
 **When** `health_check()` is called on a provider:
 - **Google:** sends a minimal generate_content request (`max_output_tokens=1`); returns `True` if response has text, `False` on exception
-- **Groq:** sends a minimal chat completion request (`max_tokens=1`); returns `True` if response has content, `False` on exception
 - **Ollama Cloud:** sends HTTP GET to `{base_url}/api/tags` with 5s timeout; returns `True` if status 200
 - **Ollama Local:** sends HTTP GET to `{base_url}/api/tags` with 2s timeout; returns `True` if status 200
 
@@ -254,7 +244,7 @@ Provide a clear, well-structured summary that helps readers understand the chapt
 **Given** the orchestrator has one or more initialized providers
 **When** `close()` is called on the orchestrator
 **Then** the system calls `close()` on each provider in sequence
-**And** each provider cleans up its client resources (Google sets `_client = None`; Groq, Ollama Cloud, Ollama Local are no-ops)
+**And** each provider cleans up its client resources (Google sets `_client = None`; Ollama Cloud and Ollama Local are no-ops)
 **And** errors during close are logged as warnings but do not halt the shutdown of remaining providers
 
 ### AC-003.27: Book Summary Uses Cached Chapter Summaries
@@ -350,10 +340,9 @@ class AISummaryRequest(BaseModel):  # Internal, not exposed via API
 
 | Provider | Config Key | Default | Priority | Model |
 |----------|-----------|---------|----------|-------|
-| Google Gemini | `google_api_key`, `google_model` | `gemini-1.5-flash` | 1 | From `google_model` config |
-| Groq | `groq_api_key`, `groq_model` | `llama-3.3-70b-versatile` | 2 | From `groq_model` config |
-| Ollama Cloud | `ollama_cloud_url`, `ollama_cloud_model` | `https://api.ollama.ai`, `llama3.3` | 3 | From `ollama_cloud_model` config |
-| Ollama Local | `ollama_local_url`, `ollama_local_model` | `http://localhost:11434`, `llama3.3` | 4 | From `ollama_local_model` config |
+| Google Gemini | `google_api_key`, `google_model` | `gemini-2.5-flash` | 1 | From `google_model` config |
+| Ollama Cloud | `ollama_cloud_url`, `ollama_cloud_model` | `https://api.ollama.ai`, `llama3.3` | 2 | From `ollama_cloud_model` config |
+| Ollama Local | `ollama_local_url`, `ollama_local_model` | `http://localhost:11434`, `llama3.2:3b` | 3 | From `ollama_local_model` config |
 
 ---
 
@@ -364,7 +353,6 @@ class AISummaryRequest(BaseModel):  # Internal, not exposed via API
 | Orchestrator | `app/ai_engine.py` | `AIProviderOrchestrator`, `get_ai_orchestrator()`, `RateLimiter` |
 | Base Provider | `app/ai_providers/base.py` | `BaseAIProvider`, `AISummaryRequest`, `_build_prompt()` |
 | Google Provider | `app/ai_providers/google_provider.py` | `GoogleProvider` |
-| Groq Provider | `app/ai_providers/groq_provider.py` | `GroqProvider` |
 | Ollama Providers | `app/ai_providers/ollama_provider.py` | `OllamaCloudProvider`, `OllamaLocalProvider` |
 | Provider Exports | `app/ai_providers/__init__.py` | Re-exports all provider classes |
 | Summary Routes | `app/routes/reader.py` | `get_summary()`, `get_book_summary()` |
@@ -395,7 +383,6 @@ class AISummaryRequest(BaseModel):  # Internal, not exposed via API
 | AC-003.08: Provider fallback chain | - | - | GAP |
 | AC-003.09: Provider initialization with API keys | - | - | GAP |
 | AC-003.10: Google Gemini provider | - | - | GAP |
-| AC-003.11: Groq provider | - | - | GAP |
 | AC-003.12: Ollama Cloud provider | - | - | GAP |
 | AC-003.13: Ollama Local provider | - | - | GAP |
 | AC-003.14: Provider health check | - | - | GAP |
@@ -419,7 +406,6 @@ class AISummaryRequest(BaseModel):  # Internal, not exposed via API
 - **SPEC-002: Reader Interface** -- chapter content extraction (`get_chapter_content`, `get_all_chapters`) and table of contents (`get_table_of_contents`) are required to supply text to the AI engine
 - **SPEC-007: Settings** -- AI provider configuration (`ai_provider`, `ai_api_key`, `ollama_url`) is managed through settings
 - **External: `google-genai`** -- Google Gemini Python SDK for primary AI provider
-- **External: `groq`** -- Groq Python SDK for secondary AI provider
 - **External: `openai`** -- OpenAI-compatible client used by Ollama Cloud and Ollama Local providers
 - **External: `httpx`** -- Async HTTP client used for Ollama health checks
 

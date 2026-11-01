@@ -21,7 +21,7 @@ eLibrary-Manager/
 │       ├── main.py           # FastAPI entry point + middleware wiring
 │       ├── config.py         # Pydantic settings
 │       ├── database.py       # SQLite/SQLAlchemy async setup
-│       ├── models.py         # DB models (Book, *Summary, Bookmark, Note, Annotation, Category, ReadingGoal)
+│       ├── models.py         # DB models (Book, *Summary, Bookmark, Note, Annotation, Category, ReadingGoal, ReadingSession, OpdsCatalog)
 │       ├── schemas.py        # Pydantic API schemas
 │       ├── exceptions.py     # Custom domain exceptions
 │       ├── auth.py           # Stateless signed-cookie sessions
@@ -33,9 +33,9 @@ eLibrary-Manager/
 │       ├── chapter_cache.py  # LRU chapter cache
 │       ├── reader_engine.py  # Unified content extraction
 │       ├── repositories.py   # Data access layer
-│       ├── routes/           # Route modules (library, reader, settings, ai_tts, stats, maintenance, categories, hidden, auth)
-│       ├── services/         # Service layer (library, reader, categorization, maintenance)
-│       ├── parsers/          # Format parsers (epub, pdf, mobi)
+│       ├── routes/           # Route modules (library, reader, settings, ai_tts, stats, maintenance, categories, hidden, auth, calibre, opds)
+│       ├── services/         # Service layer (library, reader, categorization, maintenance, calibre importer/sync, opds, annotation embedder, content extractor, backup, book_qa, metadata enrichment)
+│       ├── parsers/          # Format parsers (epub, pdf, mobi, cbz, fb2, md)
 │       ├── storage/          # Storage backends (local, NAS)
 │       └── ai_providers/     # AI providers (google, ollama)
 ├── frontend/
@@ -43,7 +43,7 @@ eLibrary-Manager/
 │   └── static/               # CSS, JS, images
 ├── specs/                    # Spec-Driven Development specifications
 │   ├── INDEX.md              # Spec registry
-│   └── 001-*.md ... 014-*.md # Feature specs (incl. NAS, Calibre, full-text search)
+│   └── 001-*.md ... 015-*.md # Feature specs (incl. NAS, Calibre, full-text search, OPDS)
 ├── alembic/                  # Database migrations
 ├── tests/                    # Pytest suite (run: `uv run python -m pytest`)
 ├── library/                  # Local ebook storage
@@ -66,17 +66,19 @@ eLibrary-Manager/
 - Jinja2 templating
 - Tailwind-inspired utility CSS (no build step currently)
 - Vanilla JavaScript (ES2015+) — modularized into `static/js/reader/*.js`
-  (state, chapters, panels, settings, search, annotations, summary, tts-bridge, ui, init, globals)
-  plus `library.js` and `tts.js` (see *Frontend modernization roadmap* below)
+  (state, chapters, panels, settings, search, annotations, summary, tts-bridge,
+  autoscroll, ui, init, globals) plus `library.js` and `tts.js`
+  (see *Frontend modernization roadmap* below)
 
 **Processing:**
 - ebooklib (EPUB parsing)
 - PyMuPDF/fitz (PDF parsing)
+- pymobi (MOBI parsing)
 - BeautifulSoup4 + nh3 (HTML cleaning/sanitization)
 
 **AI / TTS:**
-- Google GenAI Python SDK (Gemini, default provider)
-- OpenAI SDK client pointing at Ollama (secondary/fallback)
+- Google GenAI Python SDK (Gemini, default provider; default model `gemini-2.5-flash`)
+- OpenAI SDK client pointing at Ollama Cloud + Ollama Local (fallback)
 - gTTS + edge-tts (text-to-speech with browser fallback)
 
 **Security:**
@@ -84,15 +86,6 @@ eLibrary-Manager/
 - CSP / X-Frame-Options / X-Content-Type-Options / Referrer-Policy headers
 - Same-origin CSRF enforcement on mutating methods
 - bcrypt password hashing (HMAC fallback), Fernet-encrypted secrets
-- Tailwind CSS (no heavy JS frameworks)
-- Minimal JavaScript for interactivity
-
-**Processing:**
-- ebooklib (EPUB parsing)
-- BeautifulSoup4 (HTML cleaning)
-
-**AI:**
-- Google GenAI Python SDK (Gemini 1.5 Flash)
 
 ## Package Management
 
@@ -124,7 +117,7 @@ All features are governed by formal specifications in `specs/`. The specs are th
 ### Spec Registry
 
 The authoritative registry (IDs, status, versions, dependency graph) is
-`specs/INDEX.md` — currently 14 active specs (001–014). Do not duplicate the
+`specs/INDEX.md` — currently 15 active specs (001–015). Do not duplicate the
 table here; update `specs/INDEX.md` instead.
 
 ## Key Design Requirements
@@ -148,11 +141,15 @@ table here; update `specs/INDEX.md` instead.
 
 ## Docker Deployment
 
-Planned deployment using `docker-compose up -d`:
-- Map local ebook directory to `./library`
-- Persist database in `./dawnstar_data`
-- Extract covers to `./static_covers`
-- Expose port 8000
+`docker-compose up -d` runs the `elibrary` service (container `elibrary_app`, healthcheck on `/api/health`):
+- Maps the local ebook directory to `./library`
+- Persists the database in `./dawnstar_data`
+- Extracts covers to `./static_covers`
+- Publishes port 8000 (hardcoded in docker-compose.yml; `APP_PORT` only affects non-Docker runs)
+- Optional profile-gated Ollama sidecar: `docker-compose --profile ollama up -d`
+
+A Debian package path also exists: `make deb` builds via `packaging/deb/build-deb.sh`
+(systemd unit `elibrary-manager.service`, `EnvironmentFile=/etc/elibrary-manager/config.env`).
 
 ## Environment Variables
 
@@ -186,17 +183,17 @@ incremental plan (tracked in `docs/frontend-modernization.md`):
 
 1. Introduce a bundler (esbuild) + ESLint flat config (no behavior change).
 2. Extract pure-logic helpers (DOM, fetch, storage) into `frontend/static/js/lib/`.
-3. Split the reader by concern into ES modules under `static/js/reader/`:
+3. Split the reader by concern into modules under `static/js/reader/`:
    `state.js`, `chapters.js`, `panels.js`, `settings.js`, `search.js`,
-   `annotations.js`, `summary.js`, `tts-bridge.js`, `ui.js`, `init.js`,
-   `globals.js`. **DONE** (classic-script split preserving the inline-handler
-   contract; see `docs/frontend-modernization.md`).
+   `annotations.js`, `summary.js`, `tts-bridge.js`, `autoscroll.js`, `ui.js`,
+   `init.js`, `globals.js`. **DONE** (classic-script split preserving the
+   inline-handler contract; see `docs/frontend-modernization.md`).
 4. Add Vitest unit tests for extracted modules.
 5. Adopt the same pattern for `library.js` and `tts.js`.
 
 ## Reference Implementation
 
-The PRD (`Gemini-Dawnstar eBook Manager PRD.md`) contains the original product requirements. Formal feature specifications live in `specs/`.
+The PRD (`trash2review/Gemini-Dawnstar eBook Manager PRD.md`, parked reference material) contains the original product requirements. Formal feature specifications live in `specs/`.
 
 # Project Rules & Guidelines
 
@@ -240,8 +237,7 @@ The PRD (`Gemini-Dawnstar eBook Manager PRD.md`) contains the original product r
 > **Current reality:** the frontend is **vanilla JS + Jinja2 templates** (no
 > React/Next.js). The reader has been split into focused modules under
 > `frontend/static/js/reader/` (~3.4k LOC decomposed); `library.js` (~2.6k LOC)
-> and `tts.js` (~1.2k LOC)
-> (~2.6k LOC) and `tts.js` (~1.2k LOC) are large monoliths. New work should
+> and `tts.js` (~1.2k LOC) are large monoliths. New work should
 > extract focused ES modules and migrate toward a small bundler (see the
 > *Frontend modernization roadmap* in `docs/`).
 

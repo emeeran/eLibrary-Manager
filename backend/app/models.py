@@ -135,7 +135,7 @@ class ChapterSummary(Base):
         chapter_index: Zero-based chapter index
         chapter_title: Optional chapter title
         summary_text: Generated summary content
-        provider: AI provider used (google/groq/ollama_cloud/ollama_local)
+        provider: AI provider used (google/ollama_cloud/ollama_local)
         created_at: When summary was generated
         book: Related Book object
     """

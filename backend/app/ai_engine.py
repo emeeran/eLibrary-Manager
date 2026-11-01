@@ -20,7 +20,7 @@ class AIProviderOrchestrator:
 
     This class provides a unified interface to AI summarization,
     automatically falling back through providers in priority order:
-    Google → Groq → Ollama Cloud → Ollama Local.
+    Google → Ollama Cloud → Ollama Local.
     """
 
     def __init__(self) -> None:
@@ -217,6 +217,13 @@ class AIProviderOrchestrator:
             },
         )
 
+    async def complete_text(self, prompt: str, max_tokens: int = 500) -> str:
+        """Public single-prompt generation through the provider fallback chain.
+
+        Used by services that build their own prompts (metadata enrichment).
+        """
+        return await self._fallback_complete(prompt, max_tokens)
+
     @staticmethod
     def _strip_html(text: str) -> str:
         """Strip HTML to plain text (run via ``asyncio.to_thread``)."""
@@ -384,9 +391,3 @@ def reset_ai_orchestrator() -> None:
     global _orchestrator
     _orchestrator = None
 
-    async def complete_text(self, prompt: str, max_tokens: int = 500) -> str:
-        """Public single-prompt generation through the provider fallback chain.
-
-        Used by services that build their own prompts (metadata enrichment).
-        """
-        return await self._fallback_complete(prompt, max_tokens)

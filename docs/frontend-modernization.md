@@ -10,7 +10,7 @@ library and TTS files remain monolithic and are the next candidates.
 
 | File | Lines | Concern | Status |
 |------|-------|---------|--------|
-| `frontend/static/js/reader/*.js` | ~3,400 (11 files) | Reader UI, TOC, chapters, caching, prefetch, bookmarks, notes, annotations, summary, TTS bridge | ✅ modularized |
+| `frontend/static/js/reader/*.js` | ~3,400 (12 files) | Reader UI, TOC, chapters, caching, prefetch, bookmarks, notes, annotations, summary, autoscroll, TTS bridge | ✅ modularized |
 | `frontend/static/js/library.js`        | ~2,600 | Library grid/table, filtering, sorting, search, upload, import, categories | ⏳ pending |
 | `frontend/static/js/tts.js`            | ~1,200 | Text-to-speech engine + UI | ⏳ pending |
 
@@ -65,9 +65,10 @@ aspirational, not reality. The JS rules in `CLAUDE.md` have been corrected.
 2. ✅ Extract `lib/` helpers (`api`, `storage`, `dom`).
 3. ✅ **Split the reader monolith into classic-script modules under
    `static/js/reader/`** (state, ui, settings, chapters, search, annotations,
-   panels, summary, tts-bridge, init, globals). Loaded in dependency order via
-   `reader.html`; `globals.js` is last so all `window.*` exports resolve.
-   Verified in headless Chrome (no JS errors, `initReader` runs end-to-end).
+   panels, summary, tts-bridge, autoscroll, init, globals). Loaded in dependency
+   order via `reader.html`; `globals.js` is last so all `window.*` exports
+   resolve. Verified in headless Chrome (no JS errors, `initReader` runs
+   end-to-end).
 4. ⏳ Route the reader's `fetch` calls through `lib/api.js` (mechanical) and
    route the remaining `localStorage` access through `lib/storage.js`.
 5. ⏳ Repeat the split for `library.js` and `tts.js`.

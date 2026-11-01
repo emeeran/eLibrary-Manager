@@ -39,14 +39,20 @@ cp .env.example .env
 ### Running
 
 ```bash
-# Development server with auto-reload
+# Development server with auto-reload (binds 0.0.0.0:8000)
 make dev
+
+# Or bind localhost with an auto-picked free port:
+./run-dev.sh            # honors ELIBRARY_DEV_PORT
+
+# Or load .env, pick a free port from APP_PORT, open the browser:
+./start.sh
 
 # Or manually:
 PYTHONPATH=backend uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Visit **http://localhost:8000**
+Visit **http://localhost:8000** and log in with `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
 
 ### Development Commands
 
@@ -57,6 +63,7 @@ make lint         # Run ruff + mypy
 make format       # Format with black + ruff --fix
 make check        # Run lint + test together
 make clean        # Remove __pycache__, .pyc, coverage artifacts
+make deb          # Build the .deb package
 ```
 
 ---
@@ -83,7 +90,7 @@ cp .env.example .env
 docker-compose up -d
 
 # View logs
-docker-compose logs -f dawnstar
+docker-compose logs -f elibrary
 
 # Stop
 docker-compose down
@@ -100,7 +107,9 @@ docker-compose down
 
 ### Port
 
-Default: **8000**. Configure via `APP_PORT` in `.env` or `docker-compose.yml`.
+Default: **8000**, hardcoded as `8000:8000` in `docker-compose.yml` — edit the compose file to change it. `APP_PORT` only affects non-Docker runs (`start.sh` picks `APP_PORT` or the next free port).
+
+An optional Ollama sidecar is available behind the `ollama` compose profile: `docker-compose --profile ollama up -d`.
 
 ---
 
@@ -113,8 +122,8 @@ All configuration is managed through environment variables, loaded from `.env` v
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | `sqlite+aiosqlite:///./dawnstar_data/dawnstar.db` | SQLite async connection string |
-| `DB_POOL_SIZE` | `10` | Connection pool size |
-| `DB_MAX_OVERFLOW` | `20` | Max overflow connections |
+| `DB_POOL_SIZE` | `5` | Connection pool size |
+| `DB_MAX_OVERFLOW` | `0` | Max overflow connections |
 
 ### Library Paths
 
@@ -122,30 +131,40 @@ All configuration is managed through environment variables, loaded from `.env` v
 |----------|---------|-------------|
 | `LIBRARY_PATH` | `./library` | Directory containing ebook files |
 | `COVERS_PATH` | `./static_covers` | Directory for extracted cover images |
+| `BOOK_IMAGES_PATH` | `./static_book_images` | Directory for extracted inline book images |
+
+### Security & Auth
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SECRET_KEY` | `""` | Signs session cookies and encrypts settings secrets. **Required when `APP_ENV=production`** |
+| `APP_ENV` | — | Set to `production` to enforce strict `SECRET_KEY` validation |
+| `ADMIN_USERNAME` | `admin` | Login username |
+| `ADMIN_PASSWORD` | `""` | Login password (plaintext, auto-hashed at startup) |
+| `ADMIN_PASSWORD_HASH` | `""` | Login password as bcrypt hash (preferred over plaintext) |
 
 ### AI Providers
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GOOGLE_API_KEY` | — | Google Gemini API key |
-| `GOOGLE_MODEL` | `gemini-1.5-flash` | Gemini model name |
+| `GOOGLE_API_KEY` | — | Google Gemini API key (`GEMINI_API_KEY` env var takes priority) |
+| `GOOGLE_MODEL` | `gemini-2.5-flash` | Gemini model name |
 | `GOOGLE_RATE_LIMIT_RPM` | `15` | Rate limit (requests/minute) |
-| `GROQ_API_KEY` | — | Groq API key |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq model name |
-| `GROQ_RATE_LIMIT_RPM` | `30` | Rate limit (requests/minute) |
 | `OLLAMA_CLOUD_URL` | `https://api.ollama.ai` | Ollama Cloud endpoint |
 | `OLLAMA_CLOUD_MODEL` | `llama3.3` | Ollama Cloud model |
 | `OLLAMA_LOCAL_URL` | `http://localhost:11434` | Local Ollama endpoint |
-| `OLLAMA_LOCAL_MODEL` | `llama3.3` | Local Ollama model |
-| `AI_DEFAULT_PROVIDER` | `auto` | Provider: `auto`, `google`, `groq`, `ollama_cloud`, `ollama_local` |
+| `OLLAMA_LOCAL_MODEL` | `llama3.2:3b` | Local Ollama model |
+| `AI_DEFAULT_PROVIDER` | `auto` | Preferred provider; `auto` uses the priority fallback order |
 | `AI_ENABLE_FALLBACK` | `true` | Enable automatic fallback chain |
+| `AI_REQUEST_TIMEOUT` | `30.0` | Per-request AI timeout (seconds) |
+| `AI_MAX_RETRIES` | `2` | Retries per provider |
 
 ### Application
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APP_HOST` | `0.0.0.0` | Server bind address |
-| `APP_PORT` | `8000` | Server port |
+| `APP_PORT` | `8000` | Server port (non-Docker runs) |
 | `DEBUG` | `false` | Enable debug mode |
 | `LOG_LEVEL` | `INFO` | Logging verbosity: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 
@@ -154,7 +173,17 @@ All configuration is managed through environment variables, loaded from `.env` v
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MAX_COVER_SIZE` | `300000` | Maximum cover image size in bytes |
+| `MAX_UPLOAD_SIZE_MB` | `100` | Maximum upload size in MB |
 | `LAZY_LOAD_BATCH_SIZE` | `20` | Number of covers to lazy-load per batch |
+
+### NAS
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NAS_ENABLED` | `false` | Enable the NAS storage backend |
+| `NAS_HOST` | `""` | NAS hostname (reporting only) |
+| `NAS_MOUNT_PATH` | `""` | Pre-mounted SMB/NFS path to serve |
+| `NAS_CACHE_DIR` | `./nas_cache` | Offline file cache directory |
 
 ---
 
@@ -178,11 +207,20 @@ sudo mount -t cifs //nas-server/books /mnt/ebooks \
 
 ### Configure Application
 
-Set `LIBRARY_PATH` to the mount point:
+Either serve the mount as the plain library path, or enable the dedicated NAS
+backend (recommended — adds health monitoring and offline caching):
 
 ```bash
+# Option A: treat the mount as a normal library directory
 LIBRARY_PATH=/mnt/ebooks
+
+# Option B: enable the NAS storage backend (mount the share yourself first)
+NAS_ENABLED=true
+NAS_MOUNT_PATH=/mnt/ebooks
+NAS_CACHE_DIR=./nas_cache
 ```
+
+The app validates the mount and probes its health; it does not mount the share for you.
 
 ### NAS Health Monitoring
 
@@ -205,21 +243,11 @@ The NAS file cache (`nas_cache.py`) provides offline reading capability:
 ### Google Gemini (Recommended)
 
 1. Get an API key from [Google AI Studio](https://aistudio.google.com/apikey)
-2. Set in `.env`:
+2. Set in `.env` (note: `GEMINI_API_KEY` takes priority over `GOOGLE_API_KEY`):
 
 ```bash
-GOOGLE_API_KEY=AIzaSy...
-GOOGLE_MODEL=gemini-1.5-flash
-```
-
-### Groq
-
-1. Get an API key from [console.groq.com](https://console.groq.com)
-2. Set in `.env`:
-
-```bash
-GROQ_API_KEY=gsk_...
-GROQ_MODEL=llama-3.3-70b-versatile
+GEMINI_API_KEY=AIzaSy...
+GOOGLE_MODEL=gemini-2.5-flash
 ```
 
 ### Ollama Local (Offline)
@@ -228,28 +256,47 @@ GROQ_MODEL=llama-3.3-70b-versatile
 2. Pull a model:
 
 ```bash
-ollama pull llama3.3
+ollama pull llama3.2:3b
 ```
 
 3. Set in `.env`:
 
 ```bash
 OLLAMA_LOCAL_URL=http://localhost:11434
-OLLAMA_LOCAL_MODEL=llama3.3
+OLLAMA_LOCAL_MODEL=llama3.2:3b
 ```
+
+### Ollama Cloud
+
+Set `OLLAMA_CLOUD_URL` (default `https://api.ollama.ai`) and `OLLAMA_CLOUD_MODEL`
+(default `llama3.3`). Both Ollama endpoints use the OpenAI-compatible SDK.
 
 ### Fallback Chain
 
 When `AI_DEFAULT_PROVIDER=auto` and `AI_ENABLE_FALLBACK=true`:
 
 ```
-Google Gemini ──► Groq ──► Ollama Cloud ──► Ollama Local
-    (fail)          (fail)      (fail)         (last resort)
+Google Gemini ──► Ollama Cloud ──► Ollama Local
+    (fail)           (fail)        (last resort)
 ```
 
 Each provider is tried in priority order. Rate limits are enforced independently per provider.
 
 ---
+
+## Debian Package Deployment
+
+A `.deb` package is available for Ubuntu/Debian hosts:
+
+```bash
+make deb            # builds via packaging/deb/build-deb.sh into build/
+make deb-install    # sudo dpkg -i build/elibrary-manager_*.deb
+```
+
+The package installs a systemd unit (`elibrary-manager.service`,
+`ExecStart=/opt/elibrary-manager/run-server.sh`, `MemoryMax=1G`) configured via
+`EnvironmentFile=/etc/elibrary-manager/config.env`, plus an `elibrary-open`
+helper for the default-file-viewer integration (spec 014).
 
 ## Production Hardening
 
@@ -257,11 +304,20 @@ Each provider is tried in priority order. Rate limits are enforced independently
 
 - [ ] Set `DEBUG=false` in production
 - [ ] Use `LOG_LEVEL=WARNING` or `LOG_LEVEL=INFO`
-- [ ] Set a strong hidden-library password via the Settings UI
+- [ ] Set `APP_ENV=production` and a strong `SECRET_KEY` (required in production)
+- [ ] Set `ADMIN_USERNAME` / `ADMIN_PASSWORD` (or `ADMIN_PASSWORD_HASH`)
 - [ ] Restrict `APP_HOST` if behind a reverse proxy
 - [ ] Enable HTTPS via reverse proxy (Nginx, Caddy, Traefik)
-- [ ] Back up `dawnstar_data/` directory regularly
+- [ ] Back up `dawnstar_data/` regularly (`POST /api/maintenance/backup` or the command below)
 - [ ] Do not expose `.env` file — ensure it's in `.gitignore`
+
+### Database Migrations
+
+Schema changes ship as Alembic migrations. After upgrading, run:
+
+```bash
+uv run alembic upgrade head
+```
 
 ### Reverse Proxy Example (Nginx)
 

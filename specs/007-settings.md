@@ -1,8 +1,8 @@
 # SPEC-007: Settings
 
 - **Status:** Active
-- **Version:** 1.0.0
-- **Last Updated:** 2026-04-15
+- **Version:** 1.1.0
+- **Last Updated:** 2026-11-01
 - **Depends On:** SPEC-003 (AI Summarization)
 
 ## Purpose
@@ -50,7 +50,7 @@ Settings is the cross-cutting configuration feature of eLibrary Manager. It prov
 **Then** the route applies a partial-update strategy: each non-None field from the request replaces the current value; each None field falls back to the `AppConfig` default or hardcoded default
 **And** if `ai_provider` is provided and non-None, the route sets `os.environ["AI_DEFAULT_PROVIDER"]` to that value
 **And** if `ai_api_key` is provided and `ai_provider` is `"google"`, the route sets `os.environ["GOOGLE_API_KEY"]` to the key value
-**And** if `ai_api_key` is provided and `ai_provider` is `"groq"`, the route sets `os.environ["GROQ_API_KEY"]` to the key value
+<!-- v1.1.0: the groq branch was removed -- no Groq provider exists; the fallback chain is Google -> Ollama Cloud -> Ollama Local. -->
 **And** the route returns a `SettingsResponse` with the merged (provided + defaults) values
 **And** the HTTP status code is `200`
 
@@ -82,7 +82,7 @@ The following validation rules apply per field:
 | `theme` | `Optional[str]` | `pattern="^(day\|sepia\|night)$"` | `"dark"`, `"light"` |
 | `tts_speed` | `Optional[str]` | `pattern="^(0.5\|0.75\|1.0\|1.25\|1.5\|2.0)$"` | `"0.25"`, `"3.0"`, `"fast"` |
 | `tts_pitch` | `Optional[float]` | `ge=0.5, le=2.0` | `0.0`, `0.49`, `2.1`, `10.0` |
-| `ai_provider` | `Optional[str]` | `pattern="^(auto\|google\|groq\|ollama)$"` | `"openai"`, `"azure"` |
+| `ai_provider` | `Optional[str]` | `pattern="^(auto\|google\|ollama\|ollama_cloud\|ollama_local)$"` | `"openai"`, `"azure"`, `"groq"` |
 | `ai_api_key` | `Optional[str]` | `max_length=500` | String longer than 500 characters |
 | `ollama_url` | `Optional[str]` | `max_length=500` | String longer than 500 characters |
 | `flip_interval` | `Optional[int]` | `ge=5, le=300` | `0`, `4`, `301`, `500` |
@@ -111,7 +111,7 @@ The following validation rules apply per field:
 **Given** a valid AI provider and API key are provided
 **When** the user sends `POST /api/settings/test-ai` with body `{ "provider": "google", "api_key": "valid-key" }`
 **Then** the route sets `os.environ["AI_PROVIDER"]` to the requested provider
-**And** sets the appropriate API key environment variable (`GOOGLE_API_KEY` for google, `GROQ_API_KEY` for groq)
+**And** sets the appropriate API key environment variable (`GOOGLE_API_KEY` for google; Ollama providers need no key)
 **And** calls `orchestrator.generate_summary()` with a fixed test content string: `"This is a test of the AI connection. If you can see this, the connection is working properly."`
 **And** returns HTTP `200` with body:
 ```json
@@ -144,7 +144,7 @@ The following validation rules apply per field:
 ### AC-007.09: Test AI Connection -- Validation
 
 **Given** the user sends `POST /api/settings/test-ai` with an invalid provider
-**When** the `provider` field does not match `^(auto|google|groq|ollama)$`
+**When** the `provider` field does not match `^(auto|google|ollama|ollama_cloud|ollama_local)$`
 **Then** FastAPI returns HTTP `422` with a validation error
 **When** the `provider` field is omitted
 **Then** FastAPI returns HTTP `422` with a validation error (provider is required)

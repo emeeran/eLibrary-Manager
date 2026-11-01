@@ -355,7 +355,9 @@ class SettingsCreate(BaseModel):
     tts_char_filter: str | None = Field(None, max_length=100)
     tts_engine: str | None = Field(None, max_length=20)
     tts_voice: str | None = Field(None, max_length=100)
-    ai_provider: str | None = Field(None, pattern="^(auto|google|groq|ollama)$")
+    ai_provider: str | None = Field(
+        None, pattern="^(auto|google|ollama|ollama_cloud|ollama_local)$"
+    )
     ai_api_key: str | None = Field(None, max_length=500)
     ollama_url: str | None = Field(None, max_length=500)
     auto_flip: bool | None = None
@@ -424,7 +426,7 @@ class SettingsResponse(BaseModel):
 class AIConnectionTest(BaseModel):
     """Schema for AI connection test request."""
 
-    provider: str = Field(..., pattern="^(auto|google|groq|ollama)$")
+    provider: str = Field(..., pattern="^(auto|google|ollama|ollama_cloud|ollama_local)$")
     api_key: str | None = None
 
 
