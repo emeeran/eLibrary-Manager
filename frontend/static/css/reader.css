@@ -2666,6 +2666,56 @@ html[data-theme="night"] .ic-ai-ollama-section {
     animation: ic-fade-in 0.2s ease-out;
 }
 
+/* ------------------------------------------------------------------ */
+/* Page-turn animations (spec 002 v1.1, AC-002.54) — Moon+ parity.     */
+/* Applied by settings.js applyPageTurnAnimation() on chapter render.  */
+/* The global prefers-reduced-motion block above already zeroes all    */
+/* animation/transition durations, satisfying the reduced-motion AC.   */
+/* ------------------------------------------------------------------ */
+
+/* Selected-mode indicator classes (set by setPageTurnAnimation). */
+.ic-chapter-content.pt-anim-fade,
+.ic-chapter-content.pt-anim-slide {
+    will-change: opacity, transform;
+}
+
+/* Fade: whole content block fades in on every chapter turn. */
+.ic-chapter-content.pt-turn-fade {
+    animation: ic-page-turn-fade 0.45s ease-out;
+}
+
+@keyframes ic-page-turn-fade {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Slide: content arrives from the right, like a page sliding in. */
+.ic-chapter-content.pt-turn-slide {
+    animation: ic-page-turn-slide 0.35s ease-out;
+}
+
+@keyframes ic-page-turn-slide {
+    from {
+        opacity: 0.4;
+        transform: translateX(28px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Auto-scroll footer button active state (spec 002 v1.1, AC-002.51). */
+#ic-autoscroll-btn.active {
+    background: var(--ic-blue);
+    border-color: var(--ic-blue);
+    color: white;
+}
+
 @keyframes ic-fade-in {
     from {
         opacity: 0.6;

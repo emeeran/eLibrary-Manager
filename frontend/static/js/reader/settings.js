@@ -24,6 +24,10 @@ function syncSettingsToServer() {
             localStorage.getItem("reader-line-height") || "1.8"
           ).toString(),
           page_layout: localStorage.getItem("reader-page-layout") || "single",
+          auto_scroll_speed:
+            parseInt(localStorage.getItem("reader-autoscroll-speed"), 10) || 0,
+          page_turn_animation:
+            localStorage.getItem("reader-page-turn-animation") || "none",
           tts_speed: (localStorage.getItem("tts-speed") || "1.0").toString(),
           tts_pitch: parseFloat(localStorage.getItem("tts-pitch") || "1.0"),
         }),
@@ -53,6 +57,17 @@ function initReaderPreferences() {
           localStorage.setItem("reader-line-height", server.line_height);
         if (server.page_layout)
           localStorage.setItem("reader-page-layout", server.page_layout);
+        // Spec 002 v1.1: reader-mode settings (Moon+ parity).
+        if (server.auto_scroll_speed !== undefined && server.auto_scroll_speed !== null)
+          localStorage.setItem(
+            "reader-autoscroll-speed",
+            String(server.auto_scroll_speed),
+          );
+        if (server.page_turn_animation)
+          localStorage.setItem(
+            "reader-page-turn-animation",
+            server.page_turn_animation,
+          );
         if (server.tts_speed)
           localStorage.setItem("tts-speed", server.tts_speed);
         if (server.tts_pitch)
@@ -120,6 +135,15 @@ function applyPreferences() {
   // Load saved margin
   const savedMargin = parseInt(localStorage.getItem("reader-margin")) || 20;
   setMargin(savedMargin);
+
+  // Spec 002 v1.1: reader-mode settings (auto-scroll speed + page-turn
+  // animation). Reflect both in the settings-panel controls.
+  const savedAutoscrollSpeed =
+    parseInt(localStorage.getItem("reader-autoscroll-speed"), 10) || 0;
+  setAutoScrollSpeed(savedAutoscrollSpeed || 0, { sync: false });
+  const savedAnimation =
+    localStorage.getItem("reader-page-turn-animation") || "none";
+  setPageTurnAnimation(savedAnimation, { sync: false });
 
   // Initialization complete — enable settings sync
   _initializing = false;
@@ -369,6 +393,88 @@ function setMargin(percent) {
   const display = document.getElementById("ic-margin-display");
   if (display) display.textContent = `${percent}%`;
   syncSettingsToServer();
+}
+
+/**
+ * Set the auto-scroll speed (spec 002 v1.1, AC-002.53).
+ *
+ * 0 means "off" (the toggle defaults to off); 25–400 px/s is the practical
+ * range exposed by the settings slider. Persisted in localStorage and synced
+ * to the server as `auto_scroll_speed`.
+ *
+ * @param {number} speedPxPerSec - Speed in px/s (0 = off)
+ * @param {{sync?: boolean}} [opts] - Internal: skip server sync during init
+ */
+function setAutoScrollSpeed(speedPxPerSec, opts = {}) {
+  let speed = parseInt(speedPxPerSec, 10) || 0;
+  if (speed !== 0) speed = Math.max(25, Math.min(400, speed));
+  localStorage.setItem("reader-autoscroll-speed", String(speed));
+
+  const slider = document.getElementById("ic-autoscroll-slider-sidebar");
+  if (slider) slider.value = speed === 0 ? 0 : speed;
+  const display = document.getElementById("ic-autoscroll-value");
+  if (display) display.textContent = speed === 0 ? "Off" : `${speed} px/s`;
+
+  if (opts.sync !== false) syncSettingsToServer();
+}
+
+/**
+ * Adjust auto-scroll speed by delta px/s from the ± buttons.
+ * @param {number} delta - Signed px/s step
+ */
+function adjustAutoScrollSpeed(delta) {
+  const current =
+    parseInt(localStorage.getItem("reader-autoscroll-speed"), 10) || 0;
+  setAutoScrollSpeed(current + delta);
+}
+
+/**
+ * Set the page-turn animation (spec 002 v1.1, AC-002.54).
+ *
+ * The chosen mode is applied as a class on `#ic-chapter-content`; the
+ * transition itself triggers on every chapter render via
+ * {@link applyPageTurnAnimation}. CSS honors `prefers-reduced-motion`
+ * (AC-002.49), which overrides any chosen animation.
+ *
+ * @param {string} mode - One of "none", "fade", "slide"
+ * @param {{sync?: boolean}} [opts] - Internal: skip server sync during init
+ */
+function setPageTurnAnimation(mode, opts = {}) {
+  if (!["none", "fade", "slide"].includes(mode)) mode = "none";
+  localStorage.setItem("reader-page-turn-animation", mode);
+  IcecreamReader.pageTurnAnimation = mode;
+
+  const contentArea = document.getElementById("ic-chapter-content");
+  if (contentArea) {
+    contentArea.classList.remove("pt-anim-none", "pt-anim-fade", "pt-anim-slide");
+    contentArea.classList.add(`pt-anim-${mode}`);
+  }
+
+  const select = document.getElementById("ic-page-turn-animation-select");
+  if (select) select.value = mode;
+
+  if (opts.sync !== false) syncSettingsToServer();
+}
+
+/**
+ * Replay the configured page-turn animation on freshly rendered chapter
+ * content. Called from renderChapterData (chapters.js). A no-op when the
+ * setting is "none".
+ */
+function applyPageTurnAnimation() {
+  const mode =
+    IcecreamReader.pageTurnAnimation ||
+    localStorage.getItem("reader-page-turn-animation") ||
+    "none";
+  if (mode === "none") return;
+
+  const contentArea = document.getElementById("ic-chapter-content");
+  if (!contentArea) return;
+  // Force a reflow between removal and re-add so the CSS animation restarts
+  // on back-to-back chapter turns of the same kind.
+  contentArea.classList.remove("pt-turn-fade", "pt-turn-slide");
+  void contentArea.offsetWidth;
+  contentArea.classList.add(`pt-turn-${mode}`);
 }
 
 /**

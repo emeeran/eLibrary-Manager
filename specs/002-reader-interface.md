@@ -1,8 +1,8 @@
 # SPEC-002: Reader Interface
 
 - **Status:** Active
-- **Version:** 1.0.0
-- **Last Updated:** 2026-04-15
+- **Version:** 1.1.0
+- **Last Updated:** 2026-11-01
 
 ## Purpose
 
@@ -398,6 +398,42 @@ The Reader Interface provides the core book-reading experience in eLibrary Manag
 **When** the provider name is not found, the system raises `ValueError`
 **When** the provider fails the health check, the system raises `ValueError`
 
+### AC-002.51: Auto-Scroll Mode (v1.1 — Moon+ parity)
+
+**Given** the reader is displaying a chapter
+**When** the user clicks the auto-scroll toolbar button (`#ic-autoscroll-btn`) or presses the `a` key outside an input
+**Then** the reading area (`#ic-reading-area`) begins scrolling hands-free at the configured `auto_scroll_speed` (px/s) via a requestAnimationFrame loop
+**And** the button shows its active state while scrolling
+**When** the toggle is activated a second time, scrolling stops immediately
+**When** the bottom of the chapter is reached, auto-scroll stops and the button returns to inactive state
+
+### AC-002.52: Auto-Scroll Pause on User Interaction
+
+**Given** auto-scroll is active
+**When** the user scrolls with the wheel, touches the reading area, or presses pointer down on it
+**Then** auto-scroll pauses (loop stops advancing scroll position)
+**And** the paused state is cleared when the user resumes via the toggle or shortcut
+
+### AC-002.53: Auto-Scroll Speed Setting
+
+**When** the settings-panel slider (`#ic-autoscroll-slider-sidebar`) is moved
+**Then** the speed (25–400 px/s) applies immediately to an active or subsequent auto-scroll session
+**And** the value persists in `localStorage` under `reader-autoscroll-speed` and is synced to the server as the `auto_scroll_speed` settings key (0 = off by default)
+
+### AC-002.54: Page-Turn Animation (v1.1 — Moon+ parity)
+
+**When** the page-turn animation setting (`page_turn_animation`) is `"fade"` or `"slide"`
+**Then** chapter content transitions with the configured animation on every `renderChapterData` render
+**And** `"none"` (the default) applies no transition
+**And** under `prefers-reduced-motion: reduce` no animation plays regardless of the setting (see AC-002.49)
+
+### AC-002.55: Reader Mode Settings API Keys
+
+**Given** the settings API (`GET/POST /api/settings`)
+**Then** `auto_scroll_speed` (int, 0–1000, default 0) and `page_turn_animation` (`none|fade|slide`, default `"none"`) round-trip through the settings store
+**And** a `POST` with `page_turn_animation` outside the allowed set responds HTTP 422 and stores nothing
+**And** a `POST` with `auto_scroll_speed` outside 0–1000 responds HTTP 422 and stores nothing
+
 ## API Contract
 
 ### Endpoints
@@ -613,6 +649,8 @@ class CachedChapter:
 | AC-002.31 Get Text for Summary | — | — | GAP |
 | AC-002.32–002.49 Frontend Themes/Layout/Accessibility | — | — | GAP (requires Playwright/E2E) |
 | AC-002.50 AI Provider Status | — | — | GAP |
+| AC-002.51–002.54 Auto-Scroll / Page-Turn Animation (v1.1) | — | — | GAP (frontend; requires Playwright/E2E) |
+| AC-002.55 Reader Mode Settings API Keys | `tests/test_reader_modes.py` | test_reader_mode_settings_roundtrip, test_reader_mode_settings_validation | covered |
 
 ## Dependencies
 

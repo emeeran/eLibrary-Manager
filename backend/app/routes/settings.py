@@ -81,6 +81,8 @@ DEFAULTS: SettingsResponse = SettingsResponse(
     auto_scan=False,
     watch_changes=False,
     page_layout="single",
+    auto_scroll_speed=0,
+    page_turn_animation="none",
     text_align="justify",
     font_size=100,
     font_family="georgia",
@@ -140,6 +142,13 @@ def _build_response(stored: dict[str, str]) -> SettingsResponse:
         if _str("watch_changes") is not None
         else defaults["watch_changes"],
         page_layout=_str("page_layout") or defaults["page_layout"],
+        auto_scroll_speed=(
+            _int("auto_scroll_speed")
+            if _str("auto_scroll_speed") is not None
+            else defaults["auto_scroll_speed"]
+        ),
+        page_turn_animation=_str("page_turn_animation")
+        or defaults["page_turn_animation"],
         text_align=_str("text_align") or defaults["text_align"],
         font_size=_int("font_size") or defaults["font_size"],
         font_family=_str("font_family") or defaults["font_family"],

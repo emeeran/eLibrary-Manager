@@ -331,6 +331,10 @@ class SettingsCreate(BaseModel):
     auto_scan: bool | None = None
     watch_changes: bool | None = None
     page_layout: str | None = Field(None, pattern="^(single|double|continuous)$")
+    # Reader modes (spec 002 v1.1, Moon+ parity): hands-free scrolling speed
+    # (px/s, 0 = off) and chapter-transition animation.
+    auto_scroll_speed: int | None = Field(None, ge=0, le=1000)
+    page_turn_animation: str | None = Field(None, pattern="^(none|fade|slide)$")
     text_align: str | None = Field(None, pattern="^(justify|left|center)$")
     font_size: int | None = Field(None, ge=8, le=200)
     font_family: str | None = Field(None, max_length=50)
@@ -375,6 +379,8 @@ class SettingsResponse(BaseModel):
     auto_scan: bool
     watch_changes: bool
     page_layout: str
+    auto_scroll_speed: int = 0
+    page_turn_animation: str = "none"
     text_align: str
     font_size: int
     font_family: str

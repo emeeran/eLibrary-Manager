@@ -360,6 +360,13 @@ document.addEventListener("keydown", function (e) {
       e.preventDefault();
       showBookmarksPanel();
       break;
+    case "a":
+    case "A":
+      // Spec 002 v1.1: toggle hands-free auto-scroll (Moon+ parity).
+      if (e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
+      toggleAutoScroll();
+      break;
     case "d":
     case "D":
       e.preventDefault();
