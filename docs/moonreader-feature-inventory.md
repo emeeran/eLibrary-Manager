@@ -75,7 +75,7 @@ only — no Moon+ code, resources, or assets are copied into eLibrary.
 | Moon+ feature | eLibrary status | Proposed spec action |
 |---|---|---|
 | OPDS catalogs | none | **New 015** — pair with 009 NAS |
-| Dual-page, auto-scroll, page animations, scroll modes | partial (002) | **Extend 002 or new 016** |
+| Dual-page, auto-scroll, page animations, scroll modes | dual-page already covered (AC-002.37); auto-scroll + page-turn animations landed in 002 v1.1 (94e9b14) | **Done (002 v1.1)** |
 | TTS pitch/interval/filters/timer/notification | partial (006) | **Extend 006** |
 | Highlight styles (squiggly, strikeout, color templates) | partial (005) | **Extend 005** |
 | Formats: fb2, djvu, cbz, rtf, docx, md, chm | epub/pdf/mobi only (008) | **Extend 008** (djvu via `djvulibre`/`mupdf`) |
