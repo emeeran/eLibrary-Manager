@@ -72,6 +72,16 @@ class RateLimitError(DawnstarError):
     error_code = "RATE_LIMIT_EXCEEDED"
 
 
+class OpdsCatalogError(DawnstarError):
+    """Raised when an OPDS catalog fetch or parse fails upstream (spec 015).
+
+    Mapped to HTTP 502: the failure is on the remote catalog's side, not in
+    eLM's request handling.
+    """
+
+    error_code = "OPDS_CATALOG_ERROR"
+
+
 class TTSError(Exception):
     """Raised when text-to-speech synthesis fails.
 

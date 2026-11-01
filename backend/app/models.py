@@ -469,3 +469,33 @@ class ReadingSession(Base):
 
     def __repr__(self) -> str:
         return f"<ReadingSession(book_id={self.book_id}, minutes={self.minutes})>"
+
+
+class OpdsCatalog(Base):
+    """A registered OPDS network catalog (spec 015).
+
+    Attributes:
+        id: Primary key
+        name: Display name of the catalog
+        url: Root feed URL
+        username: Optional basic-auth username
+        password_encrypted: Fernet-encrypted basic-auth password
+            (``security.encrypt_value``), never returned by any route
+        added_date: When the catalog was registered (UTC)
+        last_browsed: Last successful browse (UTC), or None
+    """
+
+    __tablename__ = "opds_catalogs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    username: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    password_encrypted: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    added_date: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(UTC)
+    )
+    last_browsed: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<OpdsCatalog(id={self.id}, name={self.name!r})>"

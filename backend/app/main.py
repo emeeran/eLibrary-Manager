@@ -21,6 +21,7 @@ from app.database import db_manager, get_db
 from app.exceptions import (
     DawnstarError,
     EbookParsingError,
+    OpdsCatalogError,
     RateLimitError,
     ResourceNotFoundError,
 )
@@ -36,6 +37,7 @@ from app.routes import (
     hidden,
     library,
     maintenance,
+    opds,
     reader,
     settings,
     stats,
@@ -276,6 +278,7 @@ app.include_router(stats.router)
 app.include_router(maintenance.router)
 app.include_router(categories.router)
 app.include_router(hidden.router)
+app.include_router(opds.router)
 
 
 @app.get("/api/health")
@@ -354,6 +357,18 @@ async def rate_limit_handler(request: Request, exc: RateLimitError) -> JSONRespo
     return JSONResponse(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         content={"error": "Rate Limit Exceeded", "message": exc.message},
+    )
+
+
+@app.exception_handler(OpdsCatalogError)
+async def opds_catalog_error_handler(
+    request: Request, exc: OpdsCatalogError
+) -> JSONResponse:
+    """Handle OPDS catalog fetch/parse failures — upstream, not local (502)."""
+    logger.warning("OpdsCatalogError on %s %s: %s", request.method, request.url.path, exc.message)
+    return JSONResponse(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        content={"error": "Catalog Unavailable", "message": exc.message},
     )
 
 

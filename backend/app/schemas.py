@@ -596,3 +596,72 @@ class MaintenanceSummary(BaseModel):
     orphaned_annotations: int
     foreign_keys_enabled: bool
     db_size_bytes: int
+
+
+# ------------------------------------------------------------------ #
+# OPDS catalogs (spec 015)
+# ------------------------------------------------------------------ #
+
+
+class OpdsCatalogCreate(BaseModel):
+    """Payload to register an OPDS catalog."""
+
+    name: str = Field(..., min_length=1, max_length=200, description="Display name")
+    url: str = Field(..., min_length=1, max_length=1000, description="Root feed URL")
+    username: str | None = Field(None, max_length=200, description="Basic-auth username")
+    password: str | None = Field(None, max_length=500, description="Basic-auth password")
+
+
+class OpdsCatalogUpdate(BaseModel):
+    """Payload to update an OPDS catalog (all fields optional)."""
+
+    name: str | None = Field(None, min_length=1, max_length=200)
+    url: str | None = Field(None, min_length=1, max_length=1000)
+    username: str | None = Field(None, max_length=200)
+    password: str | None = Field(None, max_length=500)
+
+
+class OpdsCatalogResponse(BaseModel):
+    """Public view of a catalog — credentials are never included."""
+
+    id: int
+    name: str
+    url: str
+    username: str | None
+    has_password: bool
+    added_date: datetime | None
+    last_browsed: datetime | None
+
+
+class OpdsDownloadLink(BaseModel):
+    """An acquisition link on an OPDS entry."""
+
+    url: str
+    media_type: str | None = None
+
+
+class OpdsEntry(BaseModel):
+    """Normalized OPDS feed entry (navigation or acquisition)."""
+
+    id: str | None = None
+    title: str
+    summary: str | None = None
+    authors: list[str] = Field(default_factory=list)
+    thumbnail_url: str | None = None
+    is_navigation: bool = False
+    download: OpdsDownloadLink | None = None
+
+
+class OpdsFeed(BaseModel):
+    """Normalized OPDS feed returned by the browse proxy."""
+
+    title: str | None = None
+    url: str
+    entries: list[OpdsEntry] = Field(default_factory=list)
+
+
+class OpdsDownloadRequest(BaseModel):
+    """Payload to download an acquisition entry into the library."""
+
+    url: str = Field(..., min_length=1, max_length=1000, description="Acquisition link URL")
+    filename: str = Field(..., min_length=1, max_length=300, description="Target filename")
