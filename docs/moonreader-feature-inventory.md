@@ -78,7 +78,7 @@ only — no Moon+ code, resources, or assets are copied into eLibrary.
 | Dual-page, auto-scroll, page animations, scroll modes | dual-page already covered (AC-002.37); auto-scroll + page-turn animations landed in 002 v1.1 (94e9b14) | **Done (002 v1.1)** |
 | TTS pitch/interval/filters/timer/notification | partial (006) | **Extend 006** |
 | Highlight styles (squiggly, strikeout, color templates) | partial (005) | **Extend 005** |
-| Formats: fb2, djvu, cbz, rtf, docx, md, chm | epub/pdf/mobi only (008) | **Extend 008** (djvu via `djvulibre`/`mupdf`) |
+| Formats: fb2, djvu, cbz, rtf, docx, md, chm | fb2/cbz/md landed in 008 v1.2 (c8703a0) | **Done (008 v1.2)**; djvu/rtf/docx/chm deferred (djvu needs a native engine) |
 | Auto-scroll / speed-read (RSVP) | none | **New spec** |
 | Dictionary lookup | none | **New spec** (optional) |
 | Readwise highlight export | none | **New spec** (optional, small) |
