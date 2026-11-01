@@ -1,7 +1,7 @@
 # 015 — OPDS Network Catalogs
 
-**Status:** Draft  
-**Version:** 1.0.0  
+**Status:** Active  
+**Version:** 1.1.0  
 **Last Updated:** 2026-11-01  
 **Depends on:** `001-library-management.md` (downloaded items become Books), `007-settings.md` (Fernet secret handling)  
 **Origin:** Moon+ Reader Pro parity — "Net Library" (see `docs/moonreader-feature-inventory.md`, cluster 6)
@@ -111,6 +111,33 @@ New table `opds_catalogs` (migration `m0n1o2p3q4r5_add_opds_catalogs`):
 - **AC-14:** A failed/partial download (network error, non-200 status) leaves
   no partial file in `LIBRARY_PATH` and responds **502**.
 
+## Frontend — Net Library panel (v1.1)
+
+### AC-15: Net Library Entry Point
+**Given** the library page
+**When** the user clicks the "Net Library" sidebar item
+**Then** the Net Library modal opens showing the catalog-management view
+
+### AC-16: Catalog Management UI
+**Given** the catalog-management view
+**Then** registered catalogs are listed with name, URL, and auth indicator, each with Browse and Delete buttons
+**And** the add-catalog form (name, root URL, optional username/password) creates a catalog via `POST /api/opds/catalogs` and refreshes the list
+**And** Delete confirms first, then removes via `DELETE /api/opds/catalogs/{id}`
+**And** failures surface as error toasts (never silent)
+
+### AC-17: Browse UI
+**Given** the user clicks Browse on a catalog
+**Then** the modal switches to the feed view showing entries from the normalized browse schema
+**And** navigation entries render an "Open" button that drills into the linked feed
+**And** acquisition entries render a "Download" button deriving a supported filename (title + acquisition-URL extension, defaulting to `.epub`)
+**And** feed-load failures (404/502) render an inline error message from the response body
+
+### AC-18: Download Feedback
+**Given** the user clicks Download on an acquisition entry
+**Then** the button shows in-progress state and disables until the request resolves
+**And** success shows a success toast with the imported book title and refreshes the library grid (`loadBooks`)
+**And** failure restores the button and shows an error toast
+
 ## Security
 
 - **SSRF posture:** the server fetches admin-supplied URLs. eLM is a
@@ -146,12 +173,12 @@ monkeypatched fetch function — no network in tests):
 | `test_download_imports_book` | AC-12 |
 | `test_download_rejects_unsupported_extension` | AC-13 |
 | `test_download_failure_leaves_no_file` | AC-14 |
+| Frontend Net Library panel (v1.1) | — | — | GAP (AC-15–AC-18; requires Playwright/E2E) |
 
 ## Open Items / Future Work
 
-- Frontend "Net Library" panel on the library page (browse UI, thumbnails,
-  download buttons) — backend-first landing per this spec; UI ACs land in
-  v1.1.
+- Thumbnail proxying for relative OPDS cover URLs (currently absolute URLs
+  only render).
 - OPDS 2.x (JSON feed) support alongside Atom.
 - Auto-detected OPDS URLs when the user opens an `atom+xml;profile=opds-catalog`
   link (Moon+ parity behavior).

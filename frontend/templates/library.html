@@ -94,6 +94,17 @@
                         <span class="nav-item-count" id="count-to-read">0</span>
                     </div>
 
+                    <!-- Net Library (OPDS catalogs — spec 015) -->
+                    <div class="nav-item" onclick="openNetLibrary()" role="button" tabindex="0"
+                        aria-label="Browse OPDS network catalogs">
+                        <div class="nav-item-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+                            </svg>
+                        </div>
+                        <span class="nav-item-text">Net Library</span>
+                    </div>
+
                     <!-- Formats with Expandable Submenu -->
                     <div class="nav-item" onclick="toggleFormatSection()">
                         <div class="nav-item-icon">
@@ -744,6 +755,59 @@
         </div>
     </div>
 
+    <!-- Net Library modal (OPDS catalogs — spec 015 v1.1) -->
+    <div id="net-library-modal" class="modal-overlay hidden">
+        <div class="modal" style="max-width:720px;width:92%;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="net-library-title">Net Library</h2>
+                <button class="modal-close" onclick="closeModal('net-library-modal')" aria-label="Close Net Library">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- View 1: catalog management -->
+            <div id="net-library-catalogs-view" class="modal-body">
+                <div id="net-library-catalog-list" class="opds-catalog-list">
+                    <div class="opds-empty">Loading catalogs…</div>
+                </div>
+                <form id="net-library-add-form" onsubmit="handleAddCatalog(event)" class="opds-add-form">
+                    <div class="form-group">
+                        <label class="form-label" for="opds-name">Catalog name</label>
+                        <input type="text" id="opds-name" class="form-input" maxlength="200" placeholder="My Calibre-Web" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="opds-url">OPDS root URL</label>
+                        <input type="url" id="opds-url" class="form-input" maxlength="1000" placeholder="https://example.com/opds" required>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div class="form-group">
+                            <label class="form-label" for="opds-username">Username (optional)</label>
+                            <input type="text" id="opds-username" class="form-input" maxlength="200" autocomplete="off">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="opds-password">Password (optional)</label>
+                            <input type="password" id="opds-password" class="form-input" maxlength="500" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Catalog</button>
+                </form>
+            </div>
+
+            <!-- View 2: browse feed -->
+            <div id="net-library-browse-view" class="modal-body" style="display:none;">
+                <div class="opds-browse-toolbar">
+                    <button type="button" class="btn btn-secondary" onclick="showCatalogListView()" aria-label="Back to catalogs">← Catalogs</button>
+                    <span class="opds-breadcrumb" id="opds-breadcrumb"></span>
+                </div>
+                <div id="opds-entry-list" class="opds-entry-list">
+                    <div class="opds-empty">Loading…</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay hidden">
         <div style="display: flex; flex-direction: column; align-items: center;">
@@ -766,6 +830,7 @@
     <script src="/static/js/lib/notify.js?v=2" defer></script>
     <script src="/static/js/theme.js?v=2" defer></script>
     <script src="/static/js/library.js?v=35" defer></script>
+    <script src="/static/js/opds.js?v=1" defer></script>
     <script src="/static/js/resize-sidebar.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
