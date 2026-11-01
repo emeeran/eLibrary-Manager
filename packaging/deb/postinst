@@ -1,0 +1,174 @@
+#!/bin/bash
+# postinst: Configure permissions, generate defaults, enable service.
+
+set -e
+
+# Set ownership on data directories
+chown -R elibrary:elibrary /var/lib/elibrary-manager
+chown -R elibrary:elibrary /var/log/elibrary-manager
+
+# Generate default config.env if missing (conffile — preserved on upgrade)
+if [ ! -f /etc/elibrary-manager/config.env ]; then
+    cat > /etc/elibrary-manager/config.env <<'ENVEOF'
+# eLibrary Manager Configuration
+# Edit this file to set your API keys and preferences.
+# Changes take effect after: sudo systemctl restart elibrary-manager
+
+# AI Provider — Google Gemini (set your API key below)
+#GEMINI_API_KEY=your-api-key-here
+#GOOGLE_MODEL=gemini-2.5-flash
+
+# AI Provider — OpenAI
+#OPENAI_API_KEY=
+
+# AI Provider — Ollama Local
+#OLLAMA_LOCAL_URL=http://localhost:11434
+#OLLAMA_LOCAL_MODEL=llama3.2:3b
+
+# Application
+#APP_ENV=production
+#SECRET_KEY=generate-with:-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+#DEBUG=false
+#LOG_LEVEL=INFO
+
+# Authentication
+#ADMIN_USERNAME=admin
+#ADMIN_PASSWORD=
+
+# NAS Storage (optional)
+#NAS_ENABLED=false
+#NAS_HOST=
+#NAS_MOUNT_PATH=
+ENVEOF
+    chmod 640 /etc/elibrary-manager/config.env
+    chown root:elibrary /etc/elibrary-manager/config.env
+fi
+
+# Ensure a SECRET_KEY exists (required when APP_ENV=production). Generate a
+# strong, per-install unique key if an active one is not already present.
+# Idempotent: preserves any user-provided key on upgrades.
+CONFIG_FILE=/etc/elibrary-manager/config.env
+if [ -f "$CONFIG_FILE" ] && ! grep -qE '^[[:space:]]*SECRET_KEY[[:space:]]*=[[:space:]]*[A-Za-z0-9_-]+' "$CONFIG_FILE"; then
+    GENERATED_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))' 2>/dev/null \
+        || head -c 48 /dev/urandom | base64 | tr -d '\n=' | tr '+/' '-_')
+    if grep -qE '^[[:space:]]*#?[[:space:]]*SECRET_KEY' "$CONFIG_FILE"; then
+        sed -i -E "s|^[[:space:]]*#?[[:space:]]*SECRET_KEY.*|SECRET_KEY=${GENERATED_KEY}|" "$CONFIG_FILE"
+    else
+        echo "SECRET_KEY=${GENERATED_KEY}" >> "$CONFIG_FILE"
+    fi
+    chmod 640 "$CONFIG_FILE"
+    chown root:elibrary "$CONFIG_FILE"
+fi
+
+# Choose an available port (first free from 8000) unless the operator set one.
+# Stored as ELIBRARY_PORT in config.env; the launcher (run-server.sh) reads it.
+if ! grep -qE '^[[:space:]]*ELIBRARY_PORT[[:space:]]*=[[:space:]]*[0-9]+' "$CONFIG_FILE"; then
+    CHOSEN_PORT=$(python3 - <<'PY'
+import socket
+
+for port in range(8000, 8100):
+    s = socket.socket()
+    try:
+        s.bind(("", port))
+        print(port)
+        break
+    except OSError:
+        continue
+    finally:
+        s.close()
+PY
+)
+    [ -n "${CHOSEN_PORT:-}" ] || CHOSEN_PORT=8000
+    echo "ELIBRARY_PORT=${CHOSEN_PORT}" >> "$CONFIG_FILE"
+else
+    CHOSEN_PORT=$(grep -E '^[[:space:]]*ELIBRARY_PORT[[:space:]]*=' "$CONFIG_FILE" \
+        | tail -1 | sed -E 's/^[^=]+=//; s/[^0-9].*$//' | tr -dc '0-9')
+fi
+# Point the desktop launcher at the chosen port — the launcher URL moved into
+# /usr/bin/elibrary-open (reads ELIBRARY_PORT from config.env), so nothing to
+# rewrite in the .desktop file anymore. CHOSEN_PORT kept for reference.
+# Register eLM as the default viewer for EPUB + MOBI (spec 014). PDF is
+# deliberately opt-in via Settings — never hijack the system PDF handler
+# silently. xdg-mime defaults are per-user, so run as the service user.
+DESKTOP_USER=$(grep -E '^[[:space:]]*User=' /usr/lib/systemd/system/elibrary-manager.service 2>/dev/null \
+    | head -1 | cut -d= -f2 | tr -d '[:space:]')
+if [ -n "$DESKTOP_USER" ] && [ "$DESKTOP_USER" != "elibrary" ] \
+        && command -v xdg-mime >/dev/null 2>&1; then
+    DESKTOP_HOME=$(getent passwd "$DESKTOP_USER" 2>/dev/null | cut -d: -f6)
+    if [ -n "$DESKTOP_HOME" ] && [ -d "$DESKTOP_HOME" ]; then
+        for mime in application/epub+zip application/x-mobipocket-ebook; do
+            su -s /bin/sh "$DESKTOP_USER" -c \
+                "XDG_CONFIG_HOME='$DESKTOP_HOME/.config' xdg-mime default elibrary-manager.desktop $mime" \
+                >/dev/null 2>&1 || true
+        done
+        echo "Registered elibrary-manager as default viewer for EPUB and MOBI (${DESKTOP_USER})."
+        echo "PDF is opt-in: enable it in eLibrary Settings -> General -> Desktop Integration."
+    fi
+fi
+
+# Ensure an admin login exists. If neither ADMIN_PASSWORD nor
+# ADMIN_PASSWORD_HASH is active, generate a strong password so the operator can
+# actually sign in (it is printed in the banner below). Preserves any existing
+# password/hash on upgrade.
+if ! grep -qE '^[[:space:]]*ADMIN_PASSWORD(_HASH)?[[:space:]]*=[[:space:]]*[^[:space:]#]' "$CONFIG_FILE"; then
+    ADMIN_PASS=$(python3 -c 'import secrets, string; a = string.ascii_letters + string.digits; print("".join(secrets.choice(a) for _ in range(18)))' 2>/dev/null \
+        || tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 18)
+    [ -n "${ADMIN_PASS:-}" ] || ADMIN_PASS="changeme-now"
+    sed -i -E '/^[[:space:]]*#?[[:space:]]*ADMIN_PASSWORD=/d; /^[[:space:]]*#?[[:space:]]*ADMIN_USERNAME=/d' "$CONFIG_FILE"
+    printf 'ADMIN_USERNAME=admin\nADMIN_PASSWORD=%s\n' "$ADMIN_PASS" >> "$CONFIG_FILE"
+    chmod 640 "$CONFIG_FILE"
+    chown root:elibrary "$CONFIG_FILE"
+    GENERATED_ADMIN_PASS="$ADMIN_PASS"
+fi
+
+# Ensure the service user can read config.env regardless of which conditional
+# blocks ran above (ownership can be stale from an earlier install/user).
+chown root:elibrary "$CONFIG_FILE" 2>/dev/null || true
+chmod 640 "$CONFIG_FILE"
+
+# Fix venv python symlinks to point to system python3.12
+VENV_BIN="/opt/elibrary-manager/.venv/bin"
+if [ -d "$VENV_BIN" ]; then
+    # Remove stale symlinks and recreate pointing to system python
+    for target in python python3; do
+        if [ -L "$VENV_BIN/$target" ]; then
+            rm -f "$VENV_BIN/$target"
+            ln -sf /usr/bin/python3.12 "$VENV_BIN/$target"
+        fi
+    done
+fi
+
+# Reload systemd, enable and (re)start service
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable elibrary-manager >/dev/null 2>&1 || true
+systemctl restart elibrary-manager >/dev/null 2>&1 || true
+
+# Update desktop database and icon cache
+if command -v update-desktop-database > /dev/null 2>&1; then
+    update-desktop-database -q /usr/share/applications 2>/dev/null || true
+fi
+if command -v gtk-update-icon-cache > /dev/null 2>&1; then
+    gtk-update-icon-cache -q /usr/share/icons/hicolor 2>/dev/null || true
+fi
+
+echo ""
+echo "=== eLibrary Manager installed successfully ==="
+echo ""
+if [ -n "${GENERATED_ADMIN_PASS:-}" ]; then
+    echo "Admin login (generated — change in config.env to reset):"
+    echo "  URL      : http://localhost:${CHOSEN_PORT:-8000}/login"
+    echo "  Username : admin"
+    echo "  Password : ${GENERATED_ADMIN_PASS}"
+    echo ""
+fi
+echo "Next steps:"
+echo "  Add ebooks:        cp ~/Books/*.epub /var/lib/elibrary-manager/library/"
+echo "  Open in browser:   http://localhost:${CHOSEN_PORT:-8000}"
+echo "  Check status:      systemctl status elibrary-manager"
+echo "  View logs:         journalctl -u elibrary-manager -f"
+echo "  Edit config:       sudo nano /etc/elibrary-manager/config.env"
+echo ""
+
+#DEBHELPER#
+
+exit 0

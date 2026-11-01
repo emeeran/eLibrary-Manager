@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="200" height="300">
+  <defs>
+    <linearGradient id="cover-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a5568;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2d3748;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="200" height="300" fill="url(#cover-gradient)" rx="4" ry="4"/>
+
+  <!-- Book icon -->
+  <g transform="translate(70, 80)">
+    <rect x="0" y="0" width="60" height="80" fill="#e2e8f0" rx="2" ry="2" stroke="#cbd5e0" stroke-width="2"/>
+    <line x1="10" y1="15" x2="50" y2="15" stroke="#a0aec0" stroke-width="2"/>
+    <line x1="10" y1="25" x2="50" y2="25" stroke="#a0aec0" stroke-width="2"/>
+    <line x1="10" y1="35" x2="40" y2="35" stroke="#a0aec0" stroke-width="2"/>
+    <line x1="10" y1="45" x2="45" y2="45" stroke="#a0aec0" stroke-width="2"/>
+    <line x1="10" y1="55" x2="35" y2="55" stroke="#a0aec0" stroke-width="2"/>
+  </g>
+
+  <!-- Text -->
+  <text x="100" y="200" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#e2e8f0" text-anchor="middle">No Cover</text>
+  <text x="100" y="220" font-family="Arial, sans-serif" font-size="11" fill="#cbd5e0" text-anchor="middle">Available</text>
+</svg>

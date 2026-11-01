@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=eLibrary Manager
+GenericName=Ebook Reader
+Comment=Manage and read your ebook collection with AI-powered summaries
+Icon=elibrary-manager
+Exec=elibrary-open %u
+Terminal=false
+Categories=Office;Viewer;Literature;
+Keywords=ebook;reader;library;epub;pdf;mobi;
+MimeType=application/epub+zip;application/x-mobipocket-ebook;application/pdf;
+StartupNotify=true

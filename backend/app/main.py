@@ -1,0 +1,510 @@
+"""FastAPI application entry point."""
+
+import os
+from collections.abc import AsyncGenerator, Callable
+from contextlib import asynccontextmanager
+from urllib.parse import quote
+
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+
+from app.auth import SESSION_COOKIE_NAME, validate_session
+from app.config import get_config
+from app.database import db_manager, get_db
+from app.exceptions import (
+    DawnstarError,
+    EbookParsingError,
+    OpdsCatalogError,
+    RateLimitError,
+    ResourceNotFoundError,
+)
+from app.logging_config import get_logger, setup_logging
+from app.middleware import ProductionMiddleware
+
+# Import route modules
+from app.routes import (
+    ai_tts,
+    auth,
+    calibre,
+    categories,
+    hidden,
+    library,
+    maintenance,
+    opds,
+    reader,
+    settings,
+    stats,
+)
+from app.security_middleware import CSRFMiddleware, SecurityHeadersMiddleware
+from app.storage.nas import NASStorageBackend
+
+# Setup logging
+setup_logging()
+logger = get_logger(__name__)
+config = get_config()
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    """Session-based authentication middleware.
+
+    Protects /api/* routes (except /api/auth/*) and page routes.
+    Skips auth for static files, health check, and auth endpoints.
+    """
+
+    # Paths that never require authentication
+    PUBLIC_PATHS = {
+        "/login",
+        "/api/health",
+        "/api/auth/login",
+        "/api/auth/logout",
+        "/api/auth/status",
+    }
+
+    # Prefixes that never require authentication
+    PUBLIC_PREFIXES = (
+        "/static/",
+        "/covers/",
+        "/book-images/",
+        "/api/auth/",
+    )
+
+    async def dispatch(self, request: StarletteRequest, call_next: Callable) -> Response:
+        # Skip auth in testing mode
+        if os.environ.get("APP_ENV") == "testing":
+            return await call_next(request)
+
+        path = request.url.path
+
+        # Skip auth for public paths
+        if path in self.PUBLIC_PATHS:
+            return await call_next(request)
+
+        # Skip auth for public prefixes
+        for prefix in self.PUBLIC_PREFIXES:
+            if path.startswith(prefix):
+                return await call_next(request)
+
+        # Check session cookie
+        token = request.cookies.get(SESSION_COOKIE_NAME)
+        if token and await validate_session(token):
+            return await call_next(request)
+
+        # API routes return 401
+        if path.startswith("/api/"):
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"error": "Authentication required"},
+            )
+
+        # Page routes redirect to login, preserving the target so deep links
+        # (e.g. the spec-014 default-viewer `/open?path=...`) survive a cold
+        # session and land back where the click intended after sign-in.
+        target = path
+        if request.url.query:
+            target = f"{path}?{request.url.query}"
+        return RedirectResponse(url=f"/login?next={quote(target, safe='')}", status_code=302)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan manager.
+
+    Handles startup and shutdown events including NAS health monitoring.
+    """
+    # Startup
+    logger.info("Starting eBook Manager")
+
+    # Initialize async engine and create all tables first
+    await db_manager.init_db()
+    logger.info("Database initialized")
+
+    # Run Alembic migrations (sync, in thread to avoid blocking event loop)
+    import asyncio
+
+    from alembic.config import Config as AlembicConfig
+
+    from alembic import command
+
+    alembic_cfg = AlembicConfig("alembic.ini")
+    db_url = config.database_url
+    if "+aiosqlite:" in db_url:
+        db_url = db_url.replace("+aiosqlite:", ":")
+    alembic_cfg.set_main_option("sqlalchemy.url", db_url)
+
+    def _run_alembic() -> None:
+        from alembic.script import ScriptDirectory
+
+        script = ScriptDirectory.from_config(alembic_cfg)
+        head = script.get_current_head()
+        # Inspect existing schema state to decide stamp vs upgrade.
+        from sqlalchemy import create_engine
+        from sqlalchemy import inspect as sa_inspect
+
+        engine = create_engine(db_url)
+        inspector = sa_inspect(engine)
+        tables = inspector.get_table_names()
+        engine.dispose()
+        if not tables:
+            # Fresh DB — let migrations create the schema from scratch.
+            logger.info("Fresh database — applying migrations to head: %s", head)
+            command.upgrade(alembic_cfg, "head")
+        elif "alembic_version" not in tables:
+            # Existing pre-Alembic DB — stamp with current head so future
+            # upgrades apply incrementally.
+            logger.info("Stamping existing schema at Alembic head: %s", head)
+            command.stamp(alembic_cfg, head)
+        else:
+            # Apply any pending migrations.
+            command.upgrade(alembic_cfg, "head")
+
+    await asyncio.to_thread(_run_alembic)
+    logger.info("Database migrations applied")
+
+    # Start NAS health monitor if enabled (from DB settings, fallback to env)
+    from app.repositories import SettingsRepository
+
+    async with db_manager.session_factory() as db_session:
+        settings_repo = SettingsRepository(db_session)
+        all_settings = await settings_repo.get_all()
+
+    nas_enabled_env = config.nas_enabled and config.nas_mount_path
+    nas_enabled_db = all_settings.get("nas_enabled", "").lower() in ("true", "1", "yes")
+    nas_mount_db = all_settings.get("nas_mount_path", "")
+    nas_host_db = all_settings.get("nas_host", "")
+
+    if nas_enabled_db and nas_mount_db:
+        from app.nas_health import NASHealthMonitor
+        from app.storage.nas import NASStorageBackend
+
+        nas_backend = NASStorageBackend(
+            mount_path=nas_mount_db,
+            host=nas_host_db,
+        )
+        nas_monitor = NASHealthMonitor(backend=nas_backend, check_interval=60)
+        await nas_monitor.start()
+        app.state.nas_monitor = nas_monitor
+        app.state.nas_backend = nas_backend
+        logger.info(f"NAS health monitor initialized from DB: {nas_host_db}:{nas_mount_db}")
+    elif nas_enabled_env:
+        from app.nas_health import NASHealthMonitor
+        from app.storage.nas import NASStorageBackend
+
+        nas_backend = NASStorageBackend(
+            mount_path=config.nas_mount_path,
+            host=config.nas_host,
+        )
+        nas_monitor = NASHealthMonitor(backend=nas_backend, check_interval=60)
+        await nas_monitor.start()
+        app.state.nas_monitor = nas_monitor
+        app.state.nas_backend = nas_backend
+        logger.info(
+            f"NAS health monitor initialized from env: {config.nas_host}:{config.nas_mount_path}"
+        )
+    else:
+        app.state.nas_monitor = None
+        app.state.nas_backend = None
+
+    # Calibre auto-sync monitor (spec 011 v1.2): runs only if both a saved
+    # library path and a non-zero interval are configured.
+    calibre_path_db = all_settings.get("calibre_library_path", "")
+    calibre_interval_db = 0
+    try:
+        calibre_interval_db = int(
+            all_settings.get("calibre_auto_sync_interval_minutes", "0") or "0"
+        )
+    except (TypeError, ValueError):
+        calibre_interval_db = 0
+    if calibre_interval_db > 0 and calibre_path_db:
+        from app.services.calibre_sync_monitor import CalibreSyncMonitor
+
+        calibre_monitor = CalibreSyncMonitor(interval_minutes=calibre_interval_db)
+        await calibre_monitor.start()
+        app.state.calibre_sync_monitor = calibre_monitor
+        logger.info("Calibre auto-sync monitor initialized: %s", calibre_path_db)
+    else:
+        app.state.calibre_sync_monitor = None
+
+    yield
+
+    # Shutdown
+    if hasattr(app.state, "nas_monitor") and app.state.nas_monitor:
+        await app.state.nas_monitor.stop()
+    if getattr(app.state, "calibre_sync_monitor", None):
+        await app.state.calibre_sync_monitor.stop()
+    logger.info("Shutting down eBook Manager")
+    await db_manager.close()
+
+
+# Create FastAPI app
+app = FastAPI(
+    title="eLibrary Manager",
+    description="Lightweight ebook manager with AI summarization",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+# Add middleware (order matters: outermost first in add_middleware = innermost at runtime)
+# Runtime order: ProductionMiddleware -> SecurityHeaders -> AuthMiddleware -> GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=500)  # Compress responses > 500 bytes
+app.add_middleware(AuthMiddleware)  # Session-based auth
+app.add_middleware(CSRFMiddleware)  # Same-origin check for mutating requests
+app.add_middleware(SecurityHeadersMiddleware)  # CSP + browser security headers
+app.add_middleware(ProductionMiddleware)  # Logging + caching + rate limiting (outermost)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
+app.mount("/covers", StaticFiles(directory=config.covers_path), name="covers")
+app.mount("/book-images", StaticFiles(directory=config.book_images_path), name="book-images")
+
+# Setup templates
+templates = Jinja2Templates(directory="frontend/templates")
+
+# Include route modules
+app.include_router(auth.router)
+app.include_router(library.router)
+app.include_router(calibre.router)
+app.include_router(calibre.web_router)
+app.include_router(reader.router)
+app.include_router(settings.router)
+app.include_router(ai_tts.router)
+app.include_router(stats.router)
+app.include_router(maintenance.router)
+app.include_router(categories.router)
+app.include_router(hidden.router)
+app.include_router(opds.router)
+
+
+@app.get("/api/health")
+async def health_check(db: AsyncSession = Depends(get_db)) -> JSONResponse:
+    """Readiness probe: DB always, NAS mount when configured.
+
+    Returns 503 when a checked dependency is down so orchestrators
+    (Docker healthcheck, monitoring) can detect a running-but-degraded
+    process instead of a falsely healthy one. AI providers are
+    deliberately not probed — an external network call here would flap
+    the service health over transient API issues.
+
+    Returns:
+        200 with ``{"status": "ok", "db": ..., "nas": ...}`` when healthy,
+        503 with ``"degraded"`` otherwise. ``nas`` is ``null`` when no NAS
+        backend is configured.
+    """
+    checks: dict[str, bool | None] = {}
+    try:
+        await db.execute(text("SELECT 1"))
+        checks["db"] = True
+    except Exception:
+        logger.exception("Health check: database unreachable")
+        checks["db"] = False
+
+    nas_backend: NASStorageBackend | None = getattr(app.state, "nas_backend", None)
+    if nas_backend is None:
+        checks["nas"] = None  # not configured — nothing to probe
+    else:
+        result = await nas_backend.health_check()
+        checks["nas"] = bool(result.get("healthy"))
+
+    healthy = checks["db"] is True and checks["nas"] is not False
+    return JSONResponse(
+        status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"status": "ok" if healthy else "degraded", **checks},
+    )
+
+
+# Exception handlers (specific before generic)
+@app.exception_handler(ResourceNotFoundError)
+async def not_found_handler(request: Request, exc: ResourceNotFoundError) -> JSONResponse:
+    """Handle resource not found errors."""
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"error": "Not Found", "message": exc.message},
+    )
+
+
+@app.exception_handler(EbookParsingError)
+async def parsing_exception_handler(request: Request, exc: EbookParsingError) -> JSONResponse:
+    """Handle ebook parsing errors — file missing, corrupted, DRM, etc."""
+    msg = exc.message.lower()
+    if "no such file" in msg or "not found" in msg or "does not exist" in msg:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={
+                "error": "File Not Found",
+                "message": "The book file could not be found. It may have been moved or deleted.",
+            },
+        )
+    if config.debug:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": type(exc).__name__, "message": exc.message, "details": exc.details},
+        )
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"error": "Parsing Error", "message": "Failed to process the ebook file"},
+    )
+
+
+@app.exception_handler(RateLimitError)
+async def rate_limit_handler(request: Request, exc: RateLimitError) -> JSONResponse:
+    """Handle rate limit errors."""
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        content={"error": "Rate Limit Exceeded", "message": exc.message},
+    )
+
+
+@app.exception_handler(OpdsCatalogError)
+async def opds_catalog_error_handler(
+    request: Request, exc: OpdsCatalogError
+) -> JSONResponse:
+    """Handle OPDS catalog fetch/parse failures — upstream, not local (502)."""
+    logger.warning("OpdsCatalogError on %s %s: %s", request.method, request.url.path, exc.message)
+    return JSONResponse(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        content={"error": "Catalog Unavailable", "message": exc.message},
+    )
+
+
+@app.exception_handler(DawnstarError)
+async def dawnstar_exception_handler(request: Request, exc: DawnstarError) -> JSONResponse:
+    """Handle all other Dawnstar-specific exceptions.
+
+    Logs the full traceback (``logger.exception``) so the root cause is
+    recoverable from journald — previously only a one-line message was logged,
+    which made production failures (e.g. settings save errors) impossible to
+    diagnose. The client response stays generic in production for security.
+    """
+    logger.exception(
+        "DawnstarError on %s %s: %s — %s",
+        request.method,
+        request.url.path,
+        exc.message,
+        exc.details,
+    )
+    if config.debug:
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"error": type(exc).__name__, "message": exc.message, "details": exc.details},
+        )
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"error": "Request Failed", "message": "An error occurred processing the request"},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all so unexpected errors are logged with a full traceback.
+
+    Without this, a non-Dawnstar exception (e.g. a programming error in a
+    route, or a SQLAlchemy IntegrityError raised below the repository layer)
+    surfaces as a bare 500 with no traceback in journald — which previously
+    made production failures invisible. We log the full traceback here and
+    return a generic 500 (the detail is hidden from clients in production for
+    security; check journald for the traceback).
+    """
+    logger.exception(
+        "Unhandled exception on %s %s: %s",
+        request.method,
+        request.url.path,
+        exc,
+    )
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"error": "Server Error", "message": "An unexpected error occurred"},
+    )
+
+
+@app.get("/", response_class=HTMLResponse)
+async def library_home(request: Request) -> HTMLResponse:
+    """Render library home page."""
+    return templates.TemplateResponse("library.html", {"request": request})
+
+
+@app.get("/open", response_class=RedirectResponse)
+async def open_by_path(
+    path: str = Query(..., min_length=1, max_length=1000),
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """Desktop default-viewer bridge (spec 014): resolve a file path to the reader.
+
+    The ``elibrary-open`` wrapper turns a double-clicked file into
+    ``/open?path=<abs>``. Mirrors ``/calibre/launch``: every branch is a
+    302, never a dead-end 404. Requires an authenticated session — the auth
+    middleware sends cold sessions to ``/login?next=...`` and they land
+    back here.
+
+    Args:
+        path: Absolute filesystem path of the ebook file.
+        db: Database session
+
+    Returns:
+        302 to ``/reader/{id}``, or to a library banner on miss/failure.
+    """
+    # abspath (not resolve): the index stores scanner-style absolute paths,
+    # which must not be symlink-resolved away from a match.
+    clean = os.path.abspath(path)
+    ext = os.path.splitext(clean)[1].lower()
+    if ext not in {".epub", ".pdf", ".mobi"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported file format: {ext}")
+
+    from app.repositories import BookRepository
+
+    book = await BookRepository(db).get_by_path(clean)
+
+    if book is None:
+        from app.services import LibraryService
+
+        try:
+            # Metadata-only import: indexes the path, never copies the file.
+            book = await LibraryService(db).import_book(clean)
+        except Exception:
+            logger.warning("Default-viewer open: import failed for %s", clean, exc_info=True)
+            return RedirectResponse(
+                url=f"/library?calibre_pending={quote(clean)}", status_code=302
+            )
+
+    if book.is_hidden:
+        # Same no-bypass rule as /calibre/launch
+        return RedirectResponse(url="/library?calibre_hidden=1", status_code=302)
+    return RedirectResponse(url=f"/reader/{book.id}", status_code=302)
+
+
+@app.get("/reader/{book_id}", response_class=HTMLResponse)
+async def reader_page(book_id: int, request: Request) -> HTMLResponse:
+    """Render reader page for a book.
+
+    Args:
+        book_id: Book primary key
+        request: FastAPI request
+    """
+    return templates.TemplateResponse("reader.html", {"request": request, "book_id": book_id})
+
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request) -> HTMLResponse:
+    """Render settings page.
+
+    Args:
+        request: FastAPI request
+    """
+    return templates.TemplateResponse("settings.html", {"request": request})
+
+
+@app.get("/maintenance", response_class=HTMLResponse)
+async def maintenance_page(request: Request) -> HTMLResponse:
+    """Render maintenance page."""
+    return templates.TemplateResponse("maintenance.html", {"request": request})
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app.main:app", host=config.app_host, port=config.app_port, reload=config.debug)

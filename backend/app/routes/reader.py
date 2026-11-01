@@ -1,0 +1,897 @@
+"""Reader routes for chapter content, bookmarks, notes, and annotations."""
+
+import json
+from datetime import UTC, datetime
+
+import nh3
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.database import get_db
+from app.exceptions import ResourceNotFoundError
+from app.logging_config import get_logger
+from app.models import Book
+from app.schemas import (
+    AnnotationCreate,
+    AnnotationResponse,
+    AnnotationsResponse,
+    BookmarkCreate,
+    BookmarkResponse,
+    BookmarksResponse,
+    NoteCreate,
+    NoteResponse,
+    NotesResponse,
+    TOCResponse,
+)
+from app.services import LibraryService, ReaderService
+
+logger = get_logger(__name__)
+
+# ponytail: ceiling for TOC-generated bookmarks — beyond this the panel
+# becomes noise (page-per-chapter PDF fallbacks). Raise or paginate if a
+# real use case wants full 500-page bookmark sets.
+MAX_GENERATED_BOOKMARKS = 200
+
+# Allowed HTML tags for chapter content rendering
+_SANITIZATION_TAGS = {
+    "a",
+    "abbr",
+    "b",
+    "blockquote",
+    "br",
+    "code",
+    "div",
+    "em",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "hr",
+    "i",
+    "img",
+    "li",
+    "ol",
+    "p",
+    "pre",
+    "span",
+    "strong",
+    "sub",
+    "sup",
+    "table",
+    "tbody",
+    "td",
+    "tfoot",
+    "th",
+    "thead",
+    "tr",
+    "ul",
+    "dl",
+    "dt",
+    "dd",
+    "figure",
+    "figcaption",
+}
+_SANITIZATION_ATTRIBUTES = {
+    "a": {"href", "title"},
+    "img": {"src", "alt", "loading", "width", "height"},
+    "td": {"colspan", "rowspan"},
+    "th": {"colspan", "rowspan"},
+}
+
+
+def _sanitize_html(html_content: str) -> str:
+    """Sanitize HTML content to prevent XSS while preserving reading-safe tags."""
+    return nh3.clean(
+        html_content,
+        tags=_SANITIZATION_TAGS,
+        attributes=_SANITIZATION_ATTRIBUTES,
+        clean_content_tags={"script", "style"},
+    )
+
+
+router = APIRouter(prefix="/api", tags=["reader"])
+
+
+async def _check_nas_available(book: Book, request: Request) -> JSONResponse | None:
+    """Check if a NAS-sourced book is accessible.
+
+    Returns a JSONResponse error if NAS is offline, or None if OK.
+    """
+    if getattr(book, "storage_type", "local") != "nas":
+        return None
+
+    nas_backend = getattr(request.app.state, "nas_backend", None)
+    if nas_backend and nas_backend.is_healthy:
+        return None
+
+    # NAS is offline — check offline cache
+    from app.nas_cache import get_nas_cache
+
+    cache = get_nas_cache()
+    if cache and await cache.get(book.path):
+        return None  # Available from cache
+
+    return JSONResponse(
+        status_code=503,
+        content={
+            "error": "NAS Offline",
+            "message": "The NAS is currently unreachable and this book is not cached locally. "
+            "Connect to your network or make the book available offline first.",
+            "storage_type": "nas",
+        },
+    )
+
+
+@router.get("/books/{book_id}/chapter/{chapter_index}")
+async def get_chapter(
+    book_id: int,
+    chapter_index: int,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Get chapter content.
+
+    Args:
+        book_id: Book primary key
+        chapter_index: Zero-based chapter index
+        request: FastAPI request (for NAS health check)
+        response: FastAPI response object
+        db: Database session
+
+    Returns:
+        Chapter content dictionary
+    """
+    service = ReaderService(db)
+
+    # NAS availability check
+    from app.repositories import BookRepository
+
+    book = await BookRepository(db).get_by_id(book_id)
+    if book:
+        nas_error = await _check_nas_available(book, request)
+        if nas_error:
+            return nas_error
+
+    content, title, total = await service.get_chapter_content(book_id, chapter_index)
+
+    # Sanitize chapter HTML to prevent XSS from malicious ebook content
+    content = _sanitize_html(content)
+
+    # Auto-cache NAS books for offline access
+    if book and getattr(book, "storage_type", "local") == "nas":
+        from app.nas_cache import get_nas_cache
+
+        cache = get_nas_cache()
+        if cache:
+            await cache.ensure_cached(book.path)
+
+    # Estimate page count from content length
+    from app.reader_engine import ReaderEngine
+
+    estimated_pages = ReaderEngine.estimate_chapter_pages(content)
+
+    # Aggressive caching for chapter content (1 hour)
+    response.headers["Cache-Control"] = "public, max-age=3600, immutable"
+    response.headers["ETag"] = f'"book-{book_id}-ch-{chapter_index}"'
+
+    return {
+        "content": content,
+        "title": title,
+        "total_chapters": total,
+        "current_chapter": chapter_index,
+        "estimated_pages": estimated_pages,
+    }
+
+
+@router.get("/books/{book_id}/page-image/{page_index}")
+async def get_page_image(
+    book_id: int, page_index: int, request: Request, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Render a PDF page as an image for faithful layout reproduction.
+
+    Args:
+        book_id: Book primary key.
+        page_index: Zero-based page index.
+        request: FastAPI request (for NAS health check).
+        db: Database session.
+
+    Returns:
+        Dictionary with image URL.
+    """
+    from app.repositories import BookRepository
+
+    repo = BookRepository(db)
+    book = await repo.get_by_id(book_id)
+    if not book:
+        raise ResourceNotFoundError("Book not found", {"book_id": book_id})
+
+    nas_error = await _check_nas_available(book, request)
+    if nas_error:
+        return nas_error
+
+    from app.config import get_config
+    from app.parsers import PDFParser
+
+    config = get_config()
+    parser = PDFParser(
+        covers_path=config.covers_path,
+        book_images_path=config.book_images_path,
+    )
+    image_url = await parser.render_page_as_image(book.path, page_index)
+    if not image_url:
+        raise ResourceNotFoundError(
+            f"Page {page_index} not found", {"book_id": book_id, "page_index": page_index}
+        )
+
+    return {"image_url": image_url}
+
+
+@router.get("/books/{book_id}/chapters")
+async def get_batch_chapters(
+    book_id: int, start: int = 0, end: int = 5, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Get multiple chapters in a single request for continuous scroll.
+
+    Args:
+        book_id: Book primary key.
+        start: Start chapter index (inclusive).
+        end: End chapter index (exclusive).
+        db: Database session.
+
+    Returns:
+        Dictionary with list of chapters.
+    """
+    from app.reader_engine import ReaderEngine, get_reader_engine
+
+    # Get book path
+    from app.repositories import BookRepository
+
+    repo = BookRepository(db)
+    book = await repo.get_by_id(book_id)
+    if not book:
+        raise ResourceNotFoundError("Book not found", {"book_id": book_id})
+
+    engine = get_reader_engine()
+    chapters_data = []
+    for idx in range(start, min(end, 100)):  # Cap at 100 chapters per request
+        try:
+            content, title, total = await engine.get_chapter_content(book.path, idx)
+            chapters_data.append(
+                {
+                    "index": idx,
+                    "title": title,
+                    "content": _sanitize_html(content),
+                    "estimated_pages": ReaderEngine.estimate_chapter_pages(content),
+                }
+            )
+        except Exception:
+            break
+
+    return {"chapters": chapters_data, "total_chapters": total if chapters_data else 0}
+
+
+@router.get("/books/{book_id}/summary/{chapter_index}")
+async def get_summary(
+    book_id: int, chapter_index: int, refresh: bool = False, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Get chapter summary.
+
+    Args:
+        book_id: Book primary key
+        chapter_index: Chapter index
+        refresh: Force regeneration
+        db: Database session
+
+    Returns:
+        Summary dictionary
+    """
+    from app.exceptions import AIServiceError
+
+    service = ReaderService(db)
+    try:
+        summary = await service.get_chapter_summary(book_id, chapter_index, force_refresh=refresh)
+    except AIServiceError as e:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail=str(e)) from None
+
+    return {
+        "summary": summary.summary_text,
+        "provider": summary.provider,
+        "created_at": summary.created_at.isoformat(),
+    }
+
+
+@router.get("/books/{book_id}/summary")
+async def get_book_summary(
+    book_id: int, refresh: bool = False, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Get entire book summary.
+
+    Args:
+        book_id: Book primary key
+        refresh: Force regeneration
+        db: Database session
+
+    Returns:
+        Book summary dictionary
+    """
+    from app.exceptions import AIServiceError
+
+    service = ReaderService(db)
+    try:
+        summary = await service.get_book_summary(book_id, force_refresh=refresh)
+    except AIServiceError as e:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail=str(e)) from None
+
+    return {
+        "summary": summary.summary_text,
+        "provider": summary.provider,
+        "created_at": summary.created_at.isoformat(),
+    }
+
+
+@router.get("/books/{book_id}/toc", response_model=TOCResponse)
+async def get_table_of_contents(book_id: int, db: AsyncSession = Depends(get_db)) -> TOCResponse:
+    """Get table of contents for a book.
+
+    Args:
+        book_id: Book primary key
+        db: Database session
+
+    Returns:
+        Table of contents with chapters
+    """
+    service = ReaderService(db)
+    toc_items = await service.get_table_of_contents(book_id)
+    book = await LibraryService(db).get_book(book_id)
+
+    # Use stored total, or derive from the maximum TOC index + 1
+    total = book.total_chapters
+    if not total and toc_items:
+        # For PDFs where total_chapters wasn't stored, derive from TOC indices
+        max_idx = max(item["index"] for item in toc_items)
+        total = max_idx + 1
+
+    return TOCResponse(items=toc_items, total_chapters=total)
+
+
+# ============================================
+# BOOKMARK ENDPOINTS
+# ============================================
+
+
+@router.get("/books/{book_id}/bookmarks", response_model=BookmarksResponse)
+async def list_bookmarks(book_id: int, db: AsyncSession = Depends(get_db)) -> BookmarksResponse:
+    """List all bookmarks for a book.
+
+    Args:
+        book_id: Book primary key
+        db: Database session
+
+    Returns:
+        List of bookmarks
+    """
+    service = ReaderService(db)
+    bookmarks = await service.list_bookmarks(book_id)
+    return BookmarksResponse(bookmarks=[BookmarkResponse.model_validate(b) for b in bookmarks])
+
+
+@router.post("/books/{book_id}/bookmarks", response_model=BookmarkResponse)
+async def create_bookmark(
+    book_id: int, bookmark_data: BookmarkCreate, db: AsyncSession = Depends(get_db)
+) -> BookmarkResponse:
+    """Create a new bookmark.
+
+    Args:
+        book_id: Book primary key
+        bookmark_data: Bookmark data
+        db: Database session
+
+    Returns:
+        Created bookmark
+    """
+    service = ReaderService(db)
+    bookmark = await service.create_bookmark(
+        book_id=book_id,
+        chapter_index=bookmark_data.chapter_index,
+        position_in_chapter=bookmark_data.position_in_chapter,
+        title=bookmark_data.title,
+        notes=bookmark_data.notes,
+    )
+    return BookmarkResponse.model_validate(bookmark)
+
+
+@router.post("/books/{book_id}/annotations/embed")
+async def embed_annotations_to_file(
+    book_id: int, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Write highlights/notes into the book file itself (spec 005 v1.1).
+
+    EPUB: quoted text is wrapped with marked-up spans; PDF: native highlight
+    and comment annotations. Explicit operator action — the database remains
+    the in-app source of truth. Safe to re-run: already-embedded annotations
+    are skipped.
+
+    Args:
+        book_id: Book primary key
+        db: Database session
+
+    Returns:
+        {"format": ..., "embedded": n, "skipped": m}
+    """
+    import asyncio
+
+    from sqlalchemy import select as sa_select
+
+    from app.models import Annotation, Note
+    from app.repositories import BookRepository
+    from app.services.annotation_embedder import EmbedItem, embed_annotations_into_file
+
+    book = await BookRepository(db).get_by_id(book_id)
+    if not book:
+        raise ResourceNotFoundError("Book not found", {"book_id": book_id})
+
+    items: list[EmbedItem] = []
+    annotations = (
+        await db.execute(sa_select(Annotation).where(Annotation.book_id == book_id))
+    ).scalars().all()
+    for a in annotations:
+        if a.text and a.text.strip():
+            items.append(
+                EmbedItem(
+                    key=f"a{a.id}",
+                    quoted=a.text,
+                    note=a.note or "",
+                    color=a.color or "yellow",
+                    style=a.style or "highlight",
+                )
+            )
+    notes = (
+        await db.execute(sa_select(Note).where(Note.book_id == book_id))
+    ).scalars().all()
+    for n in notes:
+        if n.quoted_text and n.quoted_text.strip():
+            items.append(
+                EmbedItem(key=f"n{n.id}", quoted=n.quoted_text, note=n.content, color=n.color or "yellow")
+            )
+
+    if not items:
+        raise HTTPException(
+            status_code=422, detail="No notes or annotations to embed for this book"
+        )
+
+    from app.services.annotation_embedder import UnsupportedFormatError
+
+    try:
+        result = await asyncio.to_thread(
+            embed_annotations_into_file, book.format, book.path, items
+        )
+    except UnsupportedFormatError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    except OSError as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not write to the book file: {e}",
+        ) from e
+
+    return result
+
+
+@router.post("/books/{book_id}/bookmarks/generate")
+async def generate_bookmarks(
+    book_id: int, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Seed bookmarks from the book's table of contents (spec 004 v1.1).
+
+    Only fires when the book has NO bookmarks yet — the operator's own
+    reading-position bookmarks are never overwritten. Every format's
+    `get_table_of_contents` already falls back to chapter/page metadata,
+    so "TOC or metadata" is one call.
+
+    Args:
+        book_id: Book primary key
+        db: Database session
+
+    Returns:
+        ``{"created": N, "total_available": M}`` — N rows inserted (capped),
+        M TOC entries found.
+    """
+    service = ReaderService(db)
+
+    existing = await service.list_bookmarks(book_id)
+    if existing:
+        raise HTTPException(status_code=409, detail="Book already has bookmarks")
+
+    toc_items = await service.get_table_of_contents(book_id)
+    if not toc_items:
+        raise HTTPException(
+            status_code=422, detail="No table of contents available for this book"
+        )
+
+    # Reverse insert: the bookmarks list reads newest-first, so writing the
+    # last TOC entry first makes chapter 1 appear at the top of the panel.
+    capped = toc_items[:MAX_GENERATED_BOOKMARKS]
+    for item in reversed(capped):
+        await service.create_bookmark(
+            book_id=book_id,
+            chapter_index=item["index"],
+            position_in_chapter=0,
+            title=item["title"],
+        )
+
+    logger.info(
+        "Generated %d bookmarks from TOC for book %s (%d TOC entries)",
+        len(capped),
+        book_id,
+        len(toc_items),
+    )
+    return {"created": len(capped), "total_available": len(toc_items)}
+
+
+@router.delete("/bookmarks/{bookmark_id}")
+async def delete_bookmark(bookmark_id: int, db: AsyncSession = Depends(get_db)) -> dict:
+    """Delete a bookmark.
+
+    Args:
+        bookmark_id: Bookmark primary key
+        db: Database session
+
+    Returns:
+        Success message
+    """
+    service = ReaderService(db)
+    await service.delete_bookmark(bookmark_id)
+    return {"message": "Bookmark deleted successfully"}
+
+
+@router.get("/bookmarks/{bookmark_id}/jump")
+async def jump_to_bookmark(bookmark_id: int, db: AsyncSession = Depends(get_db)) -> dict:
+    """Get bookmark data for navigation.
+
+    Args:
+        bookmark_id: Bookmark primary key
+        db: Database session
+
+    Returns:
+        Bookmark navigation data
+    """
+    service = ReaderService(db)
+    bookmark = await service.get_bookmark(bookmark_id)
+    return {
+        "chapter_index": bookmark.chapter_index,
+        "position_in_chapter": bookmark.position_in_chapter,
+    }
+
+
+# ============================================
+# NOTE ENDPOINTS
+# ============================================
+
+
+@router.get("/books/{book_id}/notes", response_model=NotesResponse)
+async def list_notes(book_id: int, db: AsyncSession = Depends(get_db)) -> NotesResponse:
+    """List all notes for a book.
+
+    Args:
+        book_id: Book primary key
+        db: Database session
+
+    Returns:
+        List of notes
+    """
+    service = ReaderService(db)
+    notes = await service.list_notes(book_id)
+    return NotesResponse(notes=[NoteResponse.model_validate(n) for n in notes])
+
+
+@router.post("/books/{book_id}/notes", response_model=NoteResponse)
+async def create_note(
+    book_id: int, note_data: NoteCreate, db: AsyncSession = Depends(get_db)
+) -> NoteResponse:
+    """Create a new note.
+
+    Args:
+        book_id: Book primary key
+        note_data: Note data
+        db: Database session
+
+    Returns:
+        Created note
+    """
+    service = ReaderService(db)
+    note = await service.create_note(
+        book_id=book_id,
+        chapter_index=note_data.chapter_index,
+        position_in_chapter=note_data.position_in_chapter,
+        content=note_data.content,
+        color=note_data.color,
+        quoted_text=note_data.quoted_text,
+    )
+    return NoteResponse.model_validate(note)
+
+
+@router.delete("/notes/{note_id}")
+async def delete_note(note_id: int, db: AsyncSession = Depends(get_db)) -> dict:
+    """Delete a note.
+
+    Args:
+        note_id: Note primary key
+        db: Database session
+
+    Returns:
+        Success message
+    """
+    service = ReaderService(db)
+    await service.delete_note(note_id)
+    return {"message": "Note deleted successfully"}
+
+
+# ============================================
+# ANNOTATION ENDPOINTS
+# ============================================
+
+
+@router.get("/books/{book_id}/annotations", response_model=AnnotationsResponse)
+async def list_annotations(
+    book_id: int, chapter_index: int | None = None, db: AsyncSession = Depends(get_db)
+) -> AnnotationsResponse:
+    """List annotations for a book.
+
+    Args:
+        book_id: Book primary key
+        chapter_index: Optional chapter filter
+        db: Database session
+
+    Returns:
+        List of annotations
+    """
+    service = ReaderService(db)
+    annotations = await service.list_annotations(book_id, chapter_index)
+    return AnnotationsResponse(
+        annotations=[AnnotationResponse.model_validate(a) for a in annotations]
+    )
+
+
+@router.post("/books/{book_id}/annotations", response_model=AnnotationResponse)
+async def create_annotation(
+    book_id: int, annotation_data: AnnotationCreate, db: AsyncSession = Depends(get_db)
+) -> AnnotationResponse:
+    """Create a new annotation.
+
+    Args:
+        book_id: Book primary key
+        annotation_data: Annotation data
+        db: Database session
+
+    Returns:
+        Created annotation
+    """
+    service = ReaderService(db)
+    annotation = await service.create_annotation(
+        book_id=book_id,
+        chapter_index=annotation_data.chapter_index,
+        start_position=annotation_data.start_position,
+        end_position=annotation_data.end_position,
+        text=annotation_data.text,
+        color=annotation_data.color,
+        style=annotation_data.style,
+        note=annotation_data.note,
+    )
+    return AnnotationResponse.model_validate(annotation)
+
+
+@router.delete("/annotations/{annotation_id}")
+async def delete_annotation(annotation_id: int, db: AsyncSession = Depends(get_db)) -> dict:
+    """Delete an annotation.
+
+    Args:
+        annotation_id: Annotation primary key
+        db: Database session
+
+    Returns:
+        Success message
+    """
+    service = ReaderService(db)
+    await service.delete_annotation(annotation_id)
+    return {"message": "Annotation deleted successfully"}
+
+
+# ============================================
+# EXPORT ENDPOINT
+# ============================================
+
+
+@router.get("/books/{book_id}/export")
+async def export_book_data(
+    book_id: int,
+    format: str = "markdown",
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Export bookmarks, notes, and annotations.
+
+    Args:
+        book_id: Book primary key
+        format: "markdown" (default, human-readable) or "json" (structured,
+            machine-readable — suitable for backup and re-import).
+        db: Database session
+
+    Returns:
+        Markdown body (``{book_title, markdown}`` JSON) or a JSON file download.
+
+    Raises:
+        ResourceNotFoundError: If the book does not exist.
+        HTTPException: If ``format`` is not one of markdown|json.
+    """
+    service = ReaderService(db)
+    book = await service.book_repo.get_by_id_or_404(book_id)
+
+    bookmarks = await service.list_bookmarks(book_id)
+    notes = await service.list_notes(book_id)
+    annotations = await service.list_annotations(book_id)
+
+    if format == "json":
+        payload = {
+            "book": {
+                "id": book.id,
+                "title": book.title,
+                "author": book.author,
+            },
+            "exported_at": datetime.now(UTC).isoformat(),
+            "bookmarks": [
+                {
+                    "chapter_index": bm.chapter_index,
+                    "position_in_chapter": bm.position_in_chapter,
+                    "title": bm.title,
+                    "notes": bm.notes,
+                    "created_at": bm.created_at.isoformat() if bm.created_at else None,
+                }
+                for bm in bookmarks
+            ],
+            "notes": [
+                {
+                    "chapter_index": n.chapter_index,
+                    "position_in_chapter": n.position_in_chapter,
+                    "quoted_text": n.quoted_text,
+                    "content": n.content,
+                    "color": n.color,
+                    "created_at": n.created_at.isoformat() if n.created_at else None,
+                    "updated_at": n.updated_at.isoformat() if n.updated_at else None,
+                }
+                for n in notes
+            ],
+            "annotations": [
+                {
+                    "chapter_index": a.chapter_index,
+                    "start_position": a.start_position,
+                    "end_position": a.end_position,
+                    "text": a.text,
+                    "color": a.color,
+                    "note": a.note,
+                    "created_at": a.created_at.isoformat() if a.created_at else None,
+                }
+                for a in annotations
+            ],
+        }
+        safe_title = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in book.title)[
+            :80
+        ] or str(book.id)
+        body = json.dumps(payload, indent=2, ensure_ascii=False)
+        return Response(
+            content=body,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{safe_title}.json"'},
+        )
+
+    if format != "markdown":
+        raise HTTPException(status_code=400, detail="format must be 'markdown' or 'json'")
+
+    lines = [
+        f"# {book.title}",
+        f"**Author:** {book.author or 'Unknown'}",
+        "",
+    ]
+
+    if bookmarks:
+        lines.append("## Bookmarks")
+        for bm in bookmarks:
+            title = bm.title or f"Ch. {bm.chapter_index + 1}"
+            lines.append(f"- **{title}** (Chapter {bm.chapter_index + 1})")
+            if bm.notes:
+                lines.append(f"  > {bm.notes}")
+        lines.append("")
+
+    if notes:
+        lines.append("## Notes")
+        for n in notes:
+            lines.append(f"- **Chapter {n.chapter_index + 1}** [{n.color}]")
+            if n.quoted_text:
+                lines.append(f"  > {n.quoted_text}")
+            lines.append(f"  {n.content}")
+        lines.append("")
+
+    if annotations:
+        lines.append("## Annotations")
+        for a in annotations:
+            lines.append(
+                f"- **Chapter {a.chapter_index + 1}** [{a.color}] "
+                f'"{a.text[:100]}{"..." if len(a.text) > 100 else ""}"'
+            )
+            if a.note:
+                lines.append(f"  Note: {a.note}")
+        lines.append("")
+
+    if not bookmarks and not notes and not annotations:
+        lines.append("*No bookmarks, notes, or annotations yet.*")
+
+    return {"book_title": book.title, "markdown": "\n".join(lines)}
+
+
+# ---- Ask this book (item 2.1) ----
+
+MAX_ASK_QUESTION_LENGTH = 500
+
+
+@router.post("/books/{book_id}/ask")
+async def ask_book(
+    book_id: int, request: Request, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Answer a question grounded in the book's indexed content.
+
+    Retrieval scans the book's stored text for windows matching the question
+    terms; the top passages go to the AI provider chain with instructions to
+    cite passage numbers and refuse when the book doesn't cover the topic.
+
+    Raises:
+        HTTPException: 422 on bad input or an unindexed book,
+            503 when no AI provider is reachable.
+    """
+    from sqlalchemy import text
+
+    from app.ai_engine import get_ai_orchestrator
+    from app.exceptions import AIServiceError
+    from app.services.book_qa import select_passages
+
+    body = await request.json()
+    question = (body.get("question") or "").strip()
+    if not question:
+        raise HTTPException(status_code=422, detail="question is required")
+    if len(question) > MAX_ASK_QUESTION_LENGTH:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Question too long (max {MAX_ASK_QUESTION_LENGTH} chars)",
+        )
+
+    result = await db.execute(
+        text("SELECT content FROM books_content_fts WHERE book_id = :b"),
+        {"b": book_id},
+    )
+    row = result.first()
+    if row is None or not row.content:
+        raise HTTPException(
+            status_code=422,
+            detail="This book isn't content-indexed yet — run content indexing first.",
+        )
+
+    passages = select_passages(row.content, question)
+    if not passages:
+        # The question's terms don't appear anywhere in the text.
+        return {
+            "answer": "The book doesn't seem to cover that.",
+            "passages": [],
+            "provider": None,
+        }
+
+    try:
+        orchestrator = await get_ai_orchestrator()
+        answer = await orchestrator.ask(question, passages)
+    except AIServiceError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+
+    return {"answer": answer, "passages": passages, "provider": orchestrator.current_provider}

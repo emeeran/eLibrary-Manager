@@ -1,0 +1,706 @@
+"""Library management service.
+
+Coordinates between repositories, scanner, and business logic
+for library operations.
+"""
+
+import asyncio
+import time
+from datetime import UTC, datetime
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.logging_config import get_logger
+from app.models import Book
+from app.repositories import BookRepository
+from app.scan_progress import ScanCancelledError, ScanProgressStore
+from app.scanner import LibraryScanner
+from app.storage.factory import get_nas_config_from_db, get_storage_backend
+
+logger = get_logger(__name__)
+
+
+def _check_cancel(scan_id: str | None) -> None:
+    """Raise :class:`ScanCancelledError` if the user requested cancellation.
+
+    A single cooperative check point invoked at the top of each scan loop
+    iteration. Keeping it in one place makes the cancellation contract obvious
+    and easy to audit.
+    """
+    if ScanProgressStore.is_cancelled(scan_id):
+        raise ScanCancelledError()
+
+
+# Module-level TTL cache for library stats (avoids re-querying on every list request)
+_stats_cache: tuple[dict, float] | None = None
+_STATS_TTL = 60.0  # seconds — safe to cache longer because invalidate_stats_cache()
+# is called on every mutation (import/delete/scan/hidden-toggle).
+
+
+def invalidate_stats_cache() -> None:
+    """Clear the stats TTL cache. Call after mutations that change book counts."""
+    global _stats_cache
+    _stats_cache = None
+
+
+class LibraryService:
+    """Service for library management operations.
+
+    Coordinates between repositories, scanner, and business logic.
+    """
+
+    def __init__(self, session: AsyncSession) -> None:
+        """Initialize service with database session.
+
+        Args:
+            session: Database session
+        """
+        self.session = session
+        self.book_repo = BookRepository(session)
+        self.scanner = LibraryScanner()
+
+    async def scan_and_import(
+        self,
+        directory: str | None = None,
+        scan_id: str | None = None,
+    ) -> dict:
+        """Scan library directory and import new books.
+
+        If NAS is enabled and healthy, scans both local and NAS directories.
+
+        Args:
+            directory: Directory to scan
+            scan_id: Optional scan ID for progress tracking
+
+        Returns:
+            Dictionary with import statistics
+        """
+        logger.info("Starting library import")
+
+        # Scan local library
+        local_stats = await self._scan_source(
+            scanner=self.scanner,
+            directory=directory,
+            scan_id=scan_id,
+        )
+
+        # Scan NAS if enabled (read settings from DB, not env)
+        nas_cfg = await get_nas_config_from_db(self.session)
+        nas_stats: dict | None = None
+        if nas_cfg["nas_enabled"] and nas_cfg["nas_mount_path"]:
+            nas_storage = get_storage_backend(
+                "nas",
+                mount_path=nas_cfg["nas_mount_path"],
+                host=nas_cfg["nas_host"],
+            )
+            health = await nas_storage.health_check()
+            if health["healthy"]:
+                nas_scanner = LibraryScanner(
+                    storage=nas_storage,
+                    storage_type="nas",
+                )
+                nas_stats = await self._scan_source(
+                    scanner=nas_scanner,
+                    directory=nas_cfg["nas_mount_path"],
+                )
+            else:
+                logger.warning(f"NAS not available: {health['details']}")
+                nas_stats = {
+                    "imported": 0,
+                    "skipped": 0,
+                    "errors": 0,
+                    "total": 0,
+                    "unavailable": True,
+                }
+
+        result = {"local": local_stats}
+        if nas_stats is not None:
+            result["nas"] = nas_stats
+        return result
+
+    async def fast_index(
+        self,
+        directory: str | None = None,
+        scan_id: str | None = None,
+    ) -> dict:
+        """Fast-index library directory — filename-based metadata, no file opening.
+
+        Ideal for large NAS collections (thousands of books).  Full metadata
+        and covers are extracted on-demand when a book is first opened.
+
+        Args:
+            directory: Directory to scan.
+            scan_id: Optional scan ID for progress tracking.
+
+        Returns:
+            Dictionary with import statistics.
+        """
+        import asyncio
+
+        logger.info("Starting fast library index")
+
+        # Build progress callback for the scanner
+        progress_cb = None
+        if scan_id:
+            from app.scan_progress import scan_store
+
+            async def progress_cb(count: int, filename: str) -> None:
+                _check_cancel(scan_id)
+                scan_store.update(
+                    scan_id,
+                    phase="discovering",
+                    processed=count,
+                    current_file=filename,
+                    message=f"Discovering files: {count} found",
+                )
+
+        scanner = self.scanner
+        books_data = await scanner.fast_index_directory(directory, progress_callback=progress_cb)
+
+        if scan_id:
+            from app.scan_progress import scan_store
+
+            scan_store.update(
+                scan_id,
+                phase="importing",
+                total_found=len(books_data),
+                message=f"Importing {len(books_data)} files...",
+            )
+
+        # Load all existing paths in one query for O(1) lookup
+        from sqlalchemy import select
+
+        from app.models import Book as BookModel
+
+        result = await self.session.execute(select(BookModel.path))
+        existing_paths = {row[0] for row in result.all()}
+        logger.info(f"Found {len(existing_paths)} existing books in DB")
+
+        imported = 0
+        skipped = 0
+        errors = 0
+        batch_count = 0
+
+        for i, book_data in enumerate(books_data):
+            _check_cancel(scan_id)
+            try:
+                if book_data.path in existing_paths:
+                    skipped += 1
+                    continue
+
+                # Extract cover for new books
+                cover_path = await scanner.extract_cover(book_data.path)
+                if cover_path:
+                    book_data.cover_path = cover_path
+
+                try:
+                    await self.book_repo.create(book_data)
+                except Exception as create_err:
+                    errors += 1
+                    logger.error(f"Failed to index {book_data.path}: {create_err}")
+                    continue
+
+                existing_paths.add(book_data.path)
+                imported += 1
+                batch_count += 1
+
+                # Commit in batches of 100
+                if batch_count >= 100:
+                    await self.session.commit()
+                    batch_count = 0
+                    await asyncio.sleep(0)
+
+            except Exception as e:
+                errors += 1
+                logger.error(f"Failed to index {book_data.path}: {e}")
+
+            if scan_id and i % 10 == 0:
+                scan_store.update(
+                    scan_id,
+                    processed=i + 1,
+                    imported=imported,
+                    skipped=skipped,
+                    errors=errors,
+                    current_file=book_data.path.split("/")[-1] if book_data.path else "",
+                )
+
+        # Final commit
+        if batch_count > 0:
+            if scan_id:
+                from app.scan_progress import scan_store
+
+                scan_store.update(
+                    scan_id,
+                    phase="committing",
+                    message="Committing imported books...",
+                )
+            await self.session.commit()
+
+        local_stats = {
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors,
+            "total": len(books_data),
+        }
+        logger.info(
+            f"Fast index local complete: {imported} added, {skipped} skipped, {errors} errors"
+        )
+
+        # Scan NAS if enabled (read settings from DB)
+        nas_stats: dict | None = None
+        nas_cfg = await get_nas_config_from_db(self.session)
+        if nas_cfg["nas_enabled"] and nas_cfg["nas_mount_path"]:
+            if scan_id:
+                from app.scan_progress import scan_store
+
+                scan_store.update(
+                    scan_id,
+                    phase="checking_nas",
+                    message=f"Checking NAS at {nas_cfg['nas_host']}...",
+                )
+            nas_storage = get_storage_backend(
+                "nas",
+                mount_path=nas_cfg["nas_mount_path"],
+                host=nas_cfg["nas_host"],
+            )
+            health = await nas_storage.health_check()
+            if health["healthy"]:
+                if scan_id:
+                    scan_store.update(
+                        scan_id,
+                        phase="scanning_nas",
+                        message="Indexing NAS...",
+                    )
+                nas_scanner = LibraryScanner(
+                    storage=nas_storage,
+                    storage_type="nas",
+                )
+                nas_stats = await self._fast_index_source(
+                    scanner=nas_scanner,
+                    directory=nas_cfg["nas_mount_path"],
+                    scan_id=scan_id,
+                )
+            else:
+                logger.warning(f"NAS not available for fast index: {health['details']}")
+                nas_stats = {
+                    "imported": 0,
+                    "skipped": 0,
+                    "errors": 0,
+                    "total": 0,
+                    "unavailable": True,
+                }
+
+        result: dict = {"local": local_stats}
+        if nas_stats is not None:
+            result["nas"] = nas_stats
+        return result
+
+    async def _scan_source(
+        self,
+        scanner: LibraryScanner,
+        directory: str | None = None,
+        scan_id: str | None = None,
+    ) -> dict:
+        """Scan a single source directory and import books.
+
+        Args:
+            scanner: Configured scanner instance.
+            directory: Directory to scan.
+            scan_id: Optional scan ID for progress tracking.
+
+        Returns:
+            Dictionary with import statistics.
+        """
+        books_data = await scanner.scan_directory(directory)
+
+        if scan_id:
+            from app.scan_progress import scan_store
+
+            scan_store.update(
+                scan_id,
+                phase="importing",
+                total_found=len(books_data),
+                message=f"Importing {len(books_data)} files...",
+            )
+
+        imported = 0
+        skipped = 0
+        errors = 0
+
+        for i, book_data in enumerate(books_data):
+            _check_cancel(scan_id)
+            try:
+                existing = await self.book_repo.get_by_path(book_data.path)
+                if existing:
+                    skipped += 1
+                    logger.debug(f"Skipping existing book: {book_data.title}")
+                    continue
+
+                cover_path = await scanner.extract_cover(book_data.path)
+                if cover_path:
+                    book_data.cover_path = cover_path
+
+                await self.book_repo.create(book_data)
+                imported += 1
+                logger.info(f"Imported: {book_data.title}")
+
+            except Exception as e:
+                errors += 1
+                logger.error(f"Failed to import {book_data.path}: {e}")
+
+            if scan_id and i % 10 == 0:
+                scan_store.update(
+                    scan_id,
+                    processed=i + 1,
+                    imported=imported,
+                    skipped=skipped,
+                    errors=errors,
+                    current_file=book_data.path.split("/")[-1] if book_data.path else "",
+                )
+
+        logger.info(f"Import complete: {imported} added, {skipped} skipped, {errors} errors")
+
+        return {
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors,
+            "total": len(books_data),
+        }
+
+    async def _fast_index_source(
+        self,
+        scanner: LibraryScanner,
+        directory: str | None = None,
+        scan_id: str | None = None,
+    ) -> dict:
+        """Fast-index a single source directory.
+
+        Args:
+            scanner: Configured scanner instance (local or NAS).
+            directory: Directory to scan.
+            scan_id: Optional scan ID for progress tracking.
+
+        Returns:
+            Dictionary with import statistics.
+        """
+        import asyncio
+
+        # Progress callback so the NAS discovery phase reports live counts too.
+        progress_cb = None
+        if scan_id:
+            from app.scan_progress import scan_store
+
+            async def progress_cb(count: int, filename: str) -> None:
+                _check_cancel(scan_id)
+                scan_store.update(
+                    scan_id,
+                    phase="scanning_nas",
+                    processed=count,
+                    current_file=filename,
+                    message=f"Scanning NAS: {count} files",
+                )
+
+        books_data = await scanner.fast_index_directory(directory, progress_callback=progress_cb)
+
+        from sqlalchemy import select
+
+        from app.models import Book as BookModel
+
+        result = await self.session.execute(select(BookModel.path))
+        existing_paths = {row[0] for row in result.all()}
+
+        # Accumulate NAS file count into the scan total so the progress bar
+        # reflects the combined local+NAS workload instead of stalling past 100%.
+        if scan_id:
+            from app.scan_progress import scan_store
+
+            cur = scan_store.get(scan_id)
+            base_total = cur.total_found if cur else 0
+            scan_store.update(
+                scan_id,
+                phase="scanning_nas",
+                total_found=base_total + len(books_data),
+                message=f"Importing {len(books_data)} NAS files...",
+            )
+
+        imported = 0
+        skipped = 0
+        errors = 0
+        batch_count = 0
+
+        for i, book_data in enumerate(books_data):
+            _check_cancel(scan_id)
+            try:
+                if book_data.path in existing_paths:
+                    skipped += 1
+                    continue
+
+                # Covers are deferred: extract_cover opens each ebook, which is
+                # impractically slow over network mounts (CIFS/autofs) — 10k+ file
+                # opens stall the scan in D-state. fast_index stays filename-only
+                # by intent; populate covers later via the reader (on open) or a
+                # "refresh covers" pass. The grid shows generated placeholders until then.
+
+                try:
+                    await self.book_repo.create(book_data)
+                except Exception as create_err:
+                    errors += 1
+                    logger.error(f"Failed to index {book_data.path}: {create_err}")
+                    continue
+
+                existing_paths.add(book_data.path)
+                imported += 1
+                batch_count += 1
+
+                if batch_count >= 100:
+                    await self.session.commit()
+                    batch_count = 0
+                    await asyncio.sleep(0)
+
+            except Exception as e:
+                errors += 1
+                logger.error(f"Failed to index {book_data.path}: {e}")
+
+            # Live progress during the (slow, cover-extracting) NAS import so
+            # the UI never freezes between discovery and completion.
+            if scan_id and i % 25 == 0:
+                from app.scan_progress import scan_store
+
+                cur2 = scan_store.get(scan_id)
+                base_proc = (cur2.total_found - len(books_data)) if cur2 else 0
+                scan_store.update(
+                    scan_id,
+                    phase="scanning_nas",
+                    processed=base_proc + i + 1,
+                    imported=(cur2.imported if cur2 else 0) + imported,
+                    skipped=(cur2.skipped if cur2 else 0) + skipped,
+                    errors=(cur2.errors if cur2 else 0) + errors,
+                    current_file=book_data.path.split("/")[-1] if book_data.path else "",
+                )
+
+        if batch_count > 0:
+            await self.session.commit()
+
+        logger.info(
+            f"Fast index source complete: {imported} added, {skipped} skipped, {errors} errors"
+        )
+
+        return {
+            "imported": imported,
+            "skipped": skipped,
+            "errors": errors,
+            "total": len(books_data),
+        }
+
+    async def import_book(self, file_path: str) -> Book:
+        """Import a single book file.
+
+        Args:
+            file_path: Absolute path to book file
+
+        Returns:
+            Imported Book instance or existing one
+
+        Raises:
+            LibraryScannerError: If file not supported or scan fails
+        """
+        book_data = await self.scanner.extract_metadata(file_path)
+
+        existing = await self.book_repo.get_by_path(book_data.path)
+        if existing:
+            logger.info(f"Book already exists: {book_data.title}")
+            return existing
+
+        cover_path = await self.scanner.extract_cover(book_data.path)
+        if cover_path:
+            book_data.cover_path = cover_path
+
+        book = await self.book_repo.create(book_data)
+        logger.info(f"Imported book: {book.title}")
+
+        # Auto-categorize if subjects extracted
+        if hasattr(book_data, "subjects") and book_data.subjects:
+            from app.services.categorization_service import CategorizationService
+
+            cat_service = CategorizationService(self.session)
+            await cat_service.rule_based_categorize(book, book_data.subjects)
+
+        return book
+
+    async def get_book(self, book_id: int) -> Book:
+        """Get a book by ID.
+
+        Args:
+            book_id: Book primary key
+
+        Returns:
+            Book instance
+
+        Raises:
+            ResourceNotFoundError: If book not found
+        """
+        book = await self.book_repo.get_by_id_or_404(book_id)
+        book.last_read_date = datetime.now(UTC)
+        await self.session.flush()
+        return book
+
+    async def list_books(
+        self,
+        page: int = 1,
+        page_size: int = 20,
+        favorite_only: bool = False,
+        recent_only: bool = False,
+        reading_only: bool = False,
+        search: str | None = None,
+        format_filter: str | None = None,
+        sort_by: str = "added_date",
+        sort_order: str = "desc",
+        source_filter: str | None = None,
+        category_id: int | None = None,
+        hidden_only: bool = False,
+        show_hidden: bool = False,
+        directory_filter: str | None = None,
+        series_filter: list[str] | None = None,
+        rating_min: int | None = None,
+        reading_status: str | None = None,
+        cursor: str | None = None,
+    ) -> tuple[list[Book], int]:
+        """List books with pagination, filters, and sorting."""
+        skip = (page - 1) * page_size
+
+        return await self.book_repo.list_with_count(
+            skip=skip,
+            limit=page_size,
+            favorite_only=favorite_only,
+            recent_only=recent_only,
+            reading_only=reading_only,
+            reading_status=reading_status,
+            search=search,
+            format_filter=format_filter,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            source_filter=source_filter,
+            category_id=category_id,
+            hidden_only=hidden_only,
+            show_hidden=show_hidden,
+            directory_filter=directory_filter,
+            series_filter=series_filter,
+            rating_min=rating_min,
+            cursor=cursor,
+        )
+
+    async def get_library_stats(self) -> dict:
+        """Get library statistics using aggregate queries.
+
+        Results are cached for 10 seconds to avoid hammering the database
+        on every list request.
+        """
+        global _stats_cache
+
+        if _stats_cache is not None:
+            cached_stats, cached_time = _stats_cache
+            if time.time() - cached_time < _STATS_TTL:
+                return cached_stats
+
+        from sqlalchemy import func, select
+
+        from app.models import Book
+
+        result = await self.session.execute(
+            select(
+                func.count(Book.id).filter(Book.is_deleted.is_(False)),
+                func.count().filter(Book.is_favorite, Book.is_deleted.is_(False)),
+                func.count().filter(Book.is_recent, Book.is_deleted.is_(False)),
+                func.count().filter(Book.progress > 0, Book.is_deleted.is_(False)),
+                func.coalesce(func.sum(Book.file_size).filter(Book.is_deleted.is_(False)), 0),
+                func.count().filter(Book.is_hidden, Book.is_deleted.is_(False)),
+                func.count().filter(Book.is_deleted),
+                func.count().filter(
+                    Book.reading_status == "to_read", Book.is_deleted.is_(False)
+                ),
+            )
+        )
+        row = result.one()
+
+        stats = {
+            "total_books": row[0] or 0,
+            "favorite_books": row[1] or 0,
+            "recent_books": row[2] or 0,
+            "reading_books": row[3] or 0,
+            "total_size_bytes": row[4] or 0,
+            "deleted_books": row[6] or 0,  # soft-deleted (pruned from Calibre)
+            "hidden_books": row[5] or 0,
+            "to_read_books": row[7] or 0,
+        }
+        _stats_cache = (stats, time.time())
+        return stats
+
+    async def get_sidebar_counts(self, deleted_override: int | None = None) -> dict[str, int]:
+        """Get sidebar counts from cached stats.
+
+        Args:
+            deleted_override: If provided, overrides the deleted count.
+
+        Returns:
+            Dict with all, recent, favorites, reading, deleted, hidden counts.
+        """
+        stats = await self.get_library_stats()
+        return {
+            "all": stats.get("total_books", 0),
+            "recent": stats.get("recent_books", 0),
+            "favorites": stats.get("favorite_books", 0),
+            "reading": stats.get("reading_books", 0),
+            "deleted": deleted_override
+            if deleted_override is not None
+            else stats.get("deleted_books", 0),
+            "hidden": stats.get("hidden_books", 0),
+            "to_read": stats.get("to_read_books", 0),
+        }
+
+    async def refresh_covers(self, force: bool = False) -> dict:
+        """Re-extract covers for books missing them or all books if forced.
+
+        Processes in batches to limit memory usage.
+
+        Args:
+            force: If True, re-extract all covers. If False, only missing ones.
+
+        Returns:
+            Dictionary with refresh statistics
+        """
+        updated = 0
+        skipped = 0
+        errors = []
+        total = 0
+        offset = 0
+        batch_size = 100
+        semaphore = asyncio.Semaphore(5)
+
+        async def _extract_cover(book: Book) -> None:
+            nonlocal updated, skipped
+            if book.cover_path and not force:
+                skipped += 1
+                return
+            try:
+                async with semaphore:
+                    cover_path = await self.scanner.extract_cover(book.path)
+                if cover_path:
+                    book.cover_path = cover_path
+                    updated += 1
+                else:
+                    skipped += 1
+            except Exception as e:
+                errors.append({"book_id": book.id, "error": str(e)})
+                logger.warning(f"Failed to extract cover for {book.title}: {e}")
+
+        while True:
+            batch = await self.book_repo.list_all(limit=batch_size, offset=offset)
+            if not batch:
+                break
+
+            total += len(batch)
+            await asyncio.gather(*[_extract_cover(book) for book in batch])
+            await self.session.flush()
+            offset += batch_size
+
+        return {"updated": updated, "skipped": skipped, "errors": errors, "total": total}
