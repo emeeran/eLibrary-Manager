@@ -30,6 +30,14 @@ function syncSettingsToServer() {
             localStorage.getItem("reader-page-turn-animation") || "none",
           tts_speed: (localStorage.getItem("tts-speed") || "1.0").toString(),
           tts_pitch: parseFloat(localStorage.getItem("tts-pitch") || "1.0"),
+          // Spec 006 v1.2 playback controls (Moon+ parity)
+          tts_sentence_interval:
+            parseInt(
+              localStorage.getItem("dawnstar_tts_sentence_interval"),
+              10,
+            ) || 0,
+          tts_char_filter:
+            localStorage.getItem("dawnstar_tts_char_filter") || "",
         }),
       });
     } catch (e) {
@@ -72,6 +80,14 @@ function initReaderPreferences() {
           localStorage.setItem("tts-speed", server.tts_speed);
         if (server.tts_pitch)
           localStorage.setItem("tts-pitch", String(server.tts_pitch));
+        // Spec 006 v1.2 playback controls (Moon+ parity)
+        if (server.tts_sentence_interval !== undefined && server.tts_sentence_interval !== null)
+          localStorage.setItem(
+            "dawnstar_tts_sentence_interval",
+            String(server.tts_sentence_interval),
+          );
+        if (server.tts_char_filter !== undefined && server.tts_char_filter !== null)
+          localStorage.setItem("dawnstar_tts_char_filter", server.tts_char_filter);
       }
       applyPreferences();
     })
@@ -144,6 +160,21 @@ function applyPreferences() {
   const savedAnimation =
     localStorage.getItem("reader-page-turn-animation") || "none";
   setPageTurnAnimation(savedAnimation, { sync: false });
+
+  // Spec 006 v1.2: reflect TTS playback controls in the settings panel.
+  const savedInterval =
+    parseInt(localStorage.getItem("dawnstar_tts_sentence_interval"), 10) || 0;
+  const intervalSlider = document.getElementById("tts-sentence-interval");
+  if (intervalSlider) intervalSlider.value = savedInterval;
+  const intervalDisplay = document.getElementById(
+    "tts-sentence-interval-value",
+  );
+  if (intervalDisplay)
+    intervalDisplay.textContent = savedInterval === 0 ? "Off" : `${savedInterval} ms`;
+  const charFilterInput = document.getElementById("tts-char-filter-input");
+  if (charFilterInput)
+    charFilterInput.value =
+      localStorage.getItem("dawnstar_tts_char_filter") || "";
 
   // Initialization complete — enable settings sync
   _initializing = false;

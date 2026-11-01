@@ -90,6 +90,8 @@ DEFAULTS: SettingsResponse = SettingsResponse(
     theme="day",
     tts_speed="1.0",
     tts_pitch=1.0,
+    tts_sentence_interval=0,
+    tts_char_filter="",
     ai_provider="auto",
     ollama_url="http://localhost:11434",
     auto_flip=False,
@@ -156,6 +158,14 @@ def _build_response(stored: dict[str, str]) -> SettingsResponse:
         theme=_str("theme") or defaults["theme"],
         tts_speed=_str("tts_speed") or defaults["tts_speed"],
         tts_pitch=_float("tts_pitch") if _str("tts_pitch") is not None else defaults["tts_pitch"],
+        tts_sentence_interval=(
+            _int("tts_sentence_interval")
+            if _str("tts_sentence_interval") is not None
+            else defaults["tts_sentence_interval"]
+        ),
+        tts_char_filter=_str("tts_char_filter")
+        if _str("tts_char_filter") is not None
+        else defaults["tts_char_filter"],
         tts_engine=_str("tts_engine") or "edgetts",
         tts_voice=_str("tts_voice") or "",
         ai_provider=_str("ai_provider") or cfg.ai_default_provider,

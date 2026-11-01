@@ -1,8 +1,8 @@
 # SPEC-006: Text-to-Speech
 
 - **Status:** Active
-- **Version:** 1.1.0
-- **Last Updated:** 2026-09-21
+- **Version:** 1.2.0
+- **Last Updated:** 2026-11-01
 
 ## Purpose
 
@@ -173,6 +173,40 @@ Provides read-aloud functionality for ebook content using multiple TTS engines w
 **And** voices are loaded from `window.speechSynthesis.getVoices()`
 **And** rate/pitch are applied via `SpeechSynthesisUtterance` properties
 
+### Playback Controls v1.2 (Moon+ parity)
+
+#### AC-006.24: Sentence Interval
+**Given** server-side TTS is speaking chapter content split into segments
+**When** the sentence-interval setting (`dawnstar_tts_sentence_interval`, ms) is greater than 0
+**Then** playback waits the configured interval between consecutive segment audios
+**And** 0 (the default) plays segments back-to-back
+**And** the value persists in `localStorage` and syncs to the server as the `tts_sentence_interval` settings key (0–2000)
+**Note:** applies to the server engines' segment pipeline; the browser engine speaks a single utterance and has no inter-segment gap.
+
+#### AC-006.25: Character Filter
+**Given** the character-filter setting (`dawnstar_tts_char_filter`) contains characters to strip (e.g. `*#_`)
+**When** chapter content or selected text is spoken
+**Then** every occurrence of each filtered character is removed from the text before synthesis
+**And** the filter persists in `localStorage` and syncs to the server as the `tts_char_filter` settings key (max 100 chars)
+
+#### AC-006.26: Sleep Timer
+**Given** TTS is active or about to start
+**When** the user picks a sleep-timer value (Off / 5 / 10 / 15 / 30 / 60 minutes) in the reader TTS panel
+**Then** a session-scoped timer is armed that stops playback and shows a toast when it fires
+**And** selecting "Off" cancels any armed timer
+**And** the timer is intentionally not persisted (session-only, Moon+ "Stop TTS after N minutes")
+
+#### AC-006.27: Media Session Integration
+**Given** the browser supports `navigator.mediaSession`
+**When** TTS playback starts
+**Then** play/pause/stop hardware media keys and OS media controls control the current session
+**And** when TTS stops, media session metadata is cleared
+
+#### AC-006.28: TTS Control Settings API Keys
+**Given** the settings API (`GET/POST /api/settings`)
+**Then** `tts_sentence_interval` (int, 0–2000, default 0) and `tts_char_filter` (string, max 100, default `""`) round-trip through the settings store
+**And** out-of-range or over-length values respond HTTP 422 and store nothing
+
 ---
 
 ## API Contract
@@ -267,6 +301,11 @@ Provides read-aloud functionality for ebook content using multiple TTS engines w
 | Voice selection | — | — | GAP |
 | Speed/pitch sliders | — | — | GAP |
 | Browser TTS client-side | — | — | GAP |
+| Sentence interval (v1.2) | — | — | GAP (frontend; requires Playwright/E2E) |
+| Character filter (v1.2) | — | — | GAP (frontend; requires Playwright/E2E) |
+| Sleep timer (v1.2) | — | — | GAP (frontend; requires Playwright/E2E) |
+| Media session integration (v1.2) | — | — | GAP (frontend; requires Playwright/E2E) |
+| TTS control settings keys (v1.2) | tests/test_tts_controls.py | test_tts_control_settings_roundtrip, test_tts_control_settings_validation | Covered |
 
 ---
 

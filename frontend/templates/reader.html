@@ -502,6 +502,33 @@
                         </div>
                     </div>
 
+                    <!-- Read Aloud Controls (spec 006 v1.2, Moon+ parity) -->
+                    <div class="ic-settings-group">
+                        <div class="ic-settings-group-label">Read Aloud Controls</div>
+                        <div class="ic-line-spacing-control">
+                            <span class="ic-slider-label">Interval</span>
+                            <input type="range" id="tts-sentence-interval"
+                                   min="0" max="2000" step="50" value="0"
+                                   oninput="tts.setSentenceInterval(this.value)"
+                                   aria-label="Pause between spoken segments in milliseconds">
+                            <span class="ic-line-spacing-value" id="tts-sentence-interval-value">Off</span>
+                        </div>
+                        <input type="text" class="ic-clearable-edit-text" id="tts-char-filter-input"
+                               maxlength="100" placeholder="Skip characters (e.g. *#_)"
+                               onchange="tts.setCharFilter(this.value)"
+                               aria-label="Characters to skip when reading aloud">
+                        <select class="ic-font-select" id="tts-sleep-timer-select"
+                                onchange="tts.armSleepTimer(this.value)"
+                                aria-label="Stop read aloud after">
+                            <option value="0">Sleep timer: Off</option>
+                            <option value="5">Stop after 5 min</option>
+                            <option value="10">Stop after 10 min</option>
+                            <option value="15">Stop after 15 min</option>
+                            <option value="30">Stop after 30 min</option>
+                            <option value="60">Stop after 60 min</option>
+                        </select>
+                    </div>
+
                     <!-- AI Providers Section -->
                     <div class="ic-settings-group">
                         <div class="ic-settings-group-label">AI Providers</div>
@@ -681,7 +708,7 @@
     <script src="/static/js/lib/api.js?v=1"></script>
     <script src="/static/js/lib/storage.js?v=1"></script>
     <script src="/static/js/lib/notify.js?v=2"></script>
-    <script src="/static/js/tts.js?v=2"></script>
+    <script src="/static/js/tts.js?v=3"></script>
     <script src="/static/js/reader/state.js?v=43"></script>
     <script src="/static/js/reader/ui.js?v=42"></script>
     <script src="/static/js/reader/settings.js?v=43"></script>

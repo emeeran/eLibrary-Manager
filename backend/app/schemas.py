@@ -342,6 +342,10 @@ class SettingsCreate(BaseModel):
     theme: str | None = Field(None, max_length=30)
     tts_speed: str | None = Field(None, max_length=10)
     tts_pitch: float | None = Field(None, ge=0.5, le=2.0)
+    # TTS playback controls (spec 006 v1.2, Moon+ parity): pause between
+    # spoken segments and a character blacklist stripped before synthesis.
+    tts_sentence_interval: int | None = Field(None, ge=0, le=2000)
+    tts_char_filter: str | None = Field(None, max_length=100)
     tts_engine: str | None = Field(None, max_length=20)
     tts_voice: str | None = Field(None, max_length=100)
     ai_provider: str | None = Field(None, pattern="^(auto|google|groq|ollama)$")
@@ -388,6 +392,8 @@ class SettingsResponse(BaseModel):
     theme: str
     tts_speed: str
     tts_pitch: float
+    tts_sentence_interval: int = 0
+    tts_char_filter: str = ""
     tts_engine: str = "edgetts"
     tts_voice: str = ""
     ai_provider: str
