@@ -70,9 +70,13 @@
 
       this.utterance.onstart = () => {
         updateTTSButtonState("playing");
+        // Spec 006 v1.2 (AC-006.27): OS media controls drive this session.
+        _bindMediaSession(text.slice(0, 60));
       };
       this.utterance.onend = () => {
         updateTTSButtonState("idle");
+        // Spec 006 v1.2 (AC-006.27): release OS media controls.
+        _clearMediaSession();
       };
       this.utterance.onpause = () => {
         updateTTSButtonState("paused");
@@ -247,6 +251,8 @@
         isServerLoading = false;
         await audioElement.play();
         audioElement._objectUrl = objectUrl;
+        // Spec 006 v1.2 (AC-006.27): OS media controls drive this session.
+        _bindMediaSession(segments[0].slice(0, 60));
 
         // Start highlighting for segment 0
         _startSegmentTracking(0);
@@ -276,6 +282,16 @@
           });
 
           if (!this.isPlaying) break;
+
+          // Spec 006 v1.2 (AC-006.24): configured pause between spoken
+          // segments (Moon+ "Speaking Interval"). 0 = back-to-back.
+          const intervalMs = getTTSSentenceInterval();
+          if (intervalMs > 0) {
+            await new Promise((resolve) =>
+              setTimeout(resolve, intervalMs),
+            );
+            if (!this.isPlaying) break;
+          }
 
           // Use prefetched blob or fetch now
           const blob =
@@ -341,6 +357,8 @@
       this.isPaused = false;
       updateTTSButtonState("idle");
       clearHighlights();
+      // Spec 006 v1.2 (AC-006.27): release OS media controls.
+      _clearMediaSession();
     }
 
     isSpeaking() {
@@ -627,7 +645,8 @@
     const text = chapterTextEl.innerText || chapterTextEl.textContent;
     if (!text || !text.trim()) return;
 
-    const plainText = text.replace(/\s+/g, " ").trim();
+    // Spec 006 v1.2 (AC-006.25): strip filtered characters before synthesis.
+    const plainText = applyTTSCharFilter(text.replace(/\s+/g, " ").trim());
 
     const rate = parseFloat(localStorage.getItem("dawnstar_tts_rate") || "1.0");
     const voiceValue = localStorage.getItem(
@@ -657,7 +676,8 @@
    * (powering speak-selection / speak-from-cursor).
    */
   async function speakText(text) {
-    const plain = (text || "").replace(/\s+/g, " ").trim();
+    // Spec 006 v1.2 (AC-006.25): strip filtered characters before synthesis.
+    const plain = applyTTSCharFilter((text || "").replace(/\s+/g, " ").trim());
     if (!plain) return;
     const rate = parseFloat(localStorage.getItem("dawnstar_tts_rate") || "1.0");
     const voiceValue = localStorage.getItem(
@@ -1168,6 +1188,137 @@
     return new Blob(chunks, { type: "audio/mpeg" });
   }
 
+  // ------------------------------------------------------------------ //
+  // Playback controls (spec 006 v1.2, Moon+ parity)                     //
+  // ------------------------------------------------------------------ //
+
+  /**
+   * Configured pause between spoken segments in ms (AC-006.24).
+   * @returns {number} interval in ms, 0 = off
+   */
+  function getTTSSentenceInterval() {
+    const v = parseInt(
+      localStorage.getItem("dawnstar_tts_sentence_interval"),
+      10,
+    );
+    return Number.isFinite(v) && v > 0 ? Math.min(v, 2000) : 0;
+  }
+
+  /**
+   * Set the sentence interval and persist it.
+   * @param {number} ms - Interval in ms (0 = off, max 2000)
+   */
+  function setTTSSentenceInterval(ms) {
+    const v = Math.max(0, Math.min(2000, parseInt(ms, 10) || 0));
+    localStorage.setItem("dawnstar_tts_sentence_interval", String(v));
+    const display = document.getElementById("tts-sentence-interval-value");
+    if (display) display.textContent = v === 0 ? "Off" : `${v} ms`;
+    if (window.IcecreamReader) window.syncSettingsToServer();
+  }
+
+  /**
+   * Strip every character of the configured filter from text before
+   * synthesis (AC-006.25).
+   * @param {string} text - Text about to be spoken
+   * @returns {string} filtered text
+   */
+  function applyTTSCharFilter(text) {
+    const filter = localStorage.getItem("dawnstar_tts_char_filter") || "";
+    if (!filter || !text) return text;
+    const escaped = filter.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return text.replace(new RegExp(`[${escaped}]`, "g"), "");
+  }
+
+  /**
+   * Set the character filter and persist it (AC-006.25).
+   * @param {string} chars - Characters to strip before speaking
+   */
+  function setTTSCharFilter(chars) {
+    localStorage.setItem("dawnstar_tts_char_filter", (chars || "").slice(0, 100));
+    if (window.IcecreamReader) window.syncSettingsToServer();
+  }
+
+  // Sleep timer (AC-006.26) — session-scoped by design.
+  let _ttsSleepTimerId = null;
+
+  /**
+   * Arm (or re-arm) the TTS sleep timer.
+   * @param {number} minutes - Minutes until playback stops; 0 cancels
+   */
+  function armTTSSleepTimer(minutes) {
+    if (_ttsSleepTimerId) {
+      clearTimeout(_ttsSleepTimerId);
+      _ttsSleepTimerId = null;
+    }
+    const mins = parseInt(minutes, 10) || 0;
+    if (mins <= 0) {
+      window.notify?.("TTS sleep timer off", { type: "info" });
+      return;
+    }
+    _ttsSleepTimerId = setTimeout(() => {
+      _ttsSleepTimerId = null;
+      getTTS()?.stop();
+      window.notify?.(`TTS stopped — sleep timer (${mins} min) elapsed`, {
+        type: "info",
+      });
+    }, mins * 60 * 1000);
+    window.notify?.(`TTS will stop in ${mins} min`, { type: "info" });
+  }
+
+  /**
+   * Cancel the armed sleep timer without stopping playback.
+   */
+  function cancelTTSSleepTimer() {
+    if (_ttsSleepTimerId) {
+      clearTimeout(_ttsSleepTimerId);
+      _ttsSleepTimerId = null;
+      window.notify?.("TTS sleep timer cancelled", { type: "info" });
+    }
+  }
+
+  // Media Session integration (AC-006.27): hardware media keys / OS media
+  // controls drive the current TTS session.
+  const _mediaSessionSupported =
+    typeof navigator !== "undefined" && "mediaSession" in navigator;
+
+  /**
+   * Bind play/pause/stop media-session actions to the live TTS instance.
+   * @param {string} title - Track title shown in the OS media UI
+   */
+  function _bindMediaSession(title) {
+    if (!_mediaSessionSupported) return;
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: title || "eLibrary Read Aloud",
+        artist: "eLibrary Manager",
+      });
+      navigator.mediaSession.setActionHandler("play", () =>
+        getTTS()?.resume(),
+      );
+      navigator.mediaSession.setActionHandler("pause", () =>
+        getTTS()?.pause(),
+      );
+      navigator.mediaSession.setActionHandler("stop", () => getTTS()?.stop());
+    } catch {
+      // MediaSession API quirks (e.g. unsupported action) are non-fatal.
+    }
+  }
+
+  /**
+   * Clear media-session metadata and handlers when TTS stops.
+   */
+  function _clearMediaSession() {
+    if (!_mediaSessionSupported) return;
+    try {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+      navigator.mediaSession.setActionHandler("stop", null);
+    } catch {
+      // Non-fatal.
+    }
+  }
+
   // Export public API
   window.tts = {
     speak: (text, options) => getTTS()?.speak(text, options),
@@ -1193,6 +1344,14 @@
     },
     getRate: () =>
       parseFloat(localStorage.getItem("dawnstar_tts_rate") || "1.0"),
+    // Playback controls (spec 006 v1.2)
+    setSentenceInterval: setTTSSentenceInterval,
+    getSentenceInterval: getTTSSentenceInterval,
+    setCharFilter: setTTSCharFilter,
+    getCharFilter: () =>
+      localStorage.getItem("dawnstar_tts_char_filter") || "",
+    armSleepTimer: armTTSSleepTimer,
+    cancelSleepTimer: cancelTTSSleepTimer,
     setVolume: (volume) => {
       if (audioElement) {
         audioElement.volume = Math.max(0, Math.min(1, volume / 100));

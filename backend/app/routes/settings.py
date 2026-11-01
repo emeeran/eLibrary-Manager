@@ -81,6 +81,8 @@ DEFAULTS: SettingsResponse = SettingsResponse(
     auto_scan=False,
     watch_changes=False,
     page_layout="single",
+    auto_scroll_speed=0,
+    page_turn_animation="none",
     text_align="justify",
     font_size=100,
     font_family="georgia",
@@ -88,6 +90,8 @@ DEFAULTS: SettingsResponse = SettingsResponse(
     theme="day",
     tts_speed="1.0",
     tts_pitch=1.0,
+    tts_sentence_interval=0,
+    tts_char_filter="",
     ai_provider="auto",
     ollama_url="http://localhost:11434",
     auto_flip=False,
@@ -140,6 +144,13 @@ def _build_response(stored: dict[str, str]) -> SettingsResponse:
         if _str("watch_changes") is not None
         else defaults["watch_changes"],
         page_layout=_str("page_layout") or defaults["page_layout"],
+        auto_scroll_speed=(
+            _int("auto_scroll_speed")
+            if _str("auto_scroll_speed") is not None
+            else defaults["auto_scroll_speed"]
+        ),
+        page_turn_animation=_str("page_turn_animation")
+        or defaults["page_turn_animation"],
         text_align=_str("text_align") or defaults["text_align"],
         font_size=_int("font_size") or defaults["font_size"],
         font_family=_str("font_family") or defaults["font_family"],
@@ -147,6 +158,14 @@ def _build_response(stored: dict[str, str]) -> SettingsResponse:
         theme=_str("theme") or defaults["theme"],
         tts_speed=_str("tts_speed") or defaults["tts_speed"],
         tts_pitch=_float("tts_pitch") if _str("tts_pitch") is not None else defaults["tts_pitch"],
+        tts_sentence_interval=(
+            _int("tts_sentence_interval")
+            if _str("tts_sentence_interval") is not None
+            else defaults["tts_sentence_interval"]
+        ),
+        tts_char_filter=_str("tts_char_filter")
+        if _str("tts_char_filter") is not None
+        else defaults["tts_char_filter"],
         tts_engine=_str("tts_engine") or "edgetts",
         tts_voice=_str("tts_voice") or "",
         ai_provider=_str("ai_provider") or cfg.ai_default_provider,

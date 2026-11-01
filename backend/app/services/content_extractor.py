@@ -18,6 +18,7 @@ returns an empty string so the caller can mark it ``empty`` rather than looping.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 from app.logging_config import get_logger
 
@@ -47,6 +48,17 @@ def extract_text(path: str, fmt: str) -> str:
             text = _extract_pdf(path)
         elif fmt_norm == "MOBI":
             text = _extract_mobi(path)
+        elif fmt_norm == "FB2":
+            # FB2 is XML: strip tags directly (spec 008 v1.2).
+            from xml.etree import ElementTree
+
+            root = ElementTree.parse(path).getroot()
+            text = " ".join(el.text or "" for el in root.iter() if el.text)
+        elif fmt_norm == "MD":
+            text = Path(path).read_text(encoding="utf-8", errors="replace")
+        elif fmt_norm == "CBZ":
+            # Image archive — no indexable text (spec 008 v1.2).
+            text = ""
         else:
             return ""
     except Exception as e:  # noqa: BLE001 — extraction must never crash the backfill

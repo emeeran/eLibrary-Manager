@@ -445,7 +445,13 @@ async def embed_annotations_to_file(
     for a in annotations:
         if a.text and a.text.strip():
             items.append(
-                EmbedItem(key=f"a{a.id}", quoted=a.text, note=a.note or "", color=a.color or "yellow")
+                EmbedItem(
+                    key=f"a{a.id}",
+                    quoted=a.text,
+                    note=a.note or "",
+                    color=a.color or "yellow",
+                    style=a.style or "highlight",
+                )
             )
     notes = (
         await db.execute(sa_select(Note).where(Note.book_id == book_id))
@@ -675,6 +681,7 @@ async def create_annotation(
         end_position=annotation_data.end_position,
         text=annotation_data.text,
         color=annotation_data.color,
+        style=annotation_data.style,
         note=annotation_data.note,
     )
     return AnnotationResponse.model_validate(annotation)

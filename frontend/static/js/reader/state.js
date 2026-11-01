@@ -21,6 +21,8 @@ const IcecreamReader = {
   loading: false,
   // Layout & Display
   pageLayout: "single",
+  // Page-turn animation mode: "none" | "fade" | "slide" (spec 002 v1.1)
+  pageTurnAnimation: "none",
   fontSize: 15,
   lineHeight: 1.5,
   // Volume

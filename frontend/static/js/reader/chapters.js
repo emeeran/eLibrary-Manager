@@ -324,6 +324,10 @@ function renderChapterData(
     setTimeout(() => contentArea.classList.remove("ic-loaded"), 250);
   }
 
+  // Spec 002 v1.1: replay the configured page-turn animation (fade/slide).
+  // Defined in settings.js; skipped entirely when the setting is "none".
+  applyPageTurnAnimation();
+
   updateTOCHighlight(chapterIndex);
   updateProgress();
   updateNavButtons();

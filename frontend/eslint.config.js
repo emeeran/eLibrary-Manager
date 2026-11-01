@@ -54,7 +54,9 @@ export default [
     // by design (functions in one file are called from siblings and from
     // inline onclick handlers), so no-undef cannot work until phase 6
     // converts them to ES modules with real imports.
-    files: ["static/js/reader/**/*.js"],
+    // opds.js follows the same pattern against library.js's globals
+    // (escapeHtml, loadBooks, openModal).
+    files: ["static/js/reader/**/*.js", "static/js/opds.js"],
     rules: {
       "no-undef": "off",
     },

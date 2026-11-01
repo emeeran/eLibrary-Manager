@@ -75,7 +75,33 @@ function getSelectionOffsets() {
 }
 
 /**
- * Apply highlight and save to API
+ * Current highlight style (spec 005 v1.2, Moon+ parity).
+ * One of: highlight | underline | squiggly | strikethrough.
+ * Persisted as the default so future sessions reuse it.
+ */
+let _currentHighlightStyle =
+  localStorage.getItem("reader-hl-default-style") || "highlight";
+
+/**
+ * Set the highlight style used by the color swatches.
+ * @param {string} style - highlight | underline | squiggly | strikethrough
+ */
+function setHighlightStyle(style) {
+  if (!["highlight", "underline", "squiggly", "strikethrough"].includes(style)) {
+    style = "highlight";
+  }
+  _currentHighlightStyle = style;
+  localStorage.setItem("reader-hl-default-style", style);
+  document
+    .querySelectorAll("#ic-selection-menu .ic-style-btn")
+    .forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.style === style);
+    });
+}
+
+/**
+ * Apply highlight (with the current style) and save to API.
+ * @param {string} color - Highlight color name
  */
 async function applyHighlight(color) {
   if (!currentSelectionRange) return;
@@ -83,8 +109,14 @@ async function applyHighlight(color) {
   const selectedText = currentSelectionRange.toString().trim();
   const offsets = getSelectionOffsets();
 
+  // Moon+ "color template" behavior: the last-used color becomes the
+  // highlighted default swatch for the next session.
+  localStorage.setItem("reader-hl-default-color", color);
+
+  const styleClass =
+    _currentHighlightStyle === "highlight" ? "" : ` style-${_currentHighlightStyle}`;
   const span = document.createElement("span");
-  span.className = `ic-highlight hl-${color}`;
+  span.className = `ic-highlight hl-${color}${styleClass}`;
 
   try {
     currentSelectionRange.surroundContents(span);
@@ -106,6 +138,7 @@ async function applyHighlight(color) {
         end_position: offsets.end,
         text: selectedText,
         color: color,
+        style: _currentHighlightStyle,
       }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -328,7 +361,10 @@ async function loadAnnotations() {
           range.setEnd(node, idx + text.length);
 
           const span = document.createElement("span");
-          span.className = `ic-highlight hl-${anno.color}`;
+          // Spec 005 v1.2: re-apply with the annotation's saved style.
+          const styleClass =
+            anno.style && anno.style !== "highlight" ? ` style-${anno.style}` : "";
+          span.className = `ic-highlight hl-${anno.color}${styleClass}`;
           span.dataset.annotationId = anno.id;
           range.surroundContents(span);
         } catch (e) {
@@ -773,3 +809,11 @@ async function deleteBookmark(bookmarkId) {
     showToast("Failed to remove bookmark", { type: "error" });
   }
 }
+
+/**
+ * Reflect the persisted default highlight style in the selection menu once
+ * the DOM is available (spec 005 v1.2 — Moon+ color-template behavior).
+ */
+document.addEventListener("DOMContentLoaded", () => {
+  setHighlightStyle(_currentHighlightStyle);
+});

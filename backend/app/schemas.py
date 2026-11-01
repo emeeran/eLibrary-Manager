@@ -14,7 +14,7 @@ class BookBase(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=500, description="Book title")
     author: str | None = Field(None, max_length=300, description="Book author")
-    format: str = Field(default="EPUB", pattern="^(EPUB|PDF|MOBI)$")
+    format: str = Field(default="EPUB", pattern="^(EPUB|PDF|MOBI|FB2|CBZ|MD)$")
 
 
 class BookCreate(BookBase):
@@ -262,6 +262,13 @@ class AnnotationBase(BaseModel):
 
     text: str = Field(..., min_length=1, description="Annotated text")
     color: str = Field("yellow", pattern="^(yellow|green|blue|pink|orange)$")
+    # Visual style (spec 005 v1.2, Moon+ parity). Defaults to the legacy
+    # background-highlight behavior.
+    style: str = Field(
+        "highlight",
+        pattern="^(highlight|underline|squiggly|strikethrough)$",
+        description="Highlight visual style",
+    )
     note: str | None = Field(None, description="Optional note attached to annotation")
 
 
@@ -331,6 +338,10 @@ class SettingsCreate(BaseModel):
     auto_scan: bool | None = None
     watch_changes: bool | None = None
     page_layout: str | None = Field(None, pattern="^(single|double|continuous)$")
+    # Reader modes (spec 002 v1.1, Moon+ parity): hands-free scrolling speed
+    # (px/s, 0 = off) and chapter-transition animation.
+    auto_scroll_speed: int | None = Field(None, ge=0, le=1000)
+    page_turn_animation: str | None = Field(None, pattern="^(none|fade|slide)$")
     text_align: str | None = Field(None, pattern="^(justify|left|center)$")
     font_size: int | None = Field(None, ge=8, le=200)
     font_family: str | None = Field(None, max_length=50)
@@ -338,6 +349,10 @@ class SettingsCreate(BaseModel):
     theme: str | None = Field(None, max_length=30)
     tts_speed: str | None = Field(None, max_length=10)
     tts_pitch: float | None = Field(None, ge=0.5, le=2.0)
+    # TTS playback controls (spec 006 v1.2, Moon+ parity): pause between
+    # spoken segments and a character blacklist stripped before synthesis.
+    tts_sentence_interval: int | None = Field(None, ge=0, le=2000)
+    tts_char_filter: str | None = Field(None, max_length=100)
     tts_engine: str | None = Field(None, max_length=20)
     tts_voice: str | None = Field(None, max_length=100)
     ai_provider: str | None = Field(None, pattern="^(auto|google|groq|ollama)$")
@@ -375,6 +390,8 @@ class SettingsResponse(BaseModel):
     auto_scan: bool
     watch_changes: bool
     page_layout: str
+    auto_scroll_speed: int = 0
+    page_turn_animation: str = "none"
     text_align: str
     font_size: int
     font_family: str
@@ -382,6 +399,8 @@ class SettingsResponse(BaseModel):
     theme: str
     tts_speed: str
     tts_pitch: float
+    tts_sentence_interval: int = 0
+    tts_char_filter: str = ""
     tts_engine: str = "edgetts"
     tts_voice: str = ""
     ai_provider: str
@@ -596,3 +615,72 @@ class MaintenanceSummary(BaseModel):
     orphaned_annotations: int
     foreign_keys_enabled: bool
     db_size_bytes: int
+
+
+# ------------------------------------------------------------------ #
+# OPDS catalogs (spec 015)
+# ------------------------------------------------------------------ #
+
+
+class OpdsCatalogCreate(BaseModel):
+    """Payload to register an OPDS catalog."""
+
+    name: str = Field(..., min_length=1, max_length=200, description="Display name")
+    url: str = Field(..., min_length=1, max_length=1000, description="Root feed URL")
+    username: str | None = Field(None, max_length=200, description="Basic-auth username")
+    password: str | None = Field(None, max_length=500, description="Basic-auth password")
+
+
+class OpdsCatalogUpdate(BaseModel):
+    """Payload to update an OPDS catalog (all fields optional)."""
+
+    name: str | None = Field(None, min_length=1, max_length=200)
+    url: str | None = Field(None, min_length=1, max_length=1000)
+    username: str | None = Field(None, max_length=200)
+    password: str | None = Field(None, max_length=500)
+
+
+class OpdsCatalogResponse(BaseModel):
+    """Public view of a catalog — credentials are never included."""
+
+    id: int
+    name: str
+    url: str
+    username: str | None
+    has_password: bool
+    added_date: datetime | None
+    last_browsed: datetime | None
+
+
+class OpdsDownloadLink(BaseModel):
+    """An acquisition link on an OPDS entry."""
+
+    url: str
+    media_type: str | None = None
+
+
+class OpdsEntry(BaseModel):
+    """Normalized OPDS feed entry (navigation or acquisition)."""
+
+    id: str | None = None
+    title: str
+    summary: str | None = None
+    authors: list[str] = Field(default_factory=list)
+    thumbnail_url: str | None = None
+    is_navigation: bool = False
+    download: OpdsDownloadLink | None = None
+
+
+class OpdsFeed(BaseModel):
+    """Normalized OPDS feed returned by the browse proxy."""
+
+    title: str | None = None
+    url: str
+    entries: list[OpdsEntry] = Field(default_factory=list)
+
+
+class OpdsDownloadRequest(BaseModel):
+    """Payload to download an acquisition entry into the library."""
+
+    url: str = Field(..., min_length=1, max_length=1000, description="Acquisition link URL")
+    filename: str = Field(..., min_length=1, max_length=300, description="Target filename")

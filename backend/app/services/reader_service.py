@@ -525,6 +525,7 @@ class ReaderService:
         end_position: int,
         text: str,
         color: str = "yellow",
+        style: str = "highlight",
         note: str | None = None,
     ) -> Annotation:
         """Create a new annotation.
@@ -536,6 +537,7 @@ class ReaderService:
             end_position: End character position
             text: Annotated text
             color: Highlight color
+            style: Highlight visual style (spec 005 v1.2)
             note: Optional note
 
         Returns:
@@ -548,6 +550,7 @@ class ReaderService:
             end_position=end_position,
             text=text,
             color=color,
+            style=style,
             note=note,
         )
         self.session.add(annotation)
